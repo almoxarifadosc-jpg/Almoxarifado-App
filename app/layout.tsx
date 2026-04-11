@@ -13,8 +13,8 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: 'Fluid Architect',
-  description: 'Industrial operations flow control and production management system.',
+  title: 'Almoxarifado App',
+  description: 'Sistema de controle de fluxo de operações industriais e gestão de produção.',
 };
 
 export default function RootLayout({
