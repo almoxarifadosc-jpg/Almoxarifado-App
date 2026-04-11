@@ -38,6 +38,7 @@ export default function Page() {
   const [newsPosts, setNewsPosts] = useState<NewsPost[]>([]);
   const [newsFilter, setNewsFilter] = useState('');
   const [operations, setOperations] = useState<Operation[]>([]);
+  const [productionLines, setProductionLines] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -71,9 +72,10 @@ export default function Page() {
   }, [fetchProfile]);
 
   const fetchData = useCallback(async () => {
-    const [opsRes, newsRes] = await Promise.all([
+    const [opsRes, newsRes, linesRes] = await Promise.all([
       supabase.from('operations').select('*').order('created_at', { ascending: false }),
-      supabase.from('news_posts').select('*').order('created_at', { ascending: false })
+      supabase.from('news_posts').select('*').order('created_at', { ascending: false }),
+      supabase.from('production_lines').select('name').order('name')
     ]);
 
     if (opsRes.data) {
@@ -88,6 +90,19 @@ export default function Page() {
         ...post,
         imageUrl: post.image_url
       })));
+    }
+    if (linesRes.data && linesRes.data.length > 0) {
+      setProductionLines(linesRes.data.map((line: any) => line.name));
+    } else {
+      // Fallback to default lines if table is empty or doesn't exist
+      setProductionLines([
+        "Linha de Montagem A2",
+        "Unidade de Processamento",
+        "Controle de Qualidade B1",
+        "Logística Interna",
+        "Linha de Pintura",
+        "Embalagem Final"
+      ]);
     }
   }, []);
 
@@ -247,6 +262,7 @@ export default function Page() {
           <OperationsView 
             key="operations" 
             operations={operations} 
+            productionLines={productionLines}
             onToggleStep={toggleStep}
             onAddOperation={addOperation}
             onUpdateOperation={updateOperation}

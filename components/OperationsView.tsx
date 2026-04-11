@@ -94,6 +94,7 @@ function OPRow({ op, onToggleStep, onEdit, onDelete, isAdmin }: OPRowProps) {
 
 interface OperationsViewProps {
   operations: Operation[];
+  productionLines: string[];
   onToggleStep: (opId: string, stepIndex: number) => void;
   onAddOperation: (op: Operation) => void;
   onUpdateOperation: (op: Operation) => void;
@@ -101,7 +102,7 @@ interface OperationsViewProps {
   isAdmin?: boolean;
 }
 
-export function OperationsView({ operations, onToggleStep, onAddOperation, onUpdateOperation, onDeleteOperation, isAdmin }: OperationsViewProps) {
+export function OperationsView({ operations, productionLines, onToggleStep, onAddOperation, onUpdateOperation, onDeleteOperation, isAdmin }: OperationsViewProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [opToDelete, setOpToDelete] = useState<string | null>(null);
@@ -115,15 +116,6 @@ export function OperationsView({ operations, onToggleStep, onAddOperation, onUpd
   const [endDate, setEndDate] = useState(getTodayISO());
   const [filterOP, setFilterOP] = useState('');
 
-  const productionLines = [
-    "Linha de Montagem A2",
-    "Unidade de Processamento",
-    "Controle de Qualidade B1",
-    "Logística Interna",
-    "Linha de Pintura",
-    "Embalagem Final"
-  ];
-
   const parseDate = (dateStr: string) => {
     const [day, month, year] = dateStr.split('/').map(Number);
     return new Date(year, month - 1, day);
@@ -135,7 +127,7 @@ export function OperationsView({ operations, onToggleStep, onAddOperation, onUpd
       setFormData({ id: op.id, line: op.line, quantity: op.quantity });
     } else {
       setEditingOp(null);
-      setFormData({ id: '', line: productionLines[0], quantity: 0 });
+      setFormData({ id: '', line: productionLines[0] || '', quantity: 0 });
     }
     setIsModalOpen(true);
   };
@@ -372,6 +364,7 @@ export function OperationsView({ operations, onToggleStep, onAddOperation, onUpd
                     onChange={(e) => setFormData({ ...formData, line: e.target.value })}
                     required
                   >
+                    <option value="" disabled>Selecione uma linha...</option>
                     {productionLines.map(line => (
                       <option key={line} value={line}>{line}</option>
                     ))}
