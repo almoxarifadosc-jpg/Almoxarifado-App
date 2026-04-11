@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
+import { cn } from '@/lib/utils';
 import { ShieldCheck, CheckCircle, XCircle, Loader2, Users, Factory, Plus, Trash2, Pencil } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
