@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
+import Image from 'next/image';
 import { User, Lock, Mail, UserPlus, LogIn, ShieldCheck, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
@@ -221,8 +222,14 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
         className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10"
       >
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <ShieldCheck className="text-primary w-10 h-10" />
+          <div className="w-20 h-20 bg-primary/5 rounded-3xl flex items-center justify-center mx-auto mb-4 p-4">
+            <Image 
+              src="/logo.png" 
+              alt="Logo" 
+              width={64} 
+              height={64} 
+              className="w-full h-full object-contain"
+            />
           </div>
           <h2 className="text-3xl font-headline font-extrabold text-on-surface">
             {mode === 'LOGIN' ? 'Bem-vindo' : 'Criar Conta'}

@@ -17,7 +17,13 @@ export function Header({ currentView, onViewChange, onLogout, isAdmin }: HeaderP
   return (
     <header className="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-xl flex items-center justify-between px-6 py-4 shadow-sm shadow-on-surface/5">
       <div className="flex items-center gap-3">
-        <LayoutGrid className="text-primary w-6 h-6" />
+        <Image 
+          src="/logo.png" 
+          alt="Logo" 
+          width={32} 
+          height={32} 
+          className="w-8 h-8 object-contain"
+        />
         <h1 className="font-headline font-bold tracking-tight text-xl text-primary">Almoxarifado</h1>
       </div>
       
@@ -57,11 +63,11 @@ export function Header({ currentView, onViewChange, onLogout, isAdmin }: HeaderP
           className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden border border-outline-variant/15 active:scale-95 transition-transform"
         >
           <Image
-            src="https://picsum.photos/seed/manager/100/100"
+            src="/logo.png"
             alt="Perfil do Usuário"
             width={40}
             height={40}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover p-1"
             referrerPolicy="no-referrer"
           />
         </button>

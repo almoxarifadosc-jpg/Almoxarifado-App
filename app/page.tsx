@@ -98,7 +98,6 @@ export default function Page() {
       return;
     }
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkUser();
     const { data: authListener } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       if (session?.user) {
