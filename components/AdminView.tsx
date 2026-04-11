@@ -12,6 +12,7 @@ interface Profile {
   name: string;
   status: 'PENDING' | 'APPROVED';
   is_admin: boolean;
+  allowed_groups?: string[];
 }
 
 interface ProductionLine {
@@ -135,6 +136,16 @@ export function AdminView() {
     const { error } = await supabase
       .from('profiles')
       .update({ is_admin: !currentStatus })
+      .eq('id', id);
+    
+    if (!error) fetchApprovedUsers();
+  };
+
+  const handleUpdateGroups = async (id: string, groups: string) => {
+    const groupsArray = groups.split(',').map(g => g.trim().toUpperCase()).filter(g => g);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ allowed_groups: groupsArray })
       .eq('id', id);
     
     if (!error) fetchApprovedUsers();
@@ -339,6 +350,16 @@ export function AdminView() {
                         )}
                       </div>
                       <p className="text-xs text-on-surface-variant">{user.email}</p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Acessos:</span>
+                        <input 
+                          type="text"
+                          defaultValue={user.allowed_groups?.join(', ') || ''}
+                          onBlur={(e) => handleUpdateGroups(user.id, e.target.value)}
+                          placeholder="Ex: G1, G2"
+                          className="text-[10px] bg-white border border-outline-variant/20 rounded px-2 py-0.5 focus:ring-1 focus:ring-primary outline-none w-24"
+                        />
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <button 

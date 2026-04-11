@@ -12,10 +12,18 @@ interface OPRowProps {
   onEdit: (op: Operation) => void;
   onDelete: (id: string) => void;
   isAdmin?: boolean;
+  allowedGroups?: string[];
 }
 
-function OPRow({ op, onToggleStep, onEdit, onDelete, isAdmin }: OPRowProps) {
+function OPRow({ op, onToggleStep, onEdit, onDelete, isAdmin, allowedGroups }: OPRowProps) {
   const Icon = op.iconType === 'factory' ? Factory : op.iconType === 'settings' ? Settings : CheckCircle2;
+
+  const isStepAllowed = (index: number) => {
+    if (isAdmin) return true;
+    if (!allowedGroups || allowedGroups.length === 0) return false;
+    const groupName = `G${index + 1}`;
+    return allowedGroups.includes(groupName);
+  };
 
   return (
     <div className="bg-surface-container-lowest rounded-2xl p-4 md:px-6 md:py-5 border border-outline-variant/10 shadow-sm hover:shadow-md transition-all group">
@@ -48,20 +56,25 @@ function OPRow({ op, onToggleStep, onEdit, onDelete, isAdmin }: OPRowProps) {
           )}
         </div>
         <div className="col-span-5 grid grid-cols-4 gap-2 md:gap-4">
-          {op.steps.map((active, i) => (
-            <button 
-              key={i}
-              onClick={() => onToggleStep(i)}
-              className={cn(
-                "aspect-square md:aspect-auto h-12 rounded-xl flex items-center justify-center font-bold text-sm transition-all cursor-pointer active:scale-90",
-                active 
-                  ? "bg-tertiary text-white shadow-lg shadow-tertiary/20" 
-                  : "bg-surface-container-low text-on-surface-variant/40 hover:bg-surface-container-high"
-              )}
-            >
-              G{i + 1}
-            </button>
-          ))}
+          {op.steps.map((active, i) => {
+            const allowed = isStepAllowed(i);
+            return (
+              <button 
+                key={i}
+                onClick={() => allowed && onToggleStep(i)}
+                disabled={!allowed}
+                className={cn(
+                  "aspect-square md:aspect-auto h-12 rounded-xl flex items-center justify-center font-bold text-sm transition-all cursor-pointer active:scale-90",
+                  active 
+                    ? "bg-tertiary text-white shadow-lg shadow-tertiary/20" 
+                    : "bg-surface-container-low text-on-surface-variant/40 hover:bg-surface-container-high",
+                  !allowed && "opacity-30 cursor-not-allowed active:scale-100"
+                )}
+              >
+                G{i + 1}
+              </button>
+            );
+          })}
         </div>
         <div className="col-span-3 flex flex-col items-end gap-2">
           <div className="flex items-end gap-1">
@@ -100,9 +113,19 @@ interface OperationsViewProps {
   onUpdateOperation: (op: Operation) => void;
   onDeleteOperation: (id: string) => void;
   isAdmin?: boolean;
+  allowedGroups?: string[];
 }
 
-export function OperationsView({ operations, productionLines, onToggleStep, onAddOperation, onUpdateOperation, onDeleteOperation, isAdmin }: OperationsViewProps) {
+export function OperationsView({ 
+  operations, 
+  productionLines, 
+  onToggleStep, 
+  onAddOperation, 
+  onUpdateOperation, 
+  onDeleteOperation, 
+  isAdmin,
+  allowedGroups
+}: OperationsViewProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [opToDelete, setOpToDelete] = useState<string | null>(null);
@@ -368,6 +391,7 @@ export function OperationsView({ operations, productionLines, onToggleStep, onAd
             onEdit={openModal}
             onDelete={confirmDelete}
             isAdmin={isAdmin}
+            allowedGroups={allowedGroups}
           />
         ))}
         {filteredOperations.length === 0 && (

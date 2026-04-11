@@ -274,6 +274,7 @@ export default function Page() {
             onUpdateOperation={updateOperation}
             onDeleteOperation={deleteOperation}
             isAdmin={currentUser?.is_admin}
+            allowedGroups={currentUser?.allowed_groups}
           />
         )}
         {currentView === 'ANALYTICS' && (
