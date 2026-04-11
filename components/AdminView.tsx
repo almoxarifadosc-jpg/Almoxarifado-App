@@ -20,10 +20,13 @@ interface ProductionLine {
 
 export function AdminView() {
   const [pendingUsers, setPendingUsers] = useState<Profile[]>([]);
+  const [approvedUsers, setApprovedUsers] = useState<Profile[]>([]);
   const [productionLines, setProductionLines] = useState<ProductionLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [newLineName, setNewLineName] = useState('');
   const [editingLine, setEditingLine] = useState<ProductionLine | null>(null);
+  const [logoUrl, setLogoUrl] = useState('');
+  const [savingLogo, setSavingLogo] = useState(false);
 
   const fetchPendingUsers = useCallback(async () => {
     try {
@@ -36,6 +39,21 @@ export function AdminView() {
       if (data) setPendingUsers(data);
     } catch (err: any) {
       console.error('Error fetching pending users:', err);
+    }
+  }, []);
+
+  const fetchApprovedUsers = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('status', 'APPROVED')
+        .order('name');
+      
+      if (error) throw error;
+      if (data) setApprovedUsers(data);
+    } catch (err: any) {
+      console.error('Error fetching approved users:', err);
     }
   }, []);
 
@@ -61,14 +79,31 @@ export function AdminView() {
     }
   }, []);
 
+  const fetchSettings = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('key', 'company_logo')
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      if (data) setLogoUrl(data.value);
+    } catch (err: any) {
+      console.error('Error fetching settings:', err);
+    }
+  }, []);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     await Promise.all([
       fetchPendingUsers(),
-      fetchProductionLines()
+      fetchApprovedUsers(),
+      fetchProductionLines(),
+      fetchSettings()
     ]);
     setLoading(false);
-  }, [fetchPendingUsers, fetchProductionLines]);
+  }, [fetchPendingUsers, fetchApprovedUsers, fetchProductionLines, fetchSettings]);
 
   useEffect(() => {
     fetchData();
@@ -80,7 +115,10 @@ export function AdminView() {
       .update({ status: 'APPROVED' })
       .eq('id', id);
     
-    if (!error) fetchPendingUsers();
+    if (!error) {
+      fetchPendingUsers();
+      fetchApprovedUsers();
+    }
   };
 
   const handleReject = async (id: string) => {
@@ -90,6 +128,32 @@ export function AdminView() {
       .eq('id', id);
     
     if (!error) fetchPendingUsers();
+  };
+
+  const handleToggleAdmin = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_admin: !currentStatus })
+      .eq('id', id);
+    
+    if (!error) fetchApprovedUsers();
+  };
+
+  const handleSaveLogo = async () => {
+    setSavingLogo(true);
+    try {
+      const { error } = await supabase
+        .from('settings')
+        .upsert({ key: 'company_logo', value: logoUrl }, { onConflict: 'key' });
+      
+      if (error) throw error;
+      alert('Logo atualizada com sucesso!');
+    } catch (err: any) {
+      console.error('Error saving logo:', err);
+      alert('Erro ao salvar logo.');
+    } finally {
+      setSavingLogo(false);
+    }
   };
 
   const handleAddLine = async (e: React.FormEvent) => {
@@ -163,6 +227,46 @@ export function AdminView() {
           </div>
 
           <div className="space-y-12">
+            {/* Configurações da Empresa */}
+            <section className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  Configurações da Empresa
+                </h3>
+              </div>
+              <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/5 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">URL da Logo da Empresa</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      value={logoUrl}
+                      onChange={(e) => setLogoUrl(e.target.value)}
+                      placeholder="https://exemplo.com/logo.png"
+                      className="flex-1 bg-white border border-outline-variant/20 rounded-xl px-4 py-2 focus:ring-1 focus:ring-primary outline-none text-sm"
+                    />
+                    <button 
+                      onClick={handleSaveLogo}
+                      disabled={savingLogo}
+                      className="px-6 py-2 bg-primary text-white rounded-xl font-bold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {savingLogo ? 'Salvando...' : 'Salvar Logo'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-on-surface-variant">Insira o link direto para a imagem da logo (PNG, JPG ou SVG).</p>
+                </div>
+                {logoUrl && (
+                  <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-outline-variant/10">
+                    <span className="text-xs font-bold text-on-surface-variant">Prévia:</span>
+                    <div className="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center overflow-hidden">
+                      <img src={logoUrl} alt="Prévia da Logo" className="max-w-full max-h-full object-contain" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
             <section className="space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
@@ -209,6 +313,46 @@ export function AdminView() {
                   ))}
                 </div>
               )}
+            </section>
+
+            {/* Usuários Cadastrados */}
+            <section className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Usuários Cadastrados ({approvedUsers.length})
+                </h3>
+              </div>
+
+              <div className="grid gap-4">
+                {approvedUsers.map(user => (
+                  <div 
+                    key={user.id}
+                    className="p-4 bg-surface-container-low rounded-2xl flex items-center justify-between border border-outline-variant/5"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-on-surface">{user.name}</p>
+                        {user.is_admin && (
+                          <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Admin</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-on-surface-variant">{user.email}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleToggleAdmin(user.id, user.is_admin)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-colors",
+                          user.is_admin ? "bg-error/10 text-error" : "bg-primary/10 text-primary"
+                        )}
+                      >
+                        {user.is_admin ? 'Remover Admin' : 'Tornar Admin'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </section>
 
             <section className="space-y-6">

@@ -39,6 +39,7 @@ export default function Page() {
   const [newsFilter, setNewsFilter] = useState('');
   const [operations, setOperations] = useState<Operation[]>([]);
   const [productionLines, setProductionLines] = useState<string[]>([]);
+  const [logoUrl, setLogoUrl] = useState<string>('/logo.png');
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -72,10 +73,11 @@ export default function Page() {
   }, [fetchProfile]);
 
   const fetchData = useCallback(async () => {
-    const [opsRes, newsRes, linesRes] = await Promise.all([
+    const [opsRes, newsRes, linesRes, settingsRes] = await Promise.all([
       supabase.from('operations').select('*').order('created_at', { ascending: false }),
       supabase.from('news_posts').select('*').order('created_at', { ascending: false }),
-      supabase.from('production_lines').select('name').order('name')
+      supabase.from('production_lines').select('name').order('name'),
+      supabase.from('settings').select('*').eq('key', 'company_logo').single()
     ]);
 
     if (opsRes.data) {
@@ -103,6 +105,9 @@ export default function Page() {
         "Linha de Pintura",
         "Embalagem Final"
       ]);
+    }
+    if (settingsRes.data) {
+      setLogoUrl(settingsRes.data.value);
     }
   }, []);
 
@@ -244,6 +249,7 @@ export default function Page() {
         onViewChange={setCurrentView} 
         onLogout={handleLogout}
         isAdmin={currentUser?.is_admin}
+        logoUrl={logoUrl}
       />
       
       <AnimatePresence mode="wait">

@@ -109,15 +109,25 @@ export function OperationsView({ operations, productionLines, onToggleStep, onAd
   const [editingOp, setEditingOp] = useState<Operation | null>(null);
   const [formData, setFormData] = useState({ id: '', line: '', quantity: 0 });
   
-  // Get today's date in YYYY-MM-DD for the input
-  const getTodayISO = () => new Date().toISOString().split('T')[0];
-  
-  const [startDate, setStartDate] = useState(getTodayISO());
-  const [endDate, setEndDate] = useState(getTodayISO());
+  // Helper to get YYYY-MM-DD in local time
+  const formatToISODate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [startDate, setStartDate] = useState(formatToISODate(new Date()));
+  const [endDate, setEndDate] = useState(formatToISODate(new Date()));
   const [filterOP, setFilterOP] = useState('');
 
   const parseDate = (dateStr: string) => {
     const [day, month, year] = dateStr.split('/').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  const parseISODate = (isoStr: string) => {
+    const [year, month, day] = isoStr.split('-').map(Number);
     return new Date(year, month - 1, day);
   };
 
@@ -152,9 +162,9 @@ export function OperationsView({ operations, productionLines, onToggleStep, onAd
     const matchesOP = op.id.toLowerCase().includes(filterOP.toLowerCase());
     
     const opDate = parseDate(op.date);
-    const start = new Date(startDate);
+    const start = parseISODate(startDate);
     start.setHours(0, 0, 0, 0);
-    const end = new Date(endDate);
+    const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);
 
     const matchesDate = opDate >= start && opDate <= end;
@@ -163,9 +173,9 @@ export function OperationsView({ operations, productionLines, onToggleStep, onAd
 
   const opsInSelectedRange = operations.filter(op => {
     const opDate = parseDate(op.date);
-    const start = new Date(startDate);
+    const start = parseISODate(startDate);
     start.setHours(0, 0, 0, 0);
-    const end = new Date(endDate);
+    const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);
     return opDate >= start && opDate <= end;
   }).length;
@@ -186,9 +196,21 @@ export function OperationsView({ operations, productionLines, onToggleStep, onAd
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const averageProgress = operations.length > 0 
-    ? Math.round(operations.reduce((acc, op) => acc + op.progress, 0) / operations.length) 
+  const averageProgress = filteredOperations.length > 0 
+    ? Math.round(filteredOperations.reduce((acc, op) => acc + op.progress, 0) / filteredOperations.length) 
     : 0;
+
+  const inSeparationCount = filteredOperations.filter(op => !op.isCompleted).length;
+
+  const totalPendingOutsideFilter = operations.filter(op => {
+    if (op.isCompleted) return false;
+    const opDate = parseDate(op.date);
+    const start = parseISODate(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = parseISODate(endDate);
+    end.setHours(23, 59, 59, 999);
+    return opDate < start || opDate > end;
+  }).length;
 
   const getMotivationalPhrase = (progress: number) => {
     if (progress === 100) return "Meta alcançada!";
@@ -196,7 +218,7 @@ export function OperationsView({ operations, productionLines, onToggleStep, onAd
     return "Vamos lá";
   };
 
-  const alertsCount = operations.filter(op => {
+  const alertsCount = filteredOperations.filter(op => {
     if (op.isCompleted) return false;
     const opDate = parseDate(op.date);
     return opDate < today;
@@ -212,7 +234,7 @@ export function OperationsView({ operations, productionLines, onToggleStep, onAd
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div>
               <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">Gestão de OPs</h2>
-              <p className="text-on-surface-variant mt-1 font-medium">Controle de fluxo de operações industriais em tempo real.</p>
+              <p className="text-on-surface-variant mt-1 font-medium">Controle de fluxo de separações em tempo real.</p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-surface-container-low p-2 rounded-2xl border border-outline-variant/10 shadow-sm">
@@ -269,7 +291,7 @@ export function OperationsView({ operations, productionLines, onToggleStep, onAd
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <div className="glass-card p-6 rounded-2xl shadow-sm border border-outline-variant/15 flex flex-col gap-2">
           <span className="text-primary font-bold text-xs uppercase tracking-widest font-body">Em Separação</span>
-          <span className="text-4xl font-headline font-extrabold">{operations.filter(op => !op.isCompleted).length}</span>
+          <span className="text-4xl font-headline font-extrabold">{inSeparationCount}</span>
           <div className="mt-4 flex items-center gap-2 text-tertiary font-bold text-xs">
             <Activity className="w-4 h-4" />
             <span>{getMotivationalPhrase(averageProgress)}</span>
@@ -296,6 +318,34 @@ export function OperationsView({ operations, productionLines, onToggleStep, onAd
           </div>
         </div>
       </section>
+
+      {totalPendingOutsideFilter > 0 && (
+        <div className="mb-6 p-4 bg-primary/5 border border-primary/10 rounded-2xl flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+              <Filter className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-on-surface">Filtro de Data Ativo</p>
+              <p className="text-xs text-on-surface-variant">Existem <strong>{totalPendingOutsideFilter} OPs pendentes</strong> fora deste período de datas.</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => {
+              const allDates = operations.map(op => parseDate(op.date));
+              if (allDates.length > 0) {
+                const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
+                const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
+                setStartDate(formatToISODate(minDate));
+                setEndDate(formatToISODate(maxDate));
+              }
+            }}
+            className="text-xs font-bold text-primary hover:underline"
+          >
+            Ver todas as datas
+          </button>
+        </div>
+      )}
 
       <section className="space-y-4">
         <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-2 text-on-surface-variant font-bold text-xs uppercase tracking-widest">

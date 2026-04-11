@@ -9,21 +9,22 @@ interface HeaderProps {
   onViewChange: (view: any) => void;
   onLogout: () => void;
   isAdmin?: boolean;
+  logoUrl?: string;
 }
 
-export function Header({ currentView, onViewChange, onLogout, isAdmin }: HeaderProps) {
+export function Header({ currentView, onViewChange, onLogout, isAdmin, logoUrl = '/logo.png' }: HeaderProps) {
   const [showLogout, setShowLogout] = React.useState(false);
 
   return (
     <header className="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-xl flex items-center justify-between px-6 py-4 shadow-sm shadow-on-surface/5">
       <div className="flex items-center gap-3">
-        <Image 
-          src="/logo.png" 
-          alt="Logo" 
-          width={32} 
-          height={32} 
-          className="w-8 h-8 object-contain"
-        />
+        <div className="w-8 h-8 relative flex items-center justify-center overflow-hidden rounded-lg">
+          <img 
+            src={logoUrl} 
+            alt="Logo" 
+            className="w-full h-full object-contain"
+          />
+        </div>
         <h1 className="font-headline font-bold tracking-tight text-xl text-primary">Almoxarifado</h1>
       </div>
       
@@ -62,14 +63,13 @@ export function Header({ currentView, onViewChange, onLogout, isAdmin }: HeaderP
           onClick={() => setShowLogout(!showLogout)}
           className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden border border-outline-variant/15 active:scale-95 transition-transform"
         >
-          <Image
-            src="/logo.png"
-            alt="Perfil do Usuário"
-            width={40}
-            height={40}
-            className="w-full h-full object-cover p-1"
-            referrerPolicy="no-referrer"
-          />
+          <div className="w-full h-full p-1 flex items-center justify-center overflow-hidden">
+            <img
+              src={logoUrl}
+              alt="Perfil do Usuário"
+              className="w-full h-full object-contain"
+            />
+          </div>
         </button>
 
         {showLogout && (
