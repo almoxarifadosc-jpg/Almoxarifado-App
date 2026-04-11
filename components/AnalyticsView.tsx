@@ -4,7 +4,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { Operation } from '@/app/page';
-import { Factory, Calendar, CheckCircle2, Filter } from 'lucide-react';
+import { Factory, Calendar, CheckCircle2, Filter, Package, FileText, Layers, Fan } from 'lucide-react';
 
 interface AnalyticsViewProps {
   operations: Operation[];
@@ -153,6 +153,46 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
           </button>
         </div>
       )}
+
+      {/* Group Legend */}
+      <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-surface-container-low/50 p-3 rounded-2xl border border-outline-variant/10 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+            <Package className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase text-on-surface-variant tracking-wider">G1</p>
+            <p className="text-xs font-bold text-on-surface">Motores, caixas...</p>
+          </div>
+        </div>
+        <div className="bg-surface-container-low/50 p-3 rounded-2xl border border-outline-variant/10 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+            <FileText className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase text-on-surface-variant tracking-wider">G2</p>
+            <p className="text-xs font-bold text-on-surface">Manuais, etiquetas...</p>
+          </div>
+        </div>
+        <div className="bg-surface-container-low/50 p-3 rounded-2xl border border-outline-variant/10 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase text-on-surface-variant tracking-wider">G3</p>
+            <p className="text-xs font-bold text-on-surface">Acabamentos, conjuntos</p>
+          </div>
+        </div>
+        <div className="bg-surface-container-low/50 p-3 rounded-2xl border border-outline-variant/10 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+            <Fan className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase text-on-surface-variant tracking-wider">G4</p>
+            <p className="text-xs font-bold text-on-surface">Peças plásticas</p>
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {displayOps.map((op) => (
