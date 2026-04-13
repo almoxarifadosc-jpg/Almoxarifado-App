@@ -16,9 +16,8 @@ export function PWAInstallPrompt() {
   useEffect(() => {
     // Check if already installed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-    // Temporarily disable dismissal check to ensure it shows up for the user
-    // const isDismissed = sessionStorage.getItem('pwa-prompt-dismissed') === 'true';
-    const isDismissed = false; 
+    // Reset dismissal check to ensure it shows up after these changes
+    const isDismissed = false;
     
     if (isStandalone || isDismissed) {
       return;

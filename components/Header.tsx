@@ -14,7 +14,7 @@ interface HeaderProps {
   logoUrl?: string;
 }
 
-export function Header({ currentView, onViewChange, onLogout, isAdmin, logoUrl = '/icon.png?v=3' }: HeaderProps) {
+export function Header({ currentView, onViewChange, onLogout, isAdmin, logoUrl = '/app-logo.png' }: HeaderProps) {
   const [showLogout, setShowLogout] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -51,7 +51,7 @@ export function Header({ currentView, onViewChange, onLogout, isAdmin, logoUrl =
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 relative flex items-center justify-center overflow-hidden rounded-lg">
           <img 
-            src={`${logoUrl}${logoUrl.includes('?') ? '&' : '?'}v=3`} 
+            src={logoUrl} 
             alt="Logo" 
             className="w-full h-full object-contain"
           />
@@ -96,7 +96,7 @@ export function Header({ currentView, onViewChange, onLogout, isAdmin, logoUrl =
         >
           <div className="w-full h-full p-1 flex items-center justify-center overflow-hidden">
             <img
-              src={`${logoUrl}${logoUrl.includes('?') ? '&' : '?'}v=3`}
+              src={logoUrl}
               alt="Perfil do Usuário"
               className="w-full h-full object-contain"
             />
