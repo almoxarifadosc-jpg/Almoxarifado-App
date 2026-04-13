@@ -32,7 +32,8 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Almoxarifado" />
-        <link rel="apple-touch-icon" href="/logo.png" />
+        <link rel="apple-touch-icon" href="/icon.png" />
+        <link rel="icon" href="/icon.png" />
       </head>
       <body suppressHydrationWarning className="font-body bg-surface text-on-surface">
         {children}

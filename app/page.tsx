@@ -41,7 +41,7 @@ export default function Page() {
   const [newsFilter, setNewsFilter] = useState('');
   const [operations, setOperations] = useState<Operation[]>([]);
   const [productionLines, setProductionLines] = useState<string[]>([]);
-  const [logoUrl, setLogoUrl] = useState<string>('/logo.png');
+  const [logoUrl, setLogoUrl] = useState<string>('/icon.png');
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
