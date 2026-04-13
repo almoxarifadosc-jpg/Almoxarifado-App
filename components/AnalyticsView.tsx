@@ -64,7 +64,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
     return "Vamos lá";
   };
 
-  const displayOps = filteredOps.slice(0, 20); // Showing up to 20 as requested (4x5)
+  const displayOps = filteredOps.slice(0, 25); // Showing up to 25 (5x5)
 
   return (
     <motion.div 
@@ -194,7 +194,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {displayOps.map((op) => (
           <div 
             key={op.id}

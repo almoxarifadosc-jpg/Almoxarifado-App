@@ -222,14 +222,8 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
         className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10"
       >
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-primary/5 rounded-3xl flex items-center justify-center mx-auto mb-4 p-4">
-            <Image 
-              src="/logo.png" 
-              alt="Logo" 
-              width={64} 
-              height={64} 
-              className="w-full h-full object-contain"
-            />
+          <div className="w-20 h-20 bg-primary/5 rounded-3xl flex items-center justify-center mx-auto mb-4">
+            <User className="w-10 h-10 text-primary" />
           </div>
           <h2 className="text-3xl font-headline font-extrabold text-on-surface">
             {mode === 'LOGIN' ? 'Bem-vindo' : 'Criar Conta'}

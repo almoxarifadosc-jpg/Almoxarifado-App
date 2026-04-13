@@ -32,8 +32,10 @@ export function SupabaseSetupView() {
             <li>Crie um projeto no <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-primary font-bold inline-flex items-center gap-1 hover:underline">Supabase <ExternalLink className="w-3 h-3" /></a></li>
             <li>Vá em <strong>Project Settings</strong> &gt; <strong>API</strong></li>
             <li>Copie a <strong>Project URL</strong> e a <strong>anon public key</strong></li>
-            <li>No AI Studio, vá em <strong>Settings</strong> (ícone de engrenagem)</li>
-            <li>Adicione as variáveis:
+            <li>
+              <strong>No Vercel:</strong> Vá em Settings &gt; Environment Variables e adicione as chaves abaixo.
+              <br />
+              <strong>No AI Studio:</strong> Vá em Settings (engrenagem) e adicione:
               <ul className="mt-2 space-y-1 pl-6 list-disc">
                 <li><code className="bg-surface-container-high px-1.5 py-0.5 rounded text-primary font-mono text-xs">NEXT_PUBLIC_SUPABASE_URL</code></li>
                 <li><code className="bg-surface-container-high px-1.5 py-0.5 rounded text-primary font-mono text-xs">NEXT_PUBLIC_SUPABASE_ANON_KEY</code></li>
