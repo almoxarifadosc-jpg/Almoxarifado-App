@@ -14,7 +14,7 @@ interface HeaderProps {
   logoUrl?: string;
 }
 
-export function Header({ currentView, onViewChange, onLogout, isAdmin, logoUrl = '/app-logo.png' }: HeaderProps) {
+export function Header({ currentView, onViewChange, onLogout, isAdmin, logoUrl = '/app-logo.png?v=4' }: HeaderProps) {
   const [showLogout, setShowLogout] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
