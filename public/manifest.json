@@ -2,11 +2,38 @@
   "name": "Almoxarifado App",
   "short_name": "Almoxarifado",
   "description": "Sistema de controle de fluxo de operações industriais e gestão de produção.",
-  "lang": "pt-BR",
-  "start_url": "/",
+  "start_url": "/?standalone=true",
+  "id": "/?standalone=true",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",
-  "theme_color": "#0061a4"
+  "theme_color": "#0061a4",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/app-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/app-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }

@@ -11,10 +11,11 @@ interface HeaderProps {
   onViewChange: (view: any) => void;
   onLogout: () => void;
   isAdmin?: boolean;
+  isViewer?: boolean;
   logoUrl?: string;
 }
 
-export function Header({ currentView, onViewChange, onLogout, isAdmin, logoUrl = '/logo.png' }: HeaderProps) {
+export function Header({ currentView, onViewChange, onLogout, isAdmin, isViewer, logoUrl = '/app-logo.png?v=4' }: HeaderProps) {
   const [showLogout, setShowLogout] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -61,12 +62,14 @@ export function Header({ currentView, onViewChange, onLogout, isAdmin, logoUrl =
       
       {/* Desktop Navigation */}
       <nav className="hidden md:flex items-center gap-8">
-        <button 
-          onClick={() => onViewChange('OPERATIONS')}
-          className={`font-body text-sm font-semibold transition-colors ${currentView === 'OPERATIONS' ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
-        >
-          Operações
-        </button>
+        {!isViewer && (
+          <button 
+            onClick={() => onViewChange('OPERATIONS')}
+            className={`font-body text-sm font-semibold transition-colors ${currentView === 'OPERATIONS' ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
+          >
+            Operações
+          </button>
+        )}
         <button 
           onClick={() => onViewChange('ANALYTICS')}
           className={`font-body text-sm font-semibold transition-colors ${currentView === 'ANALYTICS' ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}

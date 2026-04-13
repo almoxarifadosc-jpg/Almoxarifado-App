@@ -12,6 +12,7 @@ interface Profile {
   name: string;
   status: 'PENDING' | 'APPROVED';
   is_admin: boolean;
+  is_viewer: boolean;
   allowed_groups?: string[];
 }
 
@@ -136,6 +137,15 @@ export function AdminView() {
     const { error } = await supabase
       .from('profiles')
       .update({ is_admin: !currentStatus })
+      .eq('id', id);
+    
+    if (!error) fetchApprovedUsers();
+  };
+
+  const handleToggleViewer = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_viewer: !currentStatus })
       .eq('id', id);
     
     if (!error) fetchApprovedUsers();
@@ -348,6 +358,9 @@ export function AdminView() {
                         {user.is_admin && (
                           <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Admin</span>
                         )}
+                        {user.is_viewer && (
+                          <span className="text-[10px] bg-tertiary/10 text-tertiary px-2 py-0.5 rounded-full font-bold ml-1">Visualizador</span>
+                        )}
                       </div>
                       <p className="text-xs text-on-surface-variant">{user.email}</p>
                       <div className="mt-2 flex items-center gap-2">
@@ -362,6 +375,15 @@ export function AdminView() {
                       </div>
                     </div>
                     <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleToggleViewer(user.id, user.is_viewer)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-colors",
+                          user.is_viewer ? "bg-tertiary/10 text-tertiary" : "bg-surface-container-high text-on-surface-variant"
+                        )}
+                      >
+                        {user.is_viewer ? 'Remover Visualizador' : 'Tornar Visualizador'}
+                      </button>
                       <button 
                         onClick={() => handleToggleAdmin(user.id, user.is_admin)}
                         className={cn(
