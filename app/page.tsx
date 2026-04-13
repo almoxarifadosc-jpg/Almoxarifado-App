@@ -41,7 +41,7 @@ export default function Page() {
   const [newsFilter, setNewsFilter] = useState('');
   const [operations, setOperations] = useState<Operation[]>([]);
   const [productionLines, setProductionLines] = useState<string[]>([]);
-  const [logoUrl, setLogoUrl] = useState<string>('/icon.png');
+  const [logoUrl, setLogoUrl] = useState<string>('/icon.png?v=3');
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -121,8 +121,10 @@ export default function Page() {
         "Embalagem Final"
       ]);
     }
-    if (settingsRes.data) {
+    if (settingsRes.data && settingsRes.data.value) {
       setLogoUrl(settingsRes.data.value);
+    } else {
+      setLogoUrl('/icon.png?v=3');
     }
   }, []);
 

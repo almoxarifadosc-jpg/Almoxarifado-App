@@ -16,7 +16,9 @@ export function PWAInstallPrompt() {
   useEffect(() => {
     // Check if already installed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-    const isDismissed = sessionStorage.getItem('pwa-prompt-dismissed') === 'true';
+    // Temporarily disable dismissal check to ensure it shows up for the user
+    // const isDismissed = sessionStorage.getItem('pwa-prompt-dismissed') === 'true';
+    const isDismissed = false; 
     
     if (isStandalone || isDismissed) {
       return;
@@ -33,12 +35,12 @@ export function PWAInstallPrompt() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // Show fallback instructions after a delay if not standalone and no prompt event yet
+    // Show fallback instructions immediately if not standalone
     const timer = setTimeout(() => {
       if (!isStandalone) {
         setShowPrompt(true);
       }
-    }, 5000);
+    }, 0);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
