@@ -59,6 +59,9 @@ export default function Page() {
 
     if (profile && profile.status === 'APPROVED') {
       setCurrentUser(profile);
+      if (profile.is_viewer) {
+        setCurrentView('LAUNCH');
+      }
     } else {
       setCurrentUser(null);
     }
@@ -270,6 +273,7 @@ export default function Page() {
         onViewChange={setCurrentView} 
         onLogout={handleLogout}
         isAdmin={currentUser?.is_admin}
+        isViewer={currentUser?.is_viewer}
         logoUrl={logoUrl}
       />
       
@@ -295,6 +299,7 @@ export default function Page() {
             onUpdateOperation={updateOperation}
             onDeleteOperation={deleteOperation}
             isAdmin={currentUser?.is_admin}
+            isViewer={currentUser?.is_viewer}
             allowedGroups={currentUser?.allowed_groups}
           />
         )}
@@ -310,6 +315,7 @@ export default function Page() {
         currentView={currentView} 
         onViewChange={setCurrentView} 
         isAdmin={currentUser?.is_admin}
+        isViewer={currentUser?.is_viewer}
       />
     </main>
   );

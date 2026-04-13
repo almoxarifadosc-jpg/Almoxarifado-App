@@ -12,13 +12,15 @@ interface OPRowProps {
   onEdit: (op: Operation) => void;
   onDelete: (id: string) => void;
   isAdmin?: boolean;
+  isViewer?: boolean;
   allowedGroups?: string[];
 }
 
-function OPRow({ op, onToggleStep, onEdit, onDelete, isAdmin, allowedGroups }: OPRowProps) {
+function OPRow({ op, onToggleStep, onEdit, onDelete, isAdmin, isViewer, allowedGroups }: OPRowProps) {
   const Icon = op.iconType === 'factory' ? Factory : op.iconType === 'settings' ? Settings : CheckCircle2;
 
   const isStepAllowed = (index: number) => {
+    if (isViewer) return false;
     if (isAdmin) return true;
     if (!allowedGroups || allowedGroups.length === 0) return false;
     const groupName = `G${index + 1}`;
@@ -135,6 +137,7 @@ interface OperationsViewProps {
   onUpdateOperation: (op: Operation) => void;
   onDeleteOperation: (id: string) => void;
   isAdmin?: boolean;
+  isViewer?: boolean;
   allowedGroups?: string[];
 }
 
@@ -146,6 +149,7 @@ export function OperationsView({
   onUpdateOperation, 
   onDeleteOperation, 
   isAdmin,
+  isViewer,
   allowedGroups
 }: OperationsViewProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -443,6 +447,7 @@ export function OperationsView({
             onEdit={openModal}
             onDelete={confirmDelete}
             isAdmin={isAdmin}
+            isViewer={isViewer}
             allowedGroups={allowedGroups}
           />
         ))}

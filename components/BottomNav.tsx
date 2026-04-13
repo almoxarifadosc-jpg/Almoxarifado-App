@@ -10,14 +10,20 @@ interface BottomNavProps {
   currentView: View;
   onViewChange: (view: View) => void;
   isAdmin?: boolean;
+  isViewer?: boolean;
 }
 
-export function BottomNav({ currentView, onViewChange, isAdmin }: BottomNavProps) {
-  const tabs = [
+export function BottomNav({ currentView, onViewChange, isAdmin, isViewer }: BottomNavProps) {
+  let tabs = [
     { id: 'OPERATIONS' as View, label: 'Operações', icon: Network },
     { id: 'ANALYTICS' as View, label: 'Painel de Separação', icon: BarChart3 },
     { id: 'LAUNCH' as View, label: 'Portal', icon: Rocket },
   ];
+
+  if (isViewer) {
+    // Only Painel de Separação and Portal for viewers
+    tabs = tabs.filter(tab => tab.id === 'ANALYTICS' || tab.id === 'LAUNCH');
+  }
 
   if (isAdmin) {
     tabs.push({ id: 'ADMIN_PANEL' as View, label: 'Admin', icon: ShieldCheck });
