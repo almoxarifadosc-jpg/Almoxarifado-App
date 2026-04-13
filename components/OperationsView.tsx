@@ -26,17 +26,39 @@ function OPRow({ op, onToggleStep, onEdit, onDelete, isAdmin, allowedGroups }: O
   };
 
   return (
-    <div className="bg-surface-container-lowest rounded-2xl p-4 md:px-6 md:py-5 border border-outline-variant/10 shadow-sm hover:shadow-md transition-all group">
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+    <div className={cn(
+      "bg-surface-container-lowest rounded-2xl p-4 md:px-6 md:py-5 border shadow-sm hover:shadow-md transition-all group relative overflow-hidden",
+      op.isUrgente ? "border-error shadow-error/10 bg-error/[0.02]" : 
+      op.isLicitacao ? "border-blue-200 bg-blue-50/50" : 
+      "border-outline-variant/10"
+    )}>
+      {op.isUrgente && (
+        <div className="absolute top-0 left-0 w-1 h-full bg-error" />
+      )}
+      {op.isLicitacao && !op.isUrgente && (
+        <div className="absolute top-0 left-0 w-1 h-full bg-blue-400" />
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center relative z-10">
         <div className="col-span-3 flex items-center gap-4">
           <div className={cn(
             "w-12 h-12 rounded-xl flex items-center justify-center",
-            op.isCompleted ? "bg-tertiary-container/30 text-tertiary" : "bg-surface-container-low text-primary"
+            op.isCompleted ? "bg-tertiary-container/30 text-tertiary" : 
+            op.isUrgente ? "bg-error/10 text-error" :
+            op.isLicitacao ? "bg-blue-100 text-blue-600" :
+            "bg-surface-container-low text-primary"
           )}>
             <Icon className="w-6 h-6" />
           </div>
           <div className="flex-1">
-            <h4 className="font-headline font-bold text-on-surface">OP {op.id}</h4>
+            <div className="flex items-center gap-2">
+              <h4 className="font-headline font-bold text-on-surface">OP {op.id}</h4>
+              {op.isUrgente && (
+                <span className="text-[8px] font-black bg-error text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">Urgente</span>
+              )}
+              {op.isLicitacao && (
+                <span className="text-[8px] font-black bg-blue-500 text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">Licitação</span>
+              )}
+            </div>
             <div className="flex flex-col gap-0.5">
               <div className="flex items-center gap-2">
                 <p className="text-xs text-on-surface-variant font-medium">{op.line}</p>
@@ -130,7 +152,8 @@ export function OperationsView({
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [opToDelete, setOpToDelete] = useState<string | null>(null);
   const [editingOp, setEditingOp] = useState<Operation | null>(null);
-  const [formData, setFormData] = useState({ id: '', line: '', quantity: 0 });
+  const [formData, setFormData] = useState({ id: '', line: '', quantity: 0, isUrgente: false, isLicitacao: false });
+  const [formError, setFormError] = useState('');
   
   // Helper to get YYYY-MM-DD in local time
   const formatToISODate = (date: Date) => {
@@ -155,18 +178,41 @@ export function OperationsView({
   };
 
   const openModal = (op?: Operation) => {
+    setFormError('');
     if (op) {
       setEditingOp(op);
-      setFormData({ id: op.id, line: op.line, quantity: op.quantity });
+      setFormData({ 
+        id: op.id, 
+        line: op.line, 
+        quantity: op.quantity,
+        isUrgente: op.isUrgente || false,
+        isLicitacao: op.isLicitacao || false
+      });
     } else {
       setEditingOp(null);
-      setFormData({ id: '', line: productionLines[0] || '', quantity: 0 });
+      setFormData({ 
+        id: '', 
+        line: productionLines[0] || '', 
+        quantity: 0,
+        isUrgente: false,
+        isLicitacao: false
+      });
     }
     setIsModalOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
+
+    if (!editingOp) {
+      const idExists = operations.some(op => op.id === formData.id);
+      if (idExists) {
+        setFormError('Já existe uma OP com este número.');
+        return;
+      }
+    }
+
     if (editingOp) {
       onUpdateOperation({ ...editingOp, ...formData });
     } else {
@@ -192,6 +238,12 @@ export function OperationsView({
 
     const matchesDate = opDate >= start && opDate <= end;
     return matchesOP && matchesDate;
+  }).sort((a, b) => {
+    if (a.isUrgente && !b.isUrgente) return -1;
+    if (!a.isUrgente && b.isUrgente) return 1;
+    if (a.isLicitacao && !b.isLicitacao) return -1;
+    if (!a.isLicitacao && b.isLicitacao) return 1;
+    return 0;
   });
 
   const opsInSelectedRange = operations.filter(op => {
@@ -417,6 +469,14 @@ export function OperationsView({
                   <X className="w-6 h-6" />
                 </button>
               </div>
+
+              {formError && (
+                <div className="mb-6 p-3 bg-error/10 border border-error/20 rounded-xl text-error text-xs font-bold flex items-center gap-2">
+                  <X className="w-4 h-4" />
+                  {formError}
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">ID da Operação (Número)</label>
@@ -455,6 +515,33 @@ export function OperationsView({
                     required
                     min="1"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, isUrgente: !formData.isUrgente })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-xs uppercase tracking-widest",
+                      formData.isUrgente 
+                        ? "bg-error border-error text-white shadow-lg shadow-error/20" 
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-error/30"
+                    )}
+                  >
+                    OP Urgente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, isLicitacao: !formData.isLicitacao })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-xs uppercase tracking-widest",
+                      formData.isLicitacao 
+                        ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20" 
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-blue-600/30"
+                    )}
+                  >
+                    Licitação
+                  </button>
                 </div>
                 <div className="pt-4 flex gap-3">
                   <button 

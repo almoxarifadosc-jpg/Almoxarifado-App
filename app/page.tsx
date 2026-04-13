@@ -22,6 +22,8 @@ export interface Operation {
   steps: boolean[];
   iconType: 'factory' | 'settings' | 'check';
   isCompleted?: boolean;
+  isUrgente?: boolean;
+  isLicitacao?: boolean;
 }
 
 export interface NewsPost {
@@ -81,11 +83,24 @@ export default function Page() {
     ]);
 
     if (opsRes.data) {
-      setOperations(opsRes.data.map((op: any) => ({
+      const mappedOps = opsRes.data.map((op: any) => ({
         ...op,
         iconType: op.icon_type,
-        isCompleted: op.is_completed
-      })));
+        isCompleted: op.is_completed,
+        isUrgente: op.is_urgente,
+        isLicitacao: op.is_licitacao
+      }));
+
+      // Sort: Urgent and Licitacao first, then by date/id
+      const sortedOps = mappedOps.sort((a: any, b: any) => {
+        if (a.isUrgente && !b.isUrgente) return -1;
+        if (!a.isUrgente && b.isUrgente) return 1;
+        if (a.isLicitacao && !b.isLicitacao) return -1;
+        if (!a.isLicitacao && b.isLicitacao) return 1;
+        return 0; // Keep original order (created_at desc) for others
+      });
+
+      setOperations(sortedOps);
     }
     if (newsRes.data) {
       setNewsPosts(newsRes.data.map((post: any) => ({
@@ -178,7 +193,9 @@ export default function Page() {
       progress: newOp.progress,
       steps: newOp.steps,
       icon_type: newOp.iconType,
-      is_completed: newOp.isCompleted
+      is_completed: newOp.isCompleted,
+      is_urgente: newOp.isUrgente,
+      is_licitacao: newOp.isLicitacao
     }]);
     if (!error) fetchData();
   };
@@ -191,7 +208,9 @@ export default function Page() {
       progress: updatedOp.progress,
       steps: updatedOp.steps,
       icon_type: updatedOp.iconType,
-      is_completed: updatedOp.isCompleted
+      is_completed: updatedOp.isCompleted,
+      is_urgente: updatedOp.isUrgente,
+      is_licitacao: updatedOp.isLicitacao
     }).eq('id', updatedOp.id);
     if (!error) fetchData();
   };
