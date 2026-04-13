@@ -51,7 +51,7 @@ export function Header({ currentView, onViewChange, onLogout, isAdmin, logoUrl =
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 relative flex items-center justify-center overflow-hidden rounded-lg">
           <img 
-            src={logoUrl} 
+            src={`${logoUrl}?v=2`} 
             alt="Logo" 
             className="w-full h-full object-contain"
           />
@@ -96,7 +96,7 @@ export function Header({ currentView, onViewChange, onLogout, isAdmin, logoUrl =
         >
           <div className="w-full h-full p-1 flex items-center justify-center overflow-hidden">
             <img
-              src={logoUrl}
+              src={`${logoUrl}?v=2`}
               alt="Perfil do Usuário"
               className="w-full h-full object-contain"
             />
