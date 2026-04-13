@@ -16,8 +16,9 @@ export function PWAInstallPrompt() {
   useEffect(() => {
     // Check if already installed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+    const isDismissed = sessionStorage.getItem('pwa-prompt-dismissed') === 'true';
     
-    if (isStandalone) {
+    if (isStandalone || isDismissed) {
       return;
     }
 
@@ -32,16 +33,16 @@ export function PWAInstallPrompt() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // For iOS, we show it after a short delay if not standalone
-    if (platform === 'ios' && !isStandalone) {
-      const timer = setTimeout(() => {
+    // Show fallback instructions after a delay if not standalone and no prompt event yet
+    const timer = setTimeout(() => {
+      if (!isStandalone) {
         setShowPrompt(true);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
+      }
+    }, 5000);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      clearTimeout(timer);
     };
   }, [platform]);
 
@@ -60,6 +61,11 @@ export function PWAInstallPrompt() {
     setShowPrompt(false);
   };
 
+  const dismissPrompt = () => {
+    sessionStorage.setItem('pwa-prompt-dismissed', 'true');
+    setShowPrompt(false);
+  };
+
   if (!showPrompt) return null;
 
   return (
@@ -72,7 +78,7 @@ export function PWAInstallPrompt() {
           className="pointer-events-auto w-full max-w-sm bg-surface rounded-2xl shadow-2xl border border-outline-variant/20 p-6 overflow-hidden relative"
         >
           <button 
-            onClick={() => setShowPrompt(false)}
+            onClick={dismissPrompt}
             className="absolute top-4 right-4 p-1 hover:bg-surface-container-high rounded-full transition-colors"
           >
             <X className="w-5 h-5 text-on-surface-variant" />
@@ -99,16 +105,16 @@ export function PWAInstallPrompt() {
                 </p>
               </div>
               <button 
-                onClick={() => setShowPrompt(false)}
+                onClick={dismissPrompt}
                 className="w-full py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:opacity-90 transition-all text-sm"
               >
                 Entendi
               </button>
             </div>
-          ) : (
+          ) : deferredPrompt ? (
             <div className="flex gap-3">
               <button 
-                onClick={() => setShowPrompt(false)}
+                onClick={dismissPrompt}
                 className="flex-1 py-3 bg-surface-container-high text-on-surface font-bold rounded-xl hover:bg-surface-container-highest transition-all text-sm"
               >
                 Agora não
@@ -118,6 +124,23 @@ export function PWAInstallPrompt() {
                 className="flex-[2] py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:opacity-90 transition-all text-sm"
               >
                 Instalar Agora
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-surface-container-low p-4 rounded-xl space-y-3">
+                <p className="text-xs font-medium text-on-surface flex items-center gap-2">
+                  1. Abra o menu do navegador (três pontos <X className="w-4 h-4 rotate-90 inline" />)
+                </p>
+                <p className="text-xs font-medium text-on-surface flex items-center gap-2">
+                  2. Toque em &quot;Instalar aplicativo&quot; ou &quot;Adicionar à tela inicial&quot;
+                </p>
+              </div>
+              <button 
+                onClick={dismissPrompt}
+                className="w-full py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:opacity-90 transition-all text-sm"
+              >
+                Entendi
               </button>
             </div>
           )}
