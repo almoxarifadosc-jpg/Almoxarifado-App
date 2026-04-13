@@ -40,12 +40,6 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
     end.setHours(23, 59, 59, 999);
 
     return opDate >= start && opDate <= end;
-  }).sort((a, b) => {
-    if (a.isUrgente && !b.isUrgente) return -1;
-    if (!a.isUrgente && b.isUrgente) return 1;
-    if (a.isLicitacao && !b.isLicitacao) return -1;
-    if (!a.isLicitacao && b.isLicitacao) return 1;
-    return 0;
   });
 
   const totalPendingOutsideFilter = operations.filter(op => {
@@ -205,26 +199,15 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
           <div 
             key={op.id}
             className={cn(
-              "bg-white rounded-2xl p-5 border shadow-sm transition-all relative overflow-hidden",
-              op.isUrgente ? "border-error shadow-error/10 bg-error/[0.02]" : 
-              op.isLicitacao ? "border-blue-200 bg-blue-50/50" : 
+              "bg-white rounded-2xl p-5 border border-outline-variant/15 shadow-sm transition-all relative overflow-hidden",
               op.isCompleted ? "border-tertiary/20" : "border-outline-variant/10"
             )}
           >
             {/* Background Accent */}
             <div className={cn(
               "absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full opacity-[0.03]",
-              op.isUrgente ? "bg-error" :
-              op.isLicitacao ? "bg-blue-600" :
               op.isCompleted ? "bg-tertiary" : "bg-primary"
             )} />
-
-            {op.isUrgente && (
-              <div className="absolute top-0 left-0 w-1 h-full bg-error" />
-            )}
-            {op.isLicitacao && !op.isUrgente && (
-              <div className="absolute top-0 left-0 w-1 h-full bg-blue-400" />
-            )}
 
             <div className="flex justify-between items-start mb-4 relative z-10">
               <div>
@@ -232,12 +215,6 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
                   <span className="text-[10px] font-black bg-surface-container-high px-2 py-0.5 rounded text-on-surface-variant uppercase tracking-tighter">
                     OP {op.id}
                   </span>
-                  {op.isUrgente && (
-                    <span className="text-[8px] font-black bg-error text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">Urgente</span>
-                  )}
-                  {op.isLicitacao && (
-                    <span className="text-[8px] font-black bg-blue-500 text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">Licitação</span>
-                  )}
                   {op.isCompleted && (
                     <CheckCircle2 className="w-4 h-4 text-tertiary" />
                   )}

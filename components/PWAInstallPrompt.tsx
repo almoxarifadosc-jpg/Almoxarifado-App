@@ -15,7 +15,7 @@ export function PWAInstallPrompt() {
 
   useEffect(() => {
     // Check if already installed
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone || window.location.search.includes('standalone=true');
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
     const isDismissed = sessionStorage.getItem('pwa-prompt-dismissed') === 'true';
     
     if (isStandalone || isDismissed) {
@@ -23,19 +23,22 @@ export function PWAInstallPrompt() {
     }
 
     const handleBeforeInstallPrompt = (e: any) => {
+      // Prevent Chrome 67 and earlier from automatically showing the prompt
       e.preventDefault();
+      // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
+      // Update UI notify the user they can add to home screen
       setShowPrompt(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // Show fallback instructions after a longer delay (10s) if not standalone
+    // Show fallback instructions after a delay if not standalone and no prompt event yet
     const timer = setTimeout(() => {
-      if (!isStandalone && !sessionStorage.getItem('pwa-prompt-dismissed')) {
+      if (!isStandalone) {
         setShowPrompt(true);
       }
-    }, 10000);
+    }, 5000);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
