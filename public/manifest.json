@@ -9,6 +9,7 @@
   "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#0061a4",
+  "lang": "pt-BR",
   "prefer_related_applications": false,
   "icons": [
     {
