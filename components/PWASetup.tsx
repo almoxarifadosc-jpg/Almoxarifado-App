@@ -8,7 +8,7 @@ export function PWASetup() {
     if ('serviceWorker' in navigator) {
       const register = () => {
         console.log('Attempting to register Service Worker...');
-        navigator.serviceWorker.register('/sw.js?v=4').then(
+        navigator.serviceWorker.register('/sw.js?v=5').then(
           (registration) => {
             console.log('ServiceWorker registration successful with scope: ', registration.scope);
           },
