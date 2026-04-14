@@ -57,16 +57,47 @@ export default function Page() {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       setNotificationsEnabled(true);
-      new Notification('Notificações Ativadas', {
+      showLocalNotification('Notificações Ativadas', {
         body: 'Você receberá avisos sobre OPs Urgentes e Atrasadas.',
-        icon: logoUrl || '/favicon.ico'
       });
+    }
+  };
+
+  const showLocalNotification = async (title: string, options: any) => {
+    const notificationOptions = {
+      ...options,
+      icon: logoUrl || '/favicon.ico',
+      badge: '/favicon.ico',
+      vibrate: [200, 100, 200],
+    };
+
+    // Try Service Worker first (Better for Android)
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      if (registration) {
+        registration.showNotification(title, notificationOptions);
+        return;
+      }
+    }
+
+    // Fallback to standard Notification
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, notificationOptions);
     }
   };
 
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'granted') {
       setNotificationsEnabled(true);
+    }
+
+    // Register Service Worker for Android notifications
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        console.log('Service Worker registered:', reg.scope);
+      }).catch((err) => {
+        console.error('Service Worker registration failed:', err);
+      });
     }
   }, []);
 
@@ -258,9 +289,8 @@ export default function Page() {
             }
 
             if (title) {
-              new Notification(title, {
+              showLocalNotification(title, {
                 body,
-                icon: logoUrl || '/favicon.ico',
                 tag: `op-${newData.id}-status`
               });
             }
@@ -272,9 +302,8 @@ export default function Page() {
           const newData = payload.new;
           if (Notification.permission === 'granted' && (newData.is_urgente || newData.is_atrasada)) {
             const status = newData.is_urgente ? 'URGENTE' : 'ATRASADA';
-            new Notification(`🆕 Nova OP ${status}`, {
+            showLocalNotification(`🆕 Nova OP ${status}`, {
               body: `Uma nova OP (${newData.id}) foi criada com status ${status}.`,
-              icon: logoUrl || '/favicon.ico'
             });
           }
           fetchData();
