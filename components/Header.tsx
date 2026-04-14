@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { LayoutGrid, Key, LogOut, X, Loader2, CheckCircle, Moon, Sun } from 'lucide-react';
+import { LayoutGrid, Key, LogOut, X, Loader2, CheckCircle, Moon, Sun, Bell, BellOff } from 'lucide-react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -15,6 +15,8 @@ interface HeaderProps {
   logoUrl?: string;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
+  notificationsEnabled?: boolean;
+  onRequestNotifications?: () => void;
 }
 
 export function Header({ 
@@ -25,7 +27,9 @@ export function Header({
   isViewer, 
   logoUrl = '/app-logo.png?v=4',
   isDarkMode,
-  onToggleDarkMode
+  onToggleDarkMode,
+  notificationsEnabled,
+  onRequestNotifications
 }: HeaderProps) {
   const [showLogout, setShowLogout] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -106,6 +110,18 @@ export function Header({
       </nav>
 
       <div className="flex items-center gap-4">
+        <button 
+          onClick={onRequestNotifications}
+          className={`p-2 rounded-xl transition-colors border border-outline-variant/15 ${
+            notificationsEnabled 
+              ? 'bg-tertiary/10 text-tertiary' 
+              : 'bg-surface-container-high text-on-surface-variant hover:text-primary'
+          }`}
+          title={notificationsEnabled ? "Notificações Ativas" : "Ativar Notificações"}
+        >
+          {notificationsEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+        </button>
+
         <button 
           onClick={onToggleDarkMode}
           className="p-2 rounded-xl bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors border border-outline-variant/15"

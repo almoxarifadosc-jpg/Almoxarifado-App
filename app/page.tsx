@@ -45,6 +45,30 @@ export default function Page() {
   const [logoUrl, setLogoUrl] = useState<string>('/app-logo.png?v=4');
   const [loading, setLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+
+  // Request notification permission
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      console.warn('This browser does not support desktop notification');
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      setNotificationsEnabled(true);
+      new Notification('Notificações Ativadas', {
+        body: 'Você receberá avisos sobre OPs Urgentes e Atrasadas.',
+        icon: logoUrl || '/favicon.ico'
+      });
+    }
+  };
+
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      setNotificationsEnabled(true);
+    }
+  }, []);
 
   useEffect(() => {
     const savedMode = localStorage.getItem('darkMode') === 'true';
@@ -214,8 +238,48 @@ export default function Page() {
       
       const operationsChannel = supabase
         .channel('realtime-operations')
-        .on('postgres_changes', { event: '*', table: 'operations', schema: 'public' }, (payload: any) => {
+        .on('postgres_changes', { event: 'UPDATE', table: 'operations', schema: 'public' }, (payload: any) => {
           console.log('Realtime update received for operations:', payload);
+          
+          // Check for urgent or delayed status changes
+          const oldData = payload.old;
+          const newData = payload.new;
+          
+          if (Notification.permission === 'granted') {
+            let title = '';
+            let body = '';
+            
+            if (newData.is_urgente && !oldData.is_urgente) {
+              title = `🚨 OP ${newData.id} URGENTE!`;
+              body = `A OP ${newData.id} foi marcada como URGENTE.`;
+            } else if (newData.is_atrasada && !oldData.is_atrasada) {
+              title = `⏰ OP ${newData.id} ATRASADA!`;
+              body = `A OP ${newData.id} foi marcada como ATRASADA.`;
+            }
+
+            if (title) {
+              new Notification(title, {
+                body,
+                icon: logoUrl || '/favicon.ico',
+                tag: `op-${newData.id}-status`
+              });
+            }
+          }
+          
+          fetchData();
+        })
+        .on('postgres_changes', { event: 'INSERT', table: 'operations', schema: 'public' }, (payload: any) => {
+          const newData = payload.new;
+          if (Notification.permission === 'granted' && (newData.is_urgente || newData.is_atrasada)) {
+            const status = newData.is_urgente ? 'URGENTE' : 'ATRASADA';
+            new Notification(`🆕 Nova OP ${status}`, {
+              body: `Uma nova OP (${newData.id}) foi criada com status ${status}.`,
+              icon: logoUrl || '/favicon.ico'
+            });
+          }
+          fetchData();
+        })
+        .on('postgres_changes', { event: 'DELETE', table: 'operations', schema: 'public' }, () => {
           fetchData();
         })
         .subscribe((status: string) => {
@@ -391,6 +455,8 @@ export default function Page() {
         logoUrl={logoUrl}
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}
+        notificationsEnabled={notificationsEnabled}
+        onRequestNotifications={requestNotificationPermission}
       />
       
       <AnimatePresence mode="wait">
