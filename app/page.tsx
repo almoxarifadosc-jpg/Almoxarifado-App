@@ -89,65 +89,85 @@ export default function Page() {
   }, []);
 
   const checkUser = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      fetchProfile(session.user.id);
-    } else {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        if (error.message.includes('Refresh Token Not Found') || error.message.includes('invalid_refresh_token')) {
+          await supabase.auth.signOut();
+        }
+        throw error;
+      }
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    } catch (err: any) {
+      console.error('Auth check error:', err.message);
       setLoading(false);
     }
   }, [fetchProfile]);
 
   const fetchData = useCallback(async () => {
-    const [opsRes, newsRes, linesRes, settingsRes] = await Promise.all([
-      supabase.from('operations').select('*').order('created_at', { ascending: false }),
-      supabase.from('news_posts').select('*').order('created_at', { ascending: false }),
-      supabase.from('production_lines').select('name').order('name'),
-      supabase.from('settings').select('*').eq('key', 'company_logo').single()
-    ]);
-
-    if (opsRes.data) {
-      const mappedOps = opsRes.data.map((op: any) => ({
-        ...op,
-        iconType: op.icon_type,
-        isCompleted: op.is_completed,
-        isUrgente: op.is_urgente,
-        isLicitacao: op.is_licitacao
-      }));
-
-      // Sort: Urgent and Licitacao first, then by ID alphabetical
-      const sortedOps = mappedOps.sort((a: any, b: any) => {
-        if (a.isUrgente && !b.isUrgente) return -1;
-        if (!a.isUrgente && b.isUrgente) return 1;
-        if (a.isLicitacao && !b.isLicitacao) return -1;
-        if (!a.isLicitacao && b.isLicitacao) return 1;
-        return a.id.localeCompare(b.id);
-      });
-
-      setOperations(sortedOps);
-    }
-    if (newsRes.data) {
-      setNewsPosts(newsRes.data.map((post: any) => ({
-        ...post,
-        imageUrl: post.image_url
-      })));
-    }
-    if (linesRes.data && linesRes.data.length > 0) {
-      setProductionLines(linesRes.data.map((line: any) => line.name));
-    } else {
-      // Fallback to default lines if table is empty or doesn't exist
-      setProductionLines([
-        "Linha de Montagem A2",
-        "Unidade de Processamento",
-        "Controle de Qualidade B1",
-        "Logística Interna",
-        "Linha de Pintura",
-        "Embalagem Final"
+    try {
+      const [opsRes, newsRes, linesRes, settingsRes] = await Promise.all([
+        supabase.from('operations').select('*').order('created_at', { ascending: false }),
+        supabase.from('news_posts').select('*').order('created_at', { ascending: false }),
+        supabase.from('production_lines').select('name').order('name'),
+        supabase.from('settings').select('*').eq('key', 'company_logo').single()
       ]);
-    }
-    if (settingsRes.data && settingsRes.data.value) {
-      setLogoUrl(settingsRes.data.value);
-    } else {
-      setLogoUrl('/app-logo.png?v=4');
+
+      if (opsRes.error && opsRes.error.message.includes('JWT')) {
+        await supabase.auth.signOut();
+        return;
+      }
+
+      if (opsRes.data) {
+        const mappedOps = opsRes.data.map((op: any) => ({
+          ...op,
+          iconType: op.icon_type,
+          isCompleted: op.is_completed,
+          isUrgente: op.is_urgente,
+          isLicitacao: op.is_licitacao
+        }));
+
+        // Sort: Urgent and Licitacao first, then by ID alphabetical
+        const sortedOps = mappedOps.sort((a: any, b: any) => {
+          if (a.isUrgente && !b.isUrgente) return -1;
+          if (!a.isUrgente && b.isUrgente) return 1;
+          if (a.isLicitacao && !b.isLicitacao) return -1;
+          if (!a.isLicitacao && b.isLicitacao) return 1;
+          return a.id.localeCompare(b.id);
+        });
+
+        setOperations(sortedOps);
+      }
+      if (newsRes.data) {
+        setNewsPosts(newsRes.data.map((post: any) => ({
+          ...post,
+          imageUrl: post.image_url
+        })));
+      }
+      if (linesRes.data && linesRes.data.length > 0) {
+        setProductionLines(linesRes.data.map((line: any) => line.name));
+      } else {
+        // Fallback to default lines if table is empty or doesn't exist
+        setProductionLines([
+          "Linha de Montagem A2",
+          "Unidade de Processamento",
+          "Controle de Qualidade B1",
+          "Logística Interna",
+          "Linha de Pintura",
+          "Embalagem Final"
+        ]);
+      }
+      if (settingsRes.data && settingsRes.data.value) {
+        setLogoUrl(settingsRes.data.value);
+      } else {
+        setLogoUrl('/app-logo.png?v=4');
+      }
+    } catch (err: any) {
+      console.error('Error fetching data:', err.message);
     }
   }, []);
 
@@ -317,7 +337,11 @@ export default function Page() {
 
   if (!currentUser) {
     return (
-      <AuthView onAuthSuccess={checkUser} />
+      <AuthView 
+        onAuthSuccess={checkUser} 
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={toggleDarkMode}
+      />
     );
   }
 

@@ -30,7 +30,7 @@ export function BottomNav({ currentView, onViewChange, isAdmin, isViewer }: Bott
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 w-full bg-white flex justify-around items-center px-4 py-3 pb-6 z-50 rounded-t-2xl border-t border-outline-variant/15 shadow-[0_-4px_24px_rgba(43,52,55,0.06)] md:hidden">
+    <nav className="fixed bottom-0 left-0 w-full bg-surface-container-lowest flex justify-around items-center px-4 py-3 pb-6 z-50 rounded-t-2xl border-t border-outline-variant/15 shadow-[0_-4px_24px_rgba(43,52,55,0.06)] md:hidden">
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const isActive = currentView === tab.id;
@@ -41,7 +41,7 @@ export function BottomNav({ currentView, onViewChange, isAdmin, isViewer }: Bott
             className={cn(
               "flex flex-col items-center justify-center px-6 py-2 transition-all duration-300 ease-out rounded-xl",
               isActive 
-                ? "bg-gradient-to-br from-white to-surface-container-low text-primary" 
+                ? "bg-gradient-to-br from-surface-container-low to-surface-container-high text-primary" 
                 : "text-on-surface/50 hover:text-primary"
             )}
           >

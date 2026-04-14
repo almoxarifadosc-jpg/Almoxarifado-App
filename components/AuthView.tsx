@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import Image from 'next/image';
-import { User, Lock, Mail, UserPlus, LogIn, ShieldCheck, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { User, Lock, Mail, UserPlus, LogIn, ShieldCheck, CheckCircle, XCircle, Loader2, Sun, Moon } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 
 export type AuthMode = 'LOGIN' | 'REGISTER' | 'ADMIN_PANEL';
 
@@ -18,9 +19,11 @@ interface Profile {
 
 interface AuthViewProps {
   onAuthSuccess: () => void;
+  isDarkMode: boolean;
+  onToggleDarkMode: () => void;
 }
 
-export function AuthView({ onAuthSuccess }: AuthViewProps) {
+export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode }: AuthViewProps) {
   const [mode, setMode] = useState<AuthMode>('LOGIN');
   const [formData, setFormData] = useState({ email: '', password: '', name: '' });
   const [error, setError] = useState('');
@@ -157,12 +160,18 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
 
   if (mode === 'ADMIN_PANEL') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-surface-container-lowest">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-surface transition-colors duration-300">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-2xl border border-outline-variant/10"
+          className="bg-surface-container-lowest p-8 rounded-3xl shadow-2xl w-full max-w-2xl border border-outline-variant/10 relative"
         >
+          <button 
+            onClick={onToggleDarkMode}
+            className="absolute top-8 right-8 p-2 hover:bg-surface-container-high rounded-full transition-colors"
+          >
+            {isDarkMode ? <Sun className="w-5 h-5 text-primary" /> : <Moon className="w-5 h-5 text-on-surface-variant" />}
+          </button>
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-2xl font-headline font-extrabold flex items-center gap-3">
               <ShieldCheck className="text-primary w-8 h-8" />
@@ -215,12 +224,18 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-surface-container-lowest">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-surface transition-colors duration-300">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10"
+        className="bg-surface-container-lowest p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10 relative"
       >
+        <button 
+          onClick={onToggleDarkMode}
+          className="absolute top-8 right-8 p-2 hover:bg-surface-container-high rounded-full transition-colors"
+        >
+          {isDarkMode ? <Sun className="w-5 h-5 text-primary" /> : <Moon className="w-5 h-5 text-on-surface-variant" />}
+        </button>
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-primary/5 rounded-3xl flex items-center justify-center mx-auto mb-4">
             <User className="w-10 h-10 text-primary" />

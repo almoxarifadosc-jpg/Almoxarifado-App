@@ -161,7 +161,7 @@ export function Header({
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10 relative"
+              className="bg-surface-container-lowest p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10 relative"
             >
               <button 
                 onClick={() => setShowPasswordModal(false)}
