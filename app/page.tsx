@@ -24,6 +24,7 @@ export interface Operation {
   isCompleted?: boolean;
   isUrgente?: boolean;
   isLicitacao?: boolean;
+  isAtrasada?: boolean;
 }
 
 export interface NewsPost {
@@ -128,11 +129,14 @@ export default function Page() {
           iconType: op.icon_type,
           isCompleted: op.is_completed,
           isUrgente: op.is_urgente,
-          isLicitacao: op.is_licitacao
+          isLicitacao: op.is_licitacao,
+          isAtrasada: op.is_atrasada
         }));
 
-        // Sort: Urgent and Licitacao first, then by ID alphabetical
+        // Sort: Atrasada first, then Urgent, then Licitacao, then by ID alphabetical
         const sortedOps = mappedOps.sort((a: any, b: any) => {
+          if (a.isAtrasada && !b.isAtrasada) return -1;
+          if (!a.isAtrasada && b.isAtrasada) return 1;
           if (a.isUrgente && !b.isUrgente) return -1;
           if (!a.isUrgente && b.isUrgente) return 1;
           if (a.isLicitacao && !b.isLicitacao) return -1;
@@ -275,7 +279,8 @@ export default function Page() {
       icon_type: newOp.iconType,
       is_completed: newOp.isCompleted,
       is_urgente: newOp.isUrgente,
-      is_licitacao: newOp.isLicitacao
+      is_licitacao: newOp.isLicitacao,
+      is_atrasada: newOp.isAtrasada
     }]);
     if (!error) fetchData();
   };
@@ -290,7 +295,8 @@ export default function Page() {
       icon_type: updatedOp.iconType,
       is_completed: updatedOp.isCompleted,
       is_urgente: updatedOp.isUrgente,
-      is_licitacao: updatedOp.isLicitacao
+      is_licitacao: updatedOp.isLicitacao,
+      is_atrasada: updatedOp.isAtrasada
     }).eq('id', updatedOp.id);
     if (!error) fetchData();
   };

@@ -37,7 +37,10 @@ function OPRow({ op, onToggleStep, onEdit, onDelete, isAdmin, isViewer, allowedG
       {op.isUrgente && (
         <div className="absolute top-0 left-0 w-1 h-full bg-error" />
       )}
-      {op.isLicitacao && !op.isUrgente && (
+      {op.isAtrasada && !op.isUrgente && (
+        <div className="absolute top-0 left-0 w-1 h-full bg-error/60" />
+      )}
+      {op.isLicitacao && !op.isUrgente && !op.isAtrasada && (
         <div className="absolute top-0 left-0 w-1 h-full bg-blue-400" />
       )}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center relative z-10">
@@ -45,7 +48,7 @@ function OPRow({ op, onToggleStep, onEdit, onDelete, isAdmin, isViewer, allowedG
           <div className={cn(
             "w-12 h-12 rounded-xl flex items-center justify-center",
             op.isCompleted ? "bg-tertiary-container/30 text-tertiary" : 
-            op.isUrgente ? "bg-error/10 text-error" :
+            (op.isUrgente || op.isAtrasada) ? "bg-error/10 text-error" :
             op.isLicitacao ? "bg-blue-100 text-blue-600" :
             "bg-surface-container-low text-primary"
           )}>
@@ -54,6 +57,9 @@ function OPRow({ op, onToggleStep, onEdit, onDelete, isAdmin, isViewer, allowedG
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <h4 className="font-headline font-bold text-on-surface">OP {op.id}</h4>
+              {op.isAtrasada && (
+                <span className="text-[8px] font-black bg-error text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">OP Atrasada</span>
+              )}
               {op.isUrgente && (
                 <span className="text-[8px] font-black bg-error text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">Urgente</span>
               )}
@@ -156,7 +162,7 @@ export function OperationsView({
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [opToDelete, setOpToDelete] = useState<string | null>(null);
   const [editingOp, setEditingOp] = useState<Operation | null>(null);
-  const [formData, setFormData] = useState({ id: '', line: '', quantity: 0, isUrgente: false, isLicitacao: false });
+  const [formData, setFormData] = useState({ id: '', line: '', quantity: 0, isUrgente: false, isLicitacao: false, isAtrasada: false });
   const [formError, setFormError] = useState('');
   
   // Helper to get YYYY-MM-DD in local time
@@ -190,7 +196,8 @@ export function OperationsView({
         line: op.line, 
         quantity: op.quantity,
         isUrgente: op.isUrgente || false,
-        isLicitacao: op.isLicitacao || false
+        isLicitacao: op.isLicitacao || false,
+        isAtrasada: op.isAtrasada || false
       });
     } else {
       setEditingOp(null);
@@ -199,7 +206,8 @@ export function OperationsView({
         line: productionLines[0] || '', 
         quantity: 0,
         isUrgente: false,
-        isLicitacao: false
+        isLicitacao: false,
+        isAtrasada: false
       });
     }
     setIsModalOpen(true);
@@ -243,6 +251,8 @@ export function OperationsView({
     const matchesDate = (opDate >= start && opDate <= end) || (!op.isCompleted && opDate < start);
     return matchesOP && matchesDate;
   }).sort((a, b) => {
+    if (a.isAtrasada && !b.isAtrasada) return -1;
+    if (!a.isAtrasada && b.isAtrasada) return 1;
     if (a.isUrgente && !b.isUrgente) return -1;
     if (!a.isUrgente && b.isUrgente) return 1;
     if (a.isLicitacao && !b.isLicitacao) return -1;
@@ -521,12 +531,24 @@ export function OperationsView({
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, isAtrasada: !formData.isAtrasada })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
+                      formData.isAtrasada 
+                        ? "bg-error border-error text-white shadow-lg shadow-error/20" 
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-error/30"
+                    )}
+                  >
+                    OP Atrasada
+                  </button>
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, isUrgente: !formData.isUrgente })}
                     className={cn(
-                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-xs uppercase tracking-widest",
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
                       formData.isUrgente 
                         ? "bg-error border-error text-white shadow-lg shadow-error/20" 
                         : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-error/30"
@@ -538,7 +560,7 @@ export function OperationsView({
                     type="button"
                     onClick={() => setFormData({ ...formData, isLicitacao: !formData.isLicitacao })}
                     className={cn(
-                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-xs uppercase tracking-widest",
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
                       formData.isLicitacao 
                         ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20" 
                         : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-blue-600/30"

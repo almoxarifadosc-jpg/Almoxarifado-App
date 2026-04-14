@@ -42,6 +42,8 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
     // Include OPs in range OR pending OPs from the past
     return (opDate >= start && opDate <= end) || (!op.isCompleted && opDate < start);
   }).sort((a, b) => {
+    if (a.isAtrasada && !b.isAtrasada) return -1;
+    if (!a.isAtrasada && b.isAtrasada) return 1;
     if (a.isUrgente && !b.isUrgente) return -1;
     if (!a.isUrgente && b.isUrgente) return 1;
     if (a.isLicitacao && !b.isLicitacao) return -1;
@@ -222,7 +224,10 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
             {op.isUrgente && (
               <div className="absolute top-0 left-0 w-1 h-full bg-error" />
             )}
-            {op.isLicitacao && !op.isUrgente && (
+            {op.isAtrasada && !op.isUrgente && (
+              <div className="absolute top-0 left-0 w-1 h-full bg-error/60" />
+            )}
+            {op.isLicitacao && !op.isUrgente && !op.isAtrasada && (
               <div className="absolute top-0 left-0 w-1 h-full bg-blue-400" />
             )}
 
@@ -232,6 +237,9 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
                   <span className="text-[10px] font-black bg-surface-container-low dark:bg-surface-container-high px-2 py-0.5 rounded text-on-surface-variant uppercase tracking-tighter">
                     OP {op.id}
                   </span>
+                  {op.isAtrasada && (
+                    <span className="text-[8px] font-black bg-error text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">OP Atrasada</span>
+                  )}
                   {op.isUrgente && (
                     <span className="text-[8px] font-black bg-error text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">Urgente</span>
                   )}
