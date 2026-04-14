@@ -281,13 +281,13 @@ export function AdminView() {
   }
 
   return (
-    <div className="min-h-screen pt-24 pb-32 px-4 bg-surface-container-lowest">
+    <div className="min-h-screen pt-24 pb-32 px-4 bg-surface transition-colors duration-300">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="max-w-4xl mx-auto"
       >
-        <div className="bg-white p-8 rounded-3xl shadow-xl border border-outline-variant/10">
+        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-xl border border-outline-variant/10">
           <div className="flex items-center gap-4 mb-8">
             <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
               <ShieldCheck className="text-primary w-7 h-7" />
@@ -311,13 +311,13 @@ export function AdminView() {
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">URL da Logo da Empresa</label>
                   <div className="flex gap-2">
-                    <input 
-                      type="text"
-                      value={logoUrl}
-                      onChange={(e) => setLogoUrl(e.target.value)}
-                      placeholder="https://exemplo.com/logo.png"
-                      className="flex-1 bg-surface-container-lowest text-on-surface border border-outline-variant/20 rounded-xl px-4 py-2 focus:ring-1 focus:ring-primary outline-none text-sm"
-                    />
+                  <input 
+                    type="text"
+                    value={logoUrl}
+                    onChange={(e) => setLogoUrl(e.target.value)}
+                    placeholder="https://exemplo.com/logo.png"
+                    className="flex-1 bg-surface-container-low text-on-surface border border-outline-variant/20 rounded-xl px-4 py-2 focus:ring-1 focus:ring-primary outline-none text-sm"
+                  />
                     <button 
                       onClick={handleSaveLogo}
                       disabled={savingLogo}
@@ -329,9 +329,9 @@ export function AdminView() {
                   <p className="text-[10px] text-on-surface-variant">Insira o link direto para a imagem da logo (PNG, JPG ou SVG).</p>
                 </div>
                 {logoUrl && (
-                  <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-outline-variant/10">
+                  <div className="flex items-center gap-4 p-4 bg-surface-container-low rounded-xl border border-outline-variant/10">
                     <span className="text-xs font-bold text-on-surface-variant">Prévia:</span>
-                    <div className="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center overflow-hidden">
+                    <div className="w-12 h-12 bg-surface-container-lowest rounded-lg flex items-center justify-center overflow-hidden">
                       <img src={logoUrl} alt="Prévia da Logo" className="max-w-full max-h-full object-contain" />
                     </div>
                   </div>
@@ -420,7 +420,7 @@ export function AdminView() {
                           defaultValue={user.allowed_groups?.join(', ') || ''}
                           onBlur={(e) => handleUpdateGroups(user.id, e.target.value)}
                           placeholder="Ex: G1, G2"
-                          className="text-[10px] bg-surface-container-lowest text-on-surface border border-outline-variant/20 rounded px-2 py-0.5 focus:ring-1 focus:ring-primary outline-none w-24"
+                          className="text-[10px] bg-surface-container-low text-on-surface border border-outline-variant/20 rounded px-2 py-0.5 focus:ring-1 focus:ring-primary outline-none w-24"
                         />
                       </div>
                     </div>
