@@ -39,7 +39,8 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
     const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);
 
-    return opDate >= start && opDate <= end;
+    // Include OPs in range OR pending OPs from the past
+    return (opDate >= start && opDate <= end) || (!op.isCompleted && opDate < start);
   }).sort((a, b) => {
     if (a.isUrgente && !b.isUrgente) return -1;
     if (!a.isUrgente && b.isUrgente) return 1;
@@ -51,11 +52,10 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
   const totalPendingOutsideFilter = operations.filter(op => {
     if (op.isCompleted) return false;
     const opDate = parseDate(op.date);
-    const start = parseISODate(startDate);
-    start.setHours(0, 0, 0, 0);
     const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);
-    return opDate < start || opDate > end;
+    // Only future pending OPs are "outside" now, since past pending are included
+    return opDate > end;
   }).length;
 
   const totalOps = filteredOps.length;
@@ -96,7 +96,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full sm:w-40 bg-white border border-outline-variant/20 rounded-xl px-4 py-2 pl-10 focus:ring-1 focus:ring-primary outline-none text-sm"
+                className="w-full sm:w-40 bg-surface-container-lowest text-on-surface border border-outline-variant/20 rounded-xl px-4 py-2 pl-10 focus:ring-1 focus:ring-primary outline-none text-sm"
                 title="Data Início"
               />
               <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />
@@ -106,7 +106,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full sm:w-40 bg-white border border-outline-variant/20 rounded-xl px-4 py-2 pl-10 focus:ring-1 focus:ring-primary outline-none text-sm"
+                className="w-full sm:w-40 bg-surface-container-lowest text-on-surface border border-outline-variant/20 rounded-xl px-4 py-2 pl-10 focus:ring-1 focus:ring-primary outline-none text-sm"
                 title="Data Fim"
               />
               <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />
@@ -140,7 +140,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
             </div>
             <div>
               <p className="text-sm font-bold text-on-surface">Filtro de Data Ativo</p>
-              <p className="text-xs text-on-surface-variant">Existem <strong>{totalPendingOutsideFilter} OPs pendentes</strong> fora deste período de datas.</p>
+              <p className="text-xs text-on-surface-variant">Existem <strong>{totalPendingOutsideFilter} OPs pendentes</strong> programadas para datas futuras.</p>
             </div>
           </div>
           <button 
@@ -205,9 +205,9 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
           <div 
             key={op.id}
             className={cn(
-              "bg-white rounded-2xl p-5 border shadow-sm transition-all relative overflow-hidden",
+              "bg-surface-container-lowest rounded-2xl p-5 border shadow-sm transition-all relative overflow-hidden",
               op.isUrgente ? "border-error shadow-error/10 bg-error/[0.02]" : 
-              op.isLicitacao ? "border-blue-200 bg-blue-50/50" : 
+              op.isLicitacao ? "border-blue-200 bg-blue-50/50 dark:bg-blue-900/10 dark:border-blue-800" : 
               op.isCompleted ? "border-tertiary/20" : "border-outline-variant/10"
             )}
           >
@@ -229,7 +229,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
             <div className="flex justify-between items-start mb-4 relative z-10">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-black bg-surface-container-high px-2 py-0.5 rounded text-on-surface-variant uppercase tracking-tighter">
+                  <span className="text-[10px] font-black bg-surface-container-low dark:bg-surface-container-high px-2 py-0.5 rounded text-on-surface-variant uppercase tracking-tighter">
                     OP {op.id}
                   </span>
                   {op.isUrgente && (
@@ -270,9 +270,9 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
               ))}
             </div>
 
-            <div className="flex items-center justify-between pt-4 border-t border-outline-variant/10 relative z-10">
+            <div className="flex items-center justify-between pt-4 border-t border-outline-variant/5 relative z-10">
               <div className="flex items-center gap-1.5">
-                <div className="w-6 h-6 rounded-lg bg-surface-container-high flex items-center justify-center">
+                <div className="w-6 h-6 rounded-lg bg-surface-container-low dark:bg-surface-container-high flex items-center justify-center">
                   <Factory className="w-3 h-3 text-on-surface-variant" />
                 </div>
                 <span className="text-[11px] font-bold text-on-surface-variant">Qtd: {op.quantity}</span>

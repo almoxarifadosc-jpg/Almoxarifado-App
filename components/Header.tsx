@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { LayoutGrid, Key, LogOut, X, Loader2, CheckCircle } from 'lucide-react';
+import { LayoutGrid, Key, LogOut, X, Loader2, CheckCircle, Moon, Sun } from 'lucide-react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -13,9 +13,20 @@ interface HeaderProps {
   isAdmin?: boolean;
   isViewer?: boolean;
   logoUrl?: string;
+  isDarkMode?: boolean;
+  onToggleDarkMode?: () => void;
 }
 
-export function Header({ currentView, onViewChange, onLogout, isAdmin, isViewer, logoUrl = '/app-logo.png?v=4' }: HeaderProps) {
+export function Header({ 
+  currentView, 
+  onViewChange, 
+  onLogout, 
+  isAdmin, 
+  isViewer, 
+  logoUrl = '/app-logo.png?v=4',
+  isDarkMode,
+  onToggleDarkMode
+}: HeaderProps) {
   const [showLogout, setShowLogout] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -76,12 +87,14 @@ export function Header({ currentView, onViewChange, onLogout, isAdmin, isViewer,
         >
           Painel de Separação
         </button>
-        <button 
-          onClick={() => onViewChange('LAUNCH')}
-          className={`font-body text-sm font-semibold transition-colors ${currentView === 'LAUNCH' ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
-        >
-          Portal
-        </button>
+        {!isViewer && (
+          <button 
+            onClick={() => onViewChange('LAUNCH')}
+            className={`font-body text-sm font-semibold transition-colors ${currentView === 'LAUNCH' ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
+          >
+            Portal
+          </button>
+        )}
         {isAdmin && (
           <button 
             onClick={() => onViewChange('ADMIN_PANEL')}
@@ -92,42 +105,52 @@ export function Header({ currentView, onViewChange, onLogout, isAdmin, isViewer,
         )}
       </nav>
 
-      <div className="relative">
+      <div className="flex items-center gap-4">
         <button 
-          onClick={() => setShowLogout(!showLogout)}
-          className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden border border-outline-variant/15 active:scale-95 transition-transform"
+          onClick={onToggleDarkMode}
+          className="p-2 rounded-xl bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors border border-outline-variant/15"
+          title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
         >
-          <div className="w-full h-full p-1 flex items-center justify-center overflow-hidden">
-            <img
-              src={logoUrl}
-              alt="Perfil do Usuário"
-              className="w-full h-full object-contain"
-            />
-          </div>
+          {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
 
-        {showLogout && (
-          <div className="absolute right-0 mt-2 w-56 bg-surface rounded-xl shadow-xl border border-outline-variant/10 p-2 z-[60]">
-            <button 
-              onClick={() => {
-                setShowPasswordModal(true);
-                setShowLogout(false);
-              }}
-              className="w-full text-left px-4 py-2 text-sm font-bold text-on-surface hover:bg-surface-container-high rounded-lg transition-colors flex items-center gap-2 mb-1"
-            >
-              <Key className="w-4 h-4 text-primary" />
-              Alterar Minha Senha
-            </button>
-            <div className="h-px bg-outline-variant/10 my-1" />
-            <button 
-              onClick={onLogout}
-              className="w-full text-left px-4 py-2 text-sm font-bold text-error hover:bg-error/10 rounded-lg transition-colors flex items-center gap-2"
-            >
-              <LogOut className="w-4 h-4" />
-              Sair do Sistema
-            </button>
-          </div>
-        )}
+        <div className="relative">
+          <button 
+            onClick={() => setShowLogout(!showLogout)}
+            className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden border border-outline-variant/15 active:scale-95 transition-transform"
+          >
+            <div className="w-full h-full p-1 flex items-center justify-center overflow-hidden">
+              <img
+                src={logoUrl}
+                alt="Perfil do Usuário"
+                className="w-full h-full object-contain"
+              />
+            </div>
+          </button>
+
+          {showLogout && (
+            <div className="absolute right-0 mt-2 w-56 bg-surface rounded-xl shadow-xl border border-outline-variant/10 p-2 z-[60]">
+              <button 
+                onClick={() => {
+                  setShowPasswordModal(true);
+                  setShowLogout(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm font-bold text-on-surface hover:bg-surface-container-high rounded-lg transition-colors flex items-center gap-2 mb-1"
+              >
+                <Key className="w-4 h-4 text-primary" />
+                Alterar Minha Senha
+              </button>
+              <div className="h-px bg-outline-variant/10 my-1" />
+              <button 
+                onClick={onLogout}
+                className="w-full text-left px-4 py-2 text-sm font-bold text-error hover:bg-error/10 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                Sair do Sistema
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Password Change Modal */}

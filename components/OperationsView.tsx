@@ -240,7 +240,7 @@ export function OperationsView({
     const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);
 
-    const matchesDate = opDate >= start && opDate <= end;
+    const matchesDate = (opDate >= start && opDate <= end) || (!op.isCompleted && opDate < start);
     return matchesOP && matchesDate;
   }).sort((a, b) => {
     if (a.isUrgente && !b.isUrgente) return -1;
@@ -284,11 +284,10 @@ export function OperationsView({
   const totalPendingOutsideFilter = operations.filter(op => {
     if (op.isCompleted) return false;
     const opDate = parseDate(op.date);
-    const start = parseISODate(startDate);
-    start.setHours(0, 0, 0, 0);
     const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);
-    return opDate < start || opDate > end;
+    // Only future pending OPs are "outside" now, since past pending are included
+    return opDate > end;
   }).length;
 
   const getMotivationalPhrase = (progress: number) => {
@@ -323,7 +322,7 @@ export function OperationsView({
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full sm:w-40 bg-white border border-outline-variant/20 rounded-xl px-4 py-2 pl-10 focus:ring-1 focus:ring-primary outline-none text-sm"
+                      className="w-full sm:w-40 bg-surface-container-lowest text-on-surface border border-outline-variant/20 rounded-xl px-4 py-2 pl-10 focus:ring-1 focus:ring-primary outline-none text-sm"
                       title="Data Início"
                     />
                     <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />
@@ -333,7 +332,7 @@ export function OperationsView({
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full sm:w-40 bg-white border border-outline-variant/20 rounded-xl px-4 py-2 pl-10 focus:ring-1 focus:ring-primary outline-none text-sm"
+                      className="w-full sm:w-40 bg-surface-container-lowest text-on-surface border border-outline-variant/20 rounded-xl px-4 py-2 pl-10 focus:ring-1 focus:ring-primary outline-none text-sm"
                       title="Data Fim"
                     />
                     <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />
@@ -345,7 +344,7 @@ export function OperationsView({
                     placeholder="Filtrar por OP..."
                     value={filterOP}
                     onChange={(e) => setFilterOP(e.target.value)}
-                    className="w-full sm:w-36 bg-white border border-outline-variant/20 rounded-xl px-4 py-2 pl-10 focus:ring-1 focus:ring-primary outline-none text-sm"
+                    className="w-full sm:w-36 bg-surface-container-lowest text-on-surface border border-outline-variant/20 rounded-xl px-4 py-2 pl-10 focus:ring-1 focus:ring-primary outline-none text-sm"
                   />
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />
                 </div>
@@ -406,7 +405,7 @@ export function OperationsView({
             </div>
             <div>
               <p className="text-sm font-bold text-on-surface">Filtro de Data Ativo</p>
-              <p className="text-xs text-on-surface-variant">Existem <strong>{totalPendingOutsideFilter} OPs pendentes</strong> fora deste período de datas.</p>
+              <p className="text-xs text-on-surface-variant">Existem <strong>{totalPendingOutsideFilter} OPs pendentes</strong> programadas para datas futuras.</p>
             </div>
           </div>
           <button 
@@ -487,7 +486,7 @@ export function OperationsView({
                   <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">ID da Operação (Número)</label>
                   <input 
                     type="number"
-                    className="w-full bg-surface-container-low border-0 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none" 
+                    className="w-full bg-surface-container-low text-on-surface border-0 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none" 
                     placeholder="ex: 20240001"
                     value={formData.id}
                     onChange={(e) => setFormData({ ...formData, id: e.target.value })}
@@ -498,7 +497,7 @@ export function OperationsView({
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Linha de Produção</label>
                   <select 
-                    className="w-full bg-surface-container-low border-0 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none appearance-none cursor-pointer" 
+                    className="w-full bg-surface-container-low text-on-surface border-0 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none appearance-none cursor-pointer" 
                     value={formData.line}
                     onChange={(e) => setFormData({ ...formData, line: e.target.value })}
                     required
@@ -513,7 +512,7 @@ export function OperationsView({
                   <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Quantidade da OP</label>
                   <input 
                     type="number"
-                    className="w-full bg-surface-container-low border-0 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none" 
+                    className="w-full bg-surface-container-low text-on-surface border-0 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none" 
                     placeholder="0"
                     value={formData.quantity || ''}
                     onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}

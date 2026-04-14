@@ -43,6 +43,26 @@ export default function Page() {
   const [productionLines, setProductionLines] = useState<string[]>([]);
   const [logoUrl, setLogoUrl] = useState<string>('/app-logo.png?v=4');
   const [loading, setLoading] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const savedMode = localStorage.getItem('darkMode') === 'true';
+    setIsDarkMode(savedMode);
+    if (savedMode) {
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    localStorage.setItem('darkMode', String(newMode));
+    if (newMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data: profile, error } = await supabase
@@ -60,7 +80,7 @@ export default function Page() {
     if (profile && profile.status === 'APPROVED') {
       setCurrentUser(profile);
       if (profile.is_viewer) {
-        setCurrentView('LAUNCH');
+        setCurrentView('ANALYTICS');
       }
     } else {
       setCurrentUser(null);
@@ -94,13 +114,13 @@ export default function Page() {
         isLicitacao: op.is_licitacao
       }));
 
-      // Sort: Urgent and Licitacao first, then by date/id
+      // Sort: Urgent and Licitacao first, then by ID alphabetical
       const sortedOps = mappedOps.sort((a: any, b: any) => {
         if (a.isUrgente && !b.isUrgente) return -1;
         if (!a.isUrgente && b.isUrgente) return 1;
         if (a.isLicitacao && !b.isLicitacao) return -1;
         if (!a.isLicitacao && b.isLicitacao) return 1;
-        return 0; // Keep original order (created_at desc) for others
+        return a.id.localeCompare(b.id);
       });
 
       setOperations(sortedOps);
@@ -275,6 +295,8 @@ export default function Page() {
         isAdmin={currentUser?.is_admin}
         isViewer={currentUser?.is_viewer}
         logoUrl={logoUrl}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={toggleDarkMode}
       />
       
       <AnimatePresence mode="wait">

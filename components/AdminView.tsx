@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { ShieldCheck, CheckCircle, XCircle, Loader2, Users, Factory, Plus, Trash2, Pencil } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -30,13 +30,17 @@ export function AdminView() {
   const [editingLine, setEditingLine] = useState<ProductionLine | null>(null);
   const [logoUrl, setLogoUrl] = useState('');
   const [savingLogo, setSavingLogo] = useState(false);
+  const [editingUser, setEditingUser] = useState<Profile | null>(null);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [userFormData, setUserFormData] = useState({ name: '', is_admin: false, is_viewer: false, allowed_groups: '' });
 
   const fetchPendingUsers = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('status', 'PENDING');
+        .eq('status', 'PENDING')
+        .order('name');
       
       if (error) throw error;
       if (data) setPendingUsers(data);
@@ -59,6 +63,52 @@ export function AdminView() {
       console.error('Error fetching approved users:', err);
     }
   }, []);
+
+  const handleEditUser = (user: Profile) => {
+    setEditingUser(user);
+    setUserFormData({
+      name: user.name,
+      is_admin: user.is_admin,
+      is_viewer: user.is_viewer,
+      allowed_groups: user.allowed_groups?.join(', ') || ''
+    });
+    setIsUserModalOpen(true);
+  };
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    const groupsArray = userFormData.allowed_groups.split(',').map(g => g.trim().toUpperCase()).filter(g => g);
+    
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        name: userFormData.name,
+        is_admin: userFormData.is_admin,
+        is_viewer: userFormData.is_viewer,
+        allowed_groups: groupsArray
+      })
+      .eq('id', editingUser.id);
+
+    if (!error) {
+      setIsUserModalOpen(false);
+      fetchApprovedUsers();
+    } else {
+      alert('Erro ao salvar usuário: ' + error.message);
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
+    
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', id);
+    
+    if (!error) fetchApprovedUsers();
+  };
 
   const fetchProductionLines = useCallback(async () => {
     try {
@@ -266,7 +316,7 @@ export function AdminView() {
                       value={logoUrl}
                       onChange={(e) => setLogoUrl(e.target.value)}
                       placeholder="https://exemplo.com/logo.png"
-                      className="flex-1 bg-white border border-outline-variant/20 rounded-xl px-4 py-2 focus:ring-1 focus:ring-primary outline-none text-sm"
+                      className="flex-1 bg-surface-container-lowest text-on-surface border border-outline-variant/20 rounded-xl px-4 py-2 focus:ring-1 focus:ring-primary outline-none text-sm"
                     />
                     <button 
                       onClick={handleSaveLogo}
@@ -370,28 +420,24 @@ export function AdminView() {
                           defaultValue={user.allowed_groups?.join(', ') || ''}
                           onBlur={(e) => handleUpdateGroups(user.id, e.target.value)}
                           placeholder="Ex: G1, G2"
-                          className="text-[10px] bg-white border border-outline-variant/20 rounded px-2 py-0.5 focus:ring-1 focus:ring-primary outline-none w-24"
+                          className="text-[10px] bg-surface-container-lowest text-on-surface border border-outline-variant/20 rounded px-2 py-0.5 focus:ring-1 focus:ring-primary outline-none w-24"
                         />
                       </div>
                     </div>
                     <div className="flex gap-2">
                       <button 
-                        onClick={() => handleToggleViewer(user.id, user.is_viewer)}
-                        className={cn(
-                          "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-colors",
-                          user.is_viewer ? "bg-tertiary/10 text-tertiary" : "bg-surface-container-high text-on-surface-variant"
-                        )}
+                        onClick={() => handleEditUser(user)}
+                        className="p-2 text-primary hover:bg-primary/10 rounded-xl transition-colors"
+                        title="Editar Usuário"
                       >
-                        {user.is_viewer ? 'Remover Visualizador' : 'Tornar Visualizador'}
+                        <Pencil className="w-5 h-5" />
                       </button>
                       <button 
-                        onClick={() => handleToggleAdmin(user.id, user.is_admin)}
-                        className={cn(
-                          "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-colors",
-                          user.is_admin ? "bg-error/10 text-error" : "bg-primary/10 text-primary"
-                        )}
+                        onClick={() => handleDeleteUser(user.id)}
+                        className="p-2 text-error hover:bg-error/10 rounded-xl transition-colors"
+                        title="Excluir Usuário"
                       >
-                        {user.is_admin ? 'Remover Admin' : 'Tornar Admin'}
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
@@ -413,7 +459,7 @@ export function AdminView() {
                   value={newLineName}
                   onChange={(e) => setNewLineName(e.target.value)}
                   placeholder="Nome da nova linha..."
-                  className="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-2 focus:ring-1 focus:ring-primary outline-none text-sm"
+                  className="flex-1 bg-surface-container-low text-on-surface border border-outline-variant/20 rounded-xl px-4 py-2 focus:ring-1 focus:ring-primary outline-none text-sm"
                 />
                 <button 
                   type="submit"
@@ -467,6 +513,102 @@ export function AdminView() {
           </div>
         </div>
       </motion.div>
+
+      {/* User Edit Modal */}
+      <AnimatePresence>
+        {isUserModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-surface-container-low p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10 relative"
+            >
+              <button 
+                onClick={() => setIsUserModalOpen(false)}
+                className="absolute top-4 right-4 p-2 hover:bg-surface-container-high rounded-full transition-colors"
+              >
+                <XCircle className="w-6 h-6 text-on-surface-variant" />
+              </button>
+
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Users className="w-8 h-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-headline font-extrabold text-on-surface">Editar Usuário</h2>
+                <p className="text-sm text-on-surface-variant mt-1">{editingUser?.email}</p>
+              </div>
+
+              <form onSubmit={handleSaveUser} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant px-1">Nome</label>
+                  <input 
+                    type="text"
+                    required
+                    value={userFormData.name}
+                    onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
+                    className="w-full bg-surface-container-low text-on-surface border border-outline-variant/20 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant px-1">Grupos Permitidos (Separados por vírgula)</label>
+                  <input 
+                    type="text"
+                    value={userFormData.allowed_groups}
+                    onChange={(e) => setUserFormData({ ...userFormData, allowed_groups: e.target.value })}
+                    placeholder="Ex: G1, G2"
+                    className="w-full bg-surface-container-low text-on-surface border border-outline-variant/20 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setUserFormData({ ...userFormData, is_admin: !userFormData.is_admin })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
+                      userFormData.is_admin 
+                        ? "bg-primary border-primary text-white shadow-lg shadow-primary/20" 
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-primary/30"
+                    )}
+                  >
+                    Administrador
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUserFormData({ ...userFormData, is_viewer: !userFormData.is_viewer })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
+                      userFormData.is_viewer 
+                        ? "bg-tertiary border-tertiary text-white shadow-lg shadow-tertiary/20" 
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-tertiary/30"
+                    )}
+                  >
+                    Visualizador
+                  </button>
+                </div>
+
+                <div className="pt-4 flex gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setIsUserModalOpen(false)}
+                    className="flex-1 py-3 rounded-xl border border-outline-variant font-bold text-sm hover:bg-surface-container-low transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-3 rounded-xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/20 hover:opacity-90 transition-all"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
