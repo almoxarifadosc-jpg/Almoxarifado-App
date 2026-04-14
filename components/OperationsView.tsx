@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Filter, Plus, Activity, Factory, Settings, CheckCircle2, Pencil, Trash2, X, Search, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -167,9 +167,15 @@ export function OperationsView({
     return `${year}-${month}-${day}`;
   };
 
-  const [startDate, setStartDate] = useState(formatToISODate(new Date()));
-  const [endDate, setEndDate] = useState(formatToISODate(new Date()));
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [filterOP, setFilterOP] = useState('');
+
+  useEffect(() => {
+    const today = formatToISODate(new Date());
+    setStartDate(today);
+    setEndDate(today);
+  }, []);
 
   const parseDate = (dateStr: string) => {
     const [day, month, year] = dateStr.split('/').map(Number);
@@ -232,6 +238,7 @@ export function OperationsView({
   };
 
   const filteredOperations = operations.filter(op => {
+    if (!startDate || !endDate) return true;
     const matchesOP = op.id.toLowerCase().includes(filterOP.toLowerCase());
     
     const opDate = parseDate(op.date);
@@ -251,6 +258,7 @@ export function OperationsView({
   });
 
   const opsInSelectedRange = operations.filter(op => {
+    if (!startDate || !endDate) return false;
     const opDate = parseDate(op.date);
     const start = parseISODate(startDate);
     start.setHours(0, 0, 0, 0);
@@ -282,7 +290,7 @@ export function OperationsView({
   const inSeparationCount = filteredOperations.filter(op => !op.isCompleted).length;
 
   const totalPendingOutsideFilter = operations.filter(op => {
-    if (op.isCompleted) return false;
+    if (op.isCompleted || !endDate) return false;
     const opDate = parseDate(op.date);
     const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);

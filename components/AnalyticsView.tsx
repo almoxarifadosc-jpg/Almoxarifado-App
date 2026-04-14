@@ -19,8 +19,14 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
     return `${year}-${month}-${day}`;
   };
 
-  const [startDate, setStartDate] = React.useState(formatToISODate(new Date()));
-  const [endDate, setEndDate] = React.useState(formatToISODate(new Date()));
+  const [startDate, setStartDate] = React.useState('');
+  const [endDate, setEndDate] = React.useState('');
+
+  React.useEffect(() => {
+    const today = formatToISODate(new Date());
+    setStartDate(today);
+    setEndDate(today);
+  }, []);
 
   const parseDate = (dateStr: string) => {
     const [day, month, year] = dateStr.split('/').map(Number);
@@ -33,6 +39,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
   };
 
   const filteredOps = operations.filter(op => {
+    if (!startDate || !endDate) return true;
     const opDate = parseDate(op.date);
     const start = parseISODate(startDate);
     start.setHours(0, 0, 0, 0);
@@ -50,7 +57,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
   });
 
   const totalPendingOutsideFilter = operations.filter(op => {
-    if (op.isCompleted) return false;
+    if (op.isCompleted || !endDate) return false;
     const opDate = parseDate(op.date);
     const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);
