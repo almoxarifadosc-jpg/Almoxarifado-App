@@ -93,10 +93,14 @@ export default function Page() {
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error) {
-        if (error.message.includes('Refresh Token Not Found') || error.message.includes('invalid_refresh_token')) {
+        console.warn('Auth session error:', error.message);
+        if (error.message.includes('Refresh Token Not Found') || 
+            error.message.includes('invalid_refresh_token') ||
+            error.message.includes('refresh_token_not_found')) {
           await supabase.auth.signOut();
         }
-        throw error;
+        setLoading(false);
+        return;
       }
       if (session?.user) {
         fetchProfile(session.user.id);
@@ -183,11 +187,16 @@ export default function Page() {
     }
 
     checkUser();
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-      if (session?.user) {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event: any, session: any) => {
+      if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        setCurrentUser(null);
+        setLoading(false);
+      } else if (session?.user) {
         fetchProfile(session.user.id);
       } else {
         setCurrentUser(null);
+        // Only set loading false if we're not already loading
+        setLoading(prev => prev ? false : false); 
       }
     });
 
@@ -305,6 +314,19 @@ export default function Page() {
     const { error } = await supabase.from('operations').delete().eq('id', id);
     if (!error) fetchData();
   };
+  
+  const toggleOperationStatus = async (opId: string, statusKey: 'isUrgente' | 'isLicitacao' | 'isAtrasada') => {
+    const op = operations.find(o => o.id === opId);
+    if (!op) return;
+
+    const dbKey = statusKey === 'isUrgente' ? 'is_urgente' : statusKey === 'isLicitacao' ? 'is_licitacao' : 'is_atrasada';
+    
+    const { error } = await supabase.from('operations').update({
+      [dbKey]: !op[statusKey]
+    }).eq('id', opId);
+
+    if (!error) fetchData();
+  };
 
   const toggleStep = async (opId: string, stepIndex: number) => {
     const op = operations.find(o => o.id === opId);
@@ -314,11 +336,13 @@ export default function Page() {
     newSteps[stepIndex] = !newSteps[stepIndex];
     const activeCount = newSteps.filter(Boolean).length;
     const newProgress = activeCount * 25;
+    const isCompleted = newProgress === 100;
     
     const { error } = await supabase.from('operations').update({
       steps: newSteps,
       progress: newProgress,
-      is_completed: newProgress === 100
+      is_completed: isCompleted,
+      is_atrasada: isCompleted ? false : op.isAtrasada
     }).eq('id', opId);
 
     if (!error) fetchData();
@@ -382,6 +406,7 @@ export default function Page() {
             operations={operations} 
             productionLines={productionLines}
             onToggleStep={toggleStep}
+            onToggleStatus={toggleOperationStatus}
             onAddOperation={addOperation}
             onUpdateOperation={updateOperation}
             onDeleteOperation={deleteOperation}

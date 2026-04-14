@@ -9,6 +9,7 @@ import { Operation } from '@/app/page';
 interface OPRowProps {
   op: Operation;
   onToggleStep: (stepIndex: number) => void;
+  onToggleStatus: (statusKey: 'isUrgente' | 'isLicitacao' | 'isAtrasada') => void;
   onEdit: (op: Operation) => void;
   onDelete: (id: string) => void;
   isAdmin?: boolean;
@@ -16,7 +17,7 @@ interface OPRowProps {
   allowedGroups?: string[];
 }
 
-function OPRow({ op, onToggleStep, onEdit, onDelete, isAdmin, isViewer, allowedGroups }: OPRowProps) {
+function OPRow({ op, onToggleStep, onToggleStatus, onEdit, onDelete, isAdmin, isViewer, allowedGroups }: OPRowProps) {
   const Icon = op.iconType === 'factory' ? Factory : op.iconType === 'settings' ? Settings : CheckCircle2;
 
   const isStepAllowed = (index: number) => {
@@ -55,16 +56,48 @@ function OPRow({ op, onToggleStep, onEdit, onDelete, isAdmin, isViewer, allowedG
             <Icon className="w-6 h-6" />
           </div>
           <div className="flex-1">
+            {/* Quick Actions Absolute Top */}
+            {isAdmin && (
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all mb-1.5">
+                 {!op.isAtrasada && <button onClick={() => onToggleStatus('isAtrasada')} className="text-[6px] font-black border border-error/30 text-error/50 px-1.5 py-0.5 rounded uppercase hover:bg-error hover:text-white transition-colors">Atrasar</button>}
+                 {!op.isUrgente && <button onClick={() => onToggleStatus('isUrgente')} className="text-[6px] font-black border border-error/30 text-error/50 px-1.5 py-0.5 rounded uppercase hover:bg-error hover:text-white transition-colors">Urgente</button>}
+                 {!op.isLicitacao && <button onClick={() => onToggleStatus('isLicitacao')} className="text-[6px] font-black border border-blue-500/30 text-blue-500/50 px-1.5 py-0.5 rounded uppercase hover:bg-blue-500 hover:text-white transition-colors">Licitação</button>}
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <h4 className="font-headline font-bold text-on-surface">OP {op.id}</h4>
               {op.isAtrasada && (
-                <span className="text-[8px] font-black bg-error text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">OP Atrasada</span>
+                <button 
+                  onClick={() => isAdmin && onToggleStatus('isAtrasada')}
+                  className={cn(
+                    "text-[8px] font-black bg-error text-white px-1.5 py-0.5 rounded uppercase tracking-tighter transition-transform active:scale-90",
+                    isAdmin ? "cursor-pointer hover:brightness-110" : "cursor-default"
+                  )}
+                >
+                  OP Atrasada
+                </button>
               )}
               {op.isUrgente && (
-                <span className="text-[8px] font-black bg-error text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">Urgente</span>
+                <button 
+                  onClick={() => isAdmin && onToggleStatus('isUrgente')}
+                  className={cn(
+                    "text-[8px] font-black bg-error text-white px-1.5 py-0.5 rounded uppercase tracking-tighter transition-transform active:scale-90",
+                    isAdmin ? "cursor-pointer hover:brightness-110" : "cursor-default"
+                  )}
+                >
+                  Urgente
+                </button>
               )}
               {op.isLicitacao && (
-                <span className="text-[8px] font-black bg-blue-500 text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">Licitação</span>
+                <button 
+                  onClick={() => isAdmin && onToggleStatus('isLicitacao')}
+                  className={cn(
+                    "text-[8px] font-black bg-blue-500 text-white px-1.5 py-0.5 rounded uppercase tracking-tighter transition-transform active:scale-90",
+                    isAdmin ? "cursor-pointer hover:brightness-110" : "cursor-default"
+                  )}
+                >
+                  Licitação
+                </button>
               )}
             </div>
             <div className="flex flex-col gap-0.5">
@@ -139,6 +172,7 @@ interface OperationsViewProps {
   operations: Operation[];
   productionLines: string[];
   onToggleStep: (opId: string, stepIndex: number) => void;
+  onToggleStatus: (opId: string, statusKey: 'isUrgente' | 'isLicitacao' | 'isAtrasada') => void;
   onAddOperation: (op: Operation) => void;
   onUpdateOperation: (op: Operation) => void;
   onDeleteOperation: (id: string) => void;
@@ -151,6 +185,7 @@ export function OperationsView({
   operations, 
   productionLines, 
   onToggleStep, 
+  onToggleStatus,
   onAddOperation, 
   onUpdateOperation, 
   onDeleteOperation, 
@@ -453,6 +488,7 @@ export function OperationsView({
             key={op.id}
             op={op}
             onToggleStep={(stepIndex) => onToggleStep(op.id, stepIndex)}
+            onToggleStatus={(statusKey) => onToggleStatus(op.id, statusKey)}
             onEdit={openModal}
             onDelete={confirmDelete}
             isAdmin={isAdmin}
