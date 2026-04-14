@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { Header } from '@/components/Header';
 import { BottomNav, View } from '@/components/BottomNav';
@@ -46,24 +46,45 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const notificationsEnabledRef = useRef(false);
 
-  // Request notification permission
+  // Sync ref with state
+  useEffect(() => {
+    notificationsEnabledRef.current = notificationsEnabled;
+  }, [notificationsEnabled]);
+
+  // Request notification permission or toggle
   const requestNotificationPermission = async () => {
     if (!('Notification' in window)) {
       console.warn('This browser does not support desktop notification');
       return;
     }
 
+    // If already enabled, toggle off
+    if (notificationsEnabled) {
+      setNotificationsEnabled(false);
+      localStorage.setItem('notificationsEnabled', 'false');
+      return;
+    }
+
+    // If not enabled, request permission and toggle on
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       setNotificationsEnabled(true);
+      localStorage.setItem('notificationsEnabled', 'true');
       showLocalNotification('Notificações Ativadas', {
         body: 'Você receberá avisos sobre OPs Urgentes e Atrasadas.',
       });
+    } else {
+      console.warn('Notification permission denied');
+      setNotificationsEnabled(false);
+      localStorage.setItem('notificationsEnabled', 'false');
     }
   };
 
   const showLocalNotification = async (title: string, options: any) => {
+    if (!notificationsEnabledRef.current) return;
+
     const notificationOptions = {
       ...options,
       icon: logoUrl || '/favicon.ico',
@@ -87,7 +108,8 @@ export default function Page() {
   };
 
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'granted') {
+    const savedNotifications = localStorage.getItem('notificationsEnabled') === 'true';
+    if ('Notification' in window && Notification.permission === 'granted' && savedNotifications) {
       setNotificationsEnabled(true);
     }
 
@@ -276,7 +298,7 @@ export default function Page() {
           const oldData = payload.old;
           const newData = payload.new;
           
-          if (Notification.permission === 'granted') {
+          if (notificationsEnabledRef.current && Notification.permission === 'granted') {
             let title = '';
             let body = '';
             
@@ -300,7 +322,7 @@ export default function Page() {
         })
         .on('postgres_changes', { event: 'INSERT', table: 'operations', schema: 'public' }, (payload: any) => {
           const newData = payload.new;
-          if (Notification.permission === 'granted' && (newData.is_urgente || newData.is_atrasada)) {
+          if (notificationsEnabledRef.current && Notification.permission === 'granted' && (newData.is_urgente || newData.is_atrasada)) {
             const status = newData.is_urgente ? 'URGENTE' : 'ATRASADA';
             showLocalNotification(`🆕 Nova OP ${status}`, {
               body: `Uma nova OP (${newData.id}) foi criada com status ${status}.`,
