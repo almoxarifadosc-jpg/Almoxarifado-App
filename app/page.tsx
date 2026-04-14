@@ -174,8 +174,43 @@ export default function Page() {
 
   useEffect(() => {
     if (currentUser && isSupabaseConfigured) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchData();
+
+      // Set up real-time subscriptions
+      const operationsChannel = supabase
+        .channel('realtime-operations')
+        .on('postgres_changes', { event: '*', table: 'operations', schema: 'public' }, () => {
+          fetchData();
+        })
+        .subscribe();
+
+      const newsChannel = supabase
+        .channel('realtime-news')
+        .on('postgres_changes', { event: '*', table: 'news_posts', schema: 'public' }, () => {
+          fetchData();
+        })
+        .subscribe();
+
+      const linesChannel = supabase
+        .channel('realtime-lines')
+        .on('postgres_changes', { event: '*', table: 'production_lines', schema: 'public' }, () => {
+          fetchData();
+        })
+        .subscribe();
+
+      const settingsChannel = supabase
+        .channel('realtime-settings')
+        .on('postgres_changes', { event: '*', table: 'settings', schema: 'public' }, () => {
+          fetchData();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(operationsChannel);
+        supabase.removeChannel(newsChannel);
+        supabase.removeChannel(linesChannel);
+        supabase.removeChannel(settingsChannel);
+      };
     }
   }, [currentUser, fetchData]);
 

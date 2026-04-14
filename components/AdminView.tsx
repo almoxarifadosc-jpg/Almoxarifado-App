@@ -160,7 +160,36 @@ export function AdminView() {
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+
+    // Set up real-time subscriptions
+    const profilesChannel = supabase
+      .channel('realtime-profiles')
+      .on('postgres_changes', { event: '*', table: 'profiles', schema: 'public' }, () => {
+        fetchPendingUsers();
+        fetchApprovedUsers();
+      })
+      .subscribe();
+
+    const linesChannel = supabase
+      .channel('realtime-admin-lines')
+      .on('postgres_changes', { event: '*', table: 'production_lines', schema: 'public' }, () => {
+        fetchProductionLines();
+      })
+      .subscribe();
+
+    const settingsChannel = supabase
+      .channel('realtime-admin-settings')
+      .on('postgres_changes', { event: '*', table: 'settings', schema: 'public' }, () => {
+        fetchSettings();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(profilesChannel);
+      supabase.removeChannel(linesChannel);
+      supabase.removeChannel(settingsChannel);
+    };
+  }, [fetchData, fetchPendingUsers, fetchApprovedUsers, fetchProductionLines, fetchSettings]);
 
   const handleApprove = async (id: string) => {
     const { error } = await supabase
