@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import Image from 'next/image';
 import { User, Lock, Mail, UserPlus, LogIn, ShieldCheck, CheckCircle, XCircle, Loader2, Sun, Moon } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -161,11 +159,7 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode }: AuthVi
   if (mode === 'ADMIN_PANEL') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-surface transition-colors duration-300">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-surface-container-lowest p-8 rounded-3xl shadow-2xl w-full max-w-2xl border border-outline-variant/10 relative"
-        >
+        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-2xl w-full max-w-2xl border border-outline-variant/10 relative">
           <button 
             onClick={onToggleDarkMode}
             className="absolute top-8 right-8 p-2 hover:bg-surface-container-high rounded-full transition-colors"
@@ -218,18 +212,14 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode }: AuthVi
               </div>
             )}
           </div>
-        </motion.div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-surface transition-colors duration-300">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-surface-container-lowest p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10 relative"
-      >
+      <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10 relative">
         <button 
           onClick={onToggleDarkMode}
           className="absolute top-8 right-8 p-2 hover:bg-surface-container-high rounded-full transition-colors"
@@ -341,7 +331,7 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode }: AuthVi
             </button>
           )}
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

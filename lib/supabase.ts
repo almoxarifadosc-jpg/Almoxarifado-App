@@ -30,11 +30,6 @@ export const supabase = new Proxy({} as any, {
         return (target as any)[prop];
       }
     }
-    
-    const value = client[prop];
-    if (typeof value === 'function') {
-      return value.bind(client);
-    }
-    return value;
+    return client[prop];
   }
 });

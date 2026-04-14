@@ -3,7 +3,6 @@
 import React, { useState, useRef } from 'react';
 import { Image as ImageIcon, Send, User, Calendar, Upload, X, Search, Pencil, Trash2, Plus } from 'lucide-react';
 import Image from 'next/image';
-import { motion, AnimatePresence } from 'motion/react';
 import { NewsPost } from '@/app/page';
 
 interface LaunchViewProps {
@@ -83,12 +82,7 @@ export function LaunchView({ posts, onAddPost, onUpdatePost, onDeletePost, filte
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="pt-24 px-6 max-w-4xl mx-auto pb-32"
-    >
+    <div className="pt-24 px-6 max-w-4xl mx-auto pb-32">
       <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight mb-2">Portal de Informações</h2>
@@ -126,16 +120,11 @@ export function LaunchView({ posts, onAddPost, onUpdatePost, onDeletePost, filte
 
         {/* News Feed */}
         <div className="space-y-6">
-          <AnimatePresence mode="popLayout">
-            {posts.map((post) => (
-              <motion.div 
-                key={post.id}
-                layout
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-surface-container-lowest rounded-2xl overflow-hidden border border-outline-variant/10 shadow-sm group"
-              >
+          {posts.map((post) => (
+            <div 
+              key={post.id}
+              className="bg-surface-container-lowest rounded-2xl overflow-hidden border border-outline-variant/10 shadow-sm group"
+            >
                 {post.imageUrl && (
                   <div className="relative h-64 w-full bg-surface-container-low">
                     <Image 
@@ -172,9 +161,8 @@ export function LaunchView({ posts, onAddPost, onUpdatePost, onDeletePost, filte
                     {post.text}
                   </p>
                 </div>
-              </motion.div>
+              </div>
             ))}
-          </AnimatePresence>
           {posts.length === 0 && (
             <div className="text-center py-12 text-on-surface-variant/50 font-medium">
               Nenhuma informação encontrada.
@@ -184,16 +172,10 @@ export function LaunchView({ posts, onAddPost, onUpdatePost, onDeletePost, filte
       </div>
 
       {/* Post Creation Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-surface rounded-2xl p-8 w-full max-w-lg shadow-2xl border border-outline-variant/20 overflow-y-auto max-h-[90vh]"
-            >
-              <div className="flex justify-between items-center mb-6">
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface rounded-2xl p-8 w-full max-w-lg shadow-2xl border border-outline-variant/20 overflow-y-auto max-h-[90vh]">
+            <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-headline font-extrabold flex items-center gap-2">
                   <Send className="w-6 h-6 text-primary" />
                   {editingId ? 'Editar Postagem' : 'Nova Postagem'}
@@ -282,10 +264,9 @@ export function LaunchView({ posts, onAddPost, onUpdatePost, onDeletePost, filte
                   </button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           </div>
         )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
+      </div>
+    );
+  }
