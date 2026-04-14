@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { AnimatePresence } from 'motion/react';
 import { Header } from '@/components/Header';
 import { BottomNav, View } from '@/components/BottomNav';
 import { LaunchView } from '@/components/LaunchView';
@@ -45,25 +46,17 @@ export default function Page() {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
-    try {
-      const savedMode = localStorage.getItem('darkMode') === 'true';
-      setIsDarkMode(savedMode);
-      if (savedMode) {
-        document.documentElement.classList.add('dark');
-      }
-    } catch (e) {
-      console.warn('LocalStorage access failed:', e);
+    const savedMode = localStorage.getItem('darkMode') === 'true';
+    setIsDarkMode(savedMode);
+    if (savedMode) {
+      document.documentElement.classList.add('dark');
     }
   }, []);
 
   const toggleDarkMode = () => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
-    try {
-      localStorage.setItem('darkMode', String(newMode));
-    } catch (e) {
-      console.warn('LocalStorage set failed:', e);
-    }
+    localStorage.setItem('darkMode', String(newMode));
     if (newMode) {
       document.documentElement.classList.add('dark');
     } else {
@@ -99,7 +92,7 @@ export default function Page() {
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error) {
-        if (error.message?.includes('Refresh Token Not Found') || error.message?.includes('invalid_refresh_token')) {
+        if (error.message.includes('Refresh Token Not Found') || error.message.includes('invalid_refresh_token')) {
           await supabase.auth.signOut();
         }
         throw error;
@@ -124,7 +117,7 @@ export default function Page() {
         supabase.from('settings').select('*').eq('key', 'company_logo').single()
       ]);
 
-      if (opsRes.error?.message?.includes('JWT')) {
+      if (opsRes.error && opsRes.error.message.includes('JWT')) {
         await supabase.auth.signOut();
         return;
       }
@@ -365,7 +358,7 @@ export default function Page() {
         onToggleDarkMode={toggleDarkMode}
       />
       
-      <div className="relative">
+      <AnimatePresence mode="wait">
         {currentView === 'LAUNCH' && (
           <LaunchView 
             key="launch" 
@@ -397,7 +390,7 @@ export default function Page() {
         {currentView === 'ADMIN_PANEL' && (
           <AdminView key="admin" />
         )}
-      </div>
+      </AnimatePresence>
 
       <BottomNav 
         currentView={currentView} 

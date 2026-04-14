@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { LayoutGrid, Key, LogOut, X, Loader2, CheckCircle, Moon, Sun } from 'lucide-react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface HeaderProps {
   currentView: string;
@@ -153,15 +154,21 @@ export function Header({
       </div>
 
       {/* Password Change Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10 relative">
-            <button 
-              onClick={() => setShowPasswordModal(false)}
-              className="absolute top-4 right-4 p-2 hover:bg-surface-container-high rounded-full transition-colors"
+      <AnimatePresence>
+        {showPasswordModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface-container-lowest p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10 relative"
             >
-              <X className="w-5 h-5 text-on-surface-variant" />
-            </button>
+              <button 
+                onClick={() => setShowPasswordModal(false)}
+                className="absolute top-4 right-4 p-2 hover:bg-surface-container-high rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-on-surface-variant" />
+              </button>
 
               <div className="text-center mb-6">
                 <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -199,11 +206,12 @@ export function Header({
                   className="w-full bg-primary text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Atualizar Senha'}
-              </button>
-            </form>
+                </button>
+              </form>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </header>
   );
 }

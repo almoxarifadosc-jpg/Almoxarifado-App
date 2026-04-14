@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Download, X, Share, PlusSquare } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function PWAInstallPrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
@@ -65,14 +66,20 @@ export function PWAInstallPrompt() {
   if (!showPrompt) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] pointer-events-none flex items-end justify-center p-4 sm:items-center">
-      <div className="pointer-events-auto w-full max-w-sm bg-surface rounded-2xl shadow-2xl border border-outline-variant/20 p-6 overflow-hidden relative">
-        <button 
-          onClick={dismissPrompt}
-          className="absolute top-4 right-4 p-1 hover:bg-surface-container-high rounded-full transition-colors"
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[100] pointer-events-none flex items-end justify-center p-4 sm:items-center">
+        <motion.div
+          initial={{ opacity: 0, y: 100, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 100, scale: 0.9 }}
+          className="pointer-events-auto w-full max-w-sm bg-surface rounded-2xl shadow-2xl border border-outline-variant/20 p-6 overflow-hidden relative"
         >
-          <X className="w-5 h-5 text-on-surface-variant" />
-        </button>
+          <button 
+            onClick={dismissPrompt}
+            className="absolute top-4 right-4 p-1 hover:bg-surface-container-high rounded-full transition-colors"
+          >
+            <X className="w-5 h-5 text-on-surface-variant" />
+          </button>
 
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center shrink-0">
@@ -134,7 +141,8 @@ export function PWAInstallPrompt() {
               </button>
             </div>
           )}
+        </motion.div>
       </div>
-    </div>
+    </AnimatePresence>
   );
 }

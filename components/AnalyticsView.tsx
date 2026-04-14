@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { Operation } from '@/app/page';
 import { Factory, Calendar, CheckCircle2, Filter, Package, FileText, Layers, Fan } from 'lucide-react';
@@ -18,14 +19,8 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
     return `${year}-${month}-${day}`;
   };
 
-  const [startDate, setStartDate] = React.useState('');
-  const [endDate, setEndDate] = React.useState('');
-
-  React.useEffect(() => {
-    const today = formatToISODate(new Date());
-    setStartDate(today);
-    setEndDate(today);
-  }, []);
+  const [startDate, setStartDate] = React.useState(formatToISODate(new Date()));
+  const [endDate, setEndDate] = React.useState(formatToISODate(new Date()));
 
   const parseDate = (dateStr: string) => {
     const [day, month, year] = dateStr.split('/').map(Number);
@@ -38,7 +33,6 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
   };
 
   const filteredOps = operations.filter(op => {
-    if (!startDate || !endDate) return true;
     const opDate = parseDate(op.date);
     const start = parseISODate(startDate);
     start.setHours(0, 0, 0, 0);
@@ -56,7 +50,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
   });
 
   const totalPendingOutsideFilter = operations.filter(op => {
-    if (op.isCompleted || !endDate) return false;
+    if (op.isCompleted) return false;
     const opDate = parseDate(op.date);
     const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);
@@ -79,7 +73,12 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
   const displayOps = filteredOps.slice(0, 25); // Showing up to 25 (5x5)
 
   return (
-    <div className="pt-24 px-4 max-w-[1600px] mx-auto pb-32">
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 1.02 }}
+      className="pt-24 px-4 max-w-[1600px] mx-auto pb-32"
+    >
       <div className="mb-8 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -300,6 +299,6 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }

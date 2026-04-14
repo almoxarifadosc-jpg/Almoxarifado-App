@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={`${inter.variable} ${manrope.variable}`}>
       <head>
-        <link rel="manifest" href="/manifest.json?v=7" />
+        <link rel="manifest" href="/manifest.json?v=6" />
         <meta name="theme-color" content="#0061a4" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
