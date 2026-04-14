@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { Operation } from '@/app/page';
 import { Factory, Calendar, CheckCircle2, Filter, Package, FileText, Layers, Fan } from 'lucide-react';
@@ -80,12 +79,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
   const displayOps = filteredOps.slice(0, 25); // Showing up to 25 (5x5)
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 1.02 }}
-      className="pt-24 px-4 max-w-[1600px] mx-auto pb-32"
-    >
+    <div className="pt-24 px-4 max-w-[1600px] mx-auto pb-32">
       <div className="mb-8 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -306,6 +300,6 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }

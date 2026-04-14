@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Filter, Plus, Activity, Factory, Settings, CheckCircle2, Pencil, Trash2, X, Search, Calendar } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { Operation } from '@/app/page';
 
@@ -310,12 +309,7 @@ export function OperationsView({
     return opDate < today;
   }).length;
   return (
-    <motion.div 
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="pt-24 px-4 max-w-7xl mx-auto pb-32"
-    >
+    <div className="pt-24 px-4 max-w-7xl mx-auto pb-32">
       <section className="mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div>
@@ -465,16 +459,10 @@ export function OperationsView({
         )}
       </section>
 
-      {/* CRUD Modal */}
-      <AnimatePresence>
+        {/* CRUD Modal */}
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-surface rounded-2xl p-8 w-full max-w-md shadow-2xl border border-outline-variant/20"
-            >
+            <div className="bg-surface rounded-2xl p-8 w-full max-w-md shadow-2xl border border-outline-variant/20">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-headline font-extrabold">{editingOp ? 'Editar OP' : 'Nova OP'}</h3>
                 <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-surface-container-high rounded-full transition-colors">
@@ -571,43 +559,35 @@ export function OperationsView({
                   </button>
                 </div>
               </form>
-            </motion.div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {isDeleteConfirmOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-surface rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-outline-variant/20"
-            >
-              <h3 className="text-xl font-headline font-bold mb-2">Confirmar Exclusão</h3>
-              <p className="text-on-surface-variant text-sm mb-6">
-                Tem certeza que deseja excluir esta operação? Esta ação não pode ser desfeita.
-              </p>
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setIsDeleteConfirmOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-outline-variant font-bold text-sm hover:bg-surface-container-low transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={handleDelete}
-                  className="flex-1 py-2.5 rounded-xl bg-error text-white font-bold text-sm shadow-lg shadow-error/20 hover:opacity-90 transition-all"
-                >
-                  Excluir
-                </button>
-              </div>
-            </motion.div>
+      {isDeleteConfirmOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-outline-variant/20">
+            <h3 className="text-xl font-headline font-bold mb-2">Confirmar Exclusão</h3>
+            <p className="text-on-surface-variant text-sm mb-6">
+              Tem certeza que deseja excluir esta operação? Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-outline-variant font-bold text-sm hover:bg-surface-container-low transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleDelete}
+                className="flex-1 py-2.5 rounded-xl bg-error text-white font-bold text-sm shadow-lg shadow-error/20 hover:opacity-90 transition-all"
+              >
+                Excluir
+              </button>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+        </div>
+      )}
+    </div>
   );
 }
