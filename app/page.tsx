@@ -210,12 +210,17 @@ export default function Page() {
       fetchData();
 
       // Set up real-time subscriptions
+      console.log('Setting up real-time subscriptions...');
+      
       const operationsChannel = supabase
         .channel('realtime-operations')
-        .on('postgres_changes', { event: '*', table: 'operations', schema: 'public' }, () => {
+        .on('postgres_changes', { event: '*', table: 'operations', schema: 'public' }, (payload: any) => {
+          console.log('Realtime update received for operations:', payload);
           fetchData();
         })
-        .subscribe();
+        .subscribe((status: string) => {
+          console.log('Operations subscription status:', status);
+        });
 
       const newsChannel = supabase
         .channel('realtime-news')
