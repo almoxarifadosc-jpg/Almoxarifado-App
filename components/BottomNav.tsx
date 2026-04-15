@@ -22,8 +22,8 @@ export function BottomNav({ currentView, onViewChange, isAdmin, isViewer }: Bott
   ];
 
   if (isViewer) {
-    // Only Painel de Separação for viewers
-    tabs = tabs.filter(tab => tab.id === 'ANALYTICS');
+    // Painel de Separação and Dashboard for viewers
+    tabs = tabs.filter(tab => tab.id === 'ANALYTICS' || tab.id === 'DASHBOARD');
   }
 
   if (isAdmin) {

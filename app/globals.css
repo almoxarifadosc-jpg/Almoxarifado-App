@@ -52,6 +52,10 @@
   body {
     @apply font-body bg-surface text-on-surface transition-colors duration-300;
   }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    @apply dark:invert opacity-50 hover:opacity-100 transition-opacity cursor-pointer;
+  }
 }
 
 .glass-card {

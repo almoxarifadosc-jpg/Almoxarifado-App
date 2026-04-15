@@ -17,11 +17,22 @@ import {
   FileText, 
   AlertCircle, 
   Calendar,
-  ChevronDown
+  ChevronDown,
+  MessageSquareText,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { Operation } from '@/app/page';
+
+// Helper to parse DD/MM/YYYY or ISO strings
+const parseOpDate = (dateStr: string) => {
+  if (dateStr.includes('/')) {
+    const [day, month, year] = dateStr.split('/').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  return new Date(dateStr);
+};
 
 interface DashboardViewProps {
   operations: Operation[];
@@ -30,40 +41,61 @@ interface DashboardViewProps {
 type Period = 'today' | 'week' | 'month' | 'all';
 
 export function DashboardView({ operations }: DashboardViewProps) {
-  const [period, setPeriod] = useState<Period>('all');
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [startDate, setStartDate] = useState<string>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState<string>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  });
 
   const filteredData = useMemo(() => {
-    const now = new Date();
-    return operations.filter(op => {
-      const opDate = new Date(op.date);
-      if (period === 'today') {
-        return opDate.toDateString() === now.toDateString();
-      }
-      if (period === 'week') {
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return opDate >= weekAgo;
-      }
-      if (period === 'month') {
-        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        return opDate >= monthAgo;
-      }
-      return true;
+    // Helper to create a date at 00:00:00 in local time from YYYY-MM-DD
+    const parseLocalDate = (dateStr: string) => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    };
+
+    const start = parseLocalDate(startDate);
+    start.setHours(0, 0, 0, 0);
+    
+    const end = parseLocalDate(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const filtered = operations.filter(op => {
+      const opDate = parseOpDate(op.date);
+      if (isNaN(opDate.getTime())) return false;
+      const isInRange = opDate >= start && opDate <= end;
+      return isInRange;
     });
-  }, [operations, period]);
+
+    return filtered;
+  }, [operations, startDate, endDate]);
 
   const kpis = useMemo(() => {
     const totalOps = filteredData.length;
     const licitacoes = filteredData.filter(op => op.isLicitacao).length;
     const urgencias = filteredData.filter(op => op.isUrgente).length;
     
-    // Calculate daily average
-    const uniqueDays = new Set(filteredData.map(op => new Date(op.date).toDateString())).size;
-    const dailyAverage = uniqueDays > 0 ? (totalOps / uniqueDays).toFixed(1) : '0';
+    // Calculate daily average (Mon-Fri only)
+    const opsByDay: { [key: string]: number } = {};
+    filteredData.forEach(op => {
+      const d = parseOpDate(op.date);
+      if (isNaN(d.getTime())) return;
+      const dayOfWeek = d.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        const key = d.toDateString();
+        opsByDay[key] = (opsByDay[key] || 0) + 1;
+      }
+    });
+
+    const workDaysCount = Object.keys(opsByDay).length;
+    const dailyAverage = workDaysCount > 0 ? (totalOps / workDaysCount).toFixed(1) : '0';
 
     return [
       { 
-        label: 'Média OP Diária', 
+        label: 'Média OP (Seg-Sex)', 
         value: dailyAverage, 
         icon: TrendingUp, 
         color: 'text-primary',
@@ -94,34 +126,66 @@ export function DashboardView({ operations }: DashboardViewProps) {
   }, [filteredData]);
 
   const chartData = useMemo(() => {
-    const months: { [key: string]: number } = {};
     const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const currentYear = new Date().getFullYear();
     
-    // Get last 6 months
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${monthNames[d.getMonth()]}/${d.getFullYear().toString().slice(-2)}`;
-      months[key] = 0;
-    }
+    // Initialize all months of current year
+    const monthsData = monthNames.map((name, index) => {
+      const total = operations.filter(op => {
+        const d = parseOpDate(op.date);
+        if (isNaN(d.getTime())) return false;
+        return d.getMonth() === index && d.getFullYear() === currentYear;
+      }).length;
+      return { name, total };
+    });
 
-    operations.forEach(op => {
-      const d = new Date(op.date);
-      const key = `${monthNames[d.getMonth()]}/${d.getFullYear().toString().slice(-2)}`;
-      if (months[key] !== undefined) {
-        months[key]++;
+    return monthsData;
+  }, [operations]);
+
+  const summaries = useMemo(() => {
+    if (filteredData.length === 0) return null;
+
+    // Weekly Analysis (By Day of Week)
+    const dayNames = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+    const dayCounts = new Array(7).fill(0);
+    
+    filteredData.forEach(op => {
+      const d = parseOpDate(op.date);
+      if (!isNaN(d.getTime())) {
+        dayCounts[d.getDay()]++;
       }
     });
 
-    return Object.entries(months).map(([name, total]) => ({ name, total }));
-  }, [operations]);
+    const maxDayIdx = dayCounts.indexOf(Math.max(...dayCounts));
+    const weeklySummary = `Análise Semanal: O dia com maior volume de operações no período selecionado é ${dayNames[maxDayIdx]}, totalizando ${dayCounts[maxDayIdx]} OPs.`;
 
-  const periodLabels = {
-    today: 'Hoje',
-    week: 'Última Semana',
-    month: 'Último Mês',
-    all: 'Todo o Período'
-  };
+    // Monthly Analysis (By Week of Month)
+    const getWeekOfMonth = (d: Date) => {
+      const firstDayOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+      const firstWeekday = firstDayOfMonth.getDay(); // 0 = Sun, 1 = Mon...
+      const offsetDate = d.getDate() + firstWeekday - 1;
+      return Math.floor(offsetDate / 7) + 1;
+    };
+
+    const weekCounts: { [key: number]: number } = {};
+    filteredData.forEach(op => {
+      const d = parseOpDate(op.date);
+      if (!isNaN(d.getTime())) {
+        const weekNum = getWeekOfMonth(d);
+        weekCounts[weekNum] = (weekCounts[weekNum] || 0) + 1;
+      }
+    });
+
+    const sortedWeeks = Object.entries(weekCounts).sort((a, b) => b[1] - a[1]);
+    let monthlySummary = "Análise Mensal: ";
+    if (sortedWeeks.length > 0) {
+      monthlySummary += `A semana com maior volume de produção foi a Semana ${sortedWeeks[0][0]} do mês, com ${sortedWeeks[0][1]} OPs registradas.`;
+    } else {
+      monthlySummary += "Não há dados suficientes para análise semanal detalhada.";
+    }
+
+    return { weekly: weeklySummary, monthly: monthlySummary };
+  }, [filteredData]);
 
   return (
     <motion.div 
@@ -131,7 +195,7 @@ export function DashboardView({ operations }: DashboardViewProps) {
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       className="max-w-7xl mx-auto px-4 pt-24 pb-32 md:px-8"
     >
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
         <div>
           <h2 className="text-3xl font-headline font-extrabold text-on-surface tracking-tight">
             Dashboard Analítico
@@ -141,44 +205,26 @@ export function DashboardView({ operations }: DashboardViewProps) {
           </p>
         </div>
 
-        <div className="relative">
-          <button
-            onClick={() => setIsFilterOpen(!isFilterOpen)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-surface-container-lowest border border-outline-variant/20 rounded-xl shadow-sm hover:bg-surface-container-low transition-all text-sm font-bold text-on-surface"
-          >
+        <div className="flex flex-wrap items-center gap-3 bg-surface-container-low p-2 rounded-2xl border border-outline-variant/10">
+          <div className="flex items-center gap-2 px-3">
             <Calendar className="w-4 h-4 text-primary" />
-            {periodLabels[period]}
-            <ChevronDown className={cn("w-4 h-4 transition-transform", isFilterOpen && "rotate-180")} />
-          </button>
-
-          <AnimatePresence>
-            {isFilterOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="absolute right-0 mt-2 w-48 bg-surface-container-lowest border border-outline-variant/10 rounded-xl shadow-xl z-50 p-1 overflow-hidden"
-              >
-                {(['today', 'week', 'month', 'all'] as Period[]).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => {
-                      setPeriod(p);
-                      setIsFilterOpen(false);
-                    }}
-                    className={cn(
-                      "w-full text-left px-4 py-2.5 text-sm font-bold rounded-lg transition-colors",
-                      period === p 
-                        ? "bg-primary/10 text-primary" 
-                        : "text-on-surface-variant hover:bg-surface-container-low"
-                    )}
-                  >
-                    {periodLabels[p]}
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+            <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Período</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <input 
+              type="date" 
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-3 py-2 text-sm font-bold text-on-surface outline-none focus:ring-2 focus:ring-primary/20 hover:border-primary/50 transition-all cursor-pointer"
+            />
+            <span className="text-on-surface-variant font-bold">à</span>
+            <input 
+              type="date" 
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-3 py-2 text-sm font-bold text-on-surface outline-none focus:ring-2 focus:ring-primary/20 hover:border-primary/50 transition-all cursor-pointer"
+            />
+          </div>
         </div>
       </div>
 
@@ -209,12 +255,44 @@ export function DashboardView({ operations }: DashboardViewProps) {
         ))}
       </div>
 
+      {/* Summaries Section */}
+      {summaries && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bg-primary/5 border border-primary/10 p-6 rounded-2xl flex gap-4 items-start"
+          >
+            <div className="p-2 bg-primary/10 rounded-xl text-primary">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-primary text-sm uppercase tracking-wider mb-1">Resumo Semanal</h4>
+              <p className="text-on-surface-variant text-sm leading-relaxed">{summaries.weekly}</p>
+            </div>
+          </motion.div>
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bg-tertiary/5 border border-tertiary/10 p-6 rounded-2xl flex gap-4 items-start"
+          >
+            <div className="p-2 bg-tertiary/10 rounded-xl text-tertiary">
+              <MessageSquareText className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-tertiary text-sm uppercase tracking-wider mb-1">Resumo Mensal</h4>
+              <p className="text-on-surface-variant text-sm leading-relaxed">{summaries.monthly}</p>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {/* Charts Section */}
       <div className="grid grid-cols-1 gap-8">
         <div className="bg-surface-container-lowest p-6 md:p-8 rounded-2xl border border-outline-variant/10 shadow-sm">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-headline font-bold text-on-surface">
-              Volume de OPs por Mês
+              Volume de OPs por Mês ({new Date().getFullYear()})
             </h3>
           </div>
           
@@ -242,7 +320,16 @@ export function DashboardView({ operations }: DashboardViewProps) {
                     borderRadius: '12px',
                     borderWidth: '1px',
                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                    fontWeight: 'bold'
+                    fontWeight: 'bold',
+                    color: 'var(--on-surface)'
+                  }}
+                  itemStyle={{
+                    color: 'var(--primary)',
+                    fontSize: '14px'
+                  }}
+                  labelStyle={{
+                    color: 'var(--on-surface-variant)',
+                    marginBottom: '4px'
                   }}
                 />
                 <Bar 
