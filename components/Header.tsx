@@ -91,6 +91,12 @@ export function Header({
         >
           Painel de Separação
         </button>
+        <button 
+          onClick={() => onViewChange('DASHBOARD')}
+          className={`font-body text-sm font-semibold transition-colors ${currentView === 'DASHBOARD' ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
+        >
+          Dashboard
+        </button>
         {!isViewer && (
           <button 
             onClick={() => onViewChange('LAUNCH')}

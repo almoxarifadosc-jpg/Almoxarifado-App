@@ -1,10 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Rocket, Network, BarChart3, ShieldCheck } from 'lucide-react';
+import { Rocket, Network, BarChart3, ShieldCheck, LayoutDashboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'ADMIN_PANEL';
+export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL';
 
 interface BottomNavProps {
   currentView: View;
@@ -17,6 +17,7 @@ export function BottomNav({ currentView, onViewChange, isAdmin, isViewer }: Bott
   let tabs = [
     { id: 'OPERATIONS' as View, label: 'Operações', icon: Network },
     { id: 'ANALYTICS' as View, label: 'Painel de Separação', icon: BarChart3 },
+    { id: 'DASHBOARD' as View, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'LAUNCH' as View, label: 'Portal', icon: Rocket },
   ];
 

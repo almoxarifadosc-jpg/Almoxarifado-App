@@ -7,6 +7,7 @@ import { BottomNav, View } from '@/components/BottomNav';
 import { LaunchView } from '@/components/LaunchView';
 import { OperationsView } from '@/components/OperationsView';
 import { AnalyticsView } from '@/components/AnalyticsView';
+import { DashboardView } from '@/components/DashboardView';
 import { AuthView } from '@/components/AuthView';
 import { AdminView } from '@/components/AdminView';
 import { SupabaseSetupView } from '@/components/SupabaseSetupView';
@@ -539,6 +540,9 @@ export default function Page() {
         )}
         {currentView === 'ANALYTICS' && (
           <AnalyticsView key="analytics" operations={operations} />
+        )}
+        {currentView === 'DASHBOARD' && (
+          <DashboardView key="dashboard" operations={operations} />
         )}
         {currentView === 'ADMIN_PANEL' && (
           <AdminView key="admin" />
