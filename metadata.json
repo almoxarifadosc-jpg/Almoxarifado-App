@@ -1,5 +1,7 @@
 {
-  "name": "Almoxarifado App",
-  "description": "Sistema de controle de fluxo de operações industriais e gestão de produção.",
-  "requestFramePermissions": []
+  "name": "Almoxarifado Ventisol",
+  "description": "Sistema de controle de fluxo de operações industriais e gestão de produção Ventisol.",
+  "requestFramePermissions": [
+    "notifications"
+  ]
 }
