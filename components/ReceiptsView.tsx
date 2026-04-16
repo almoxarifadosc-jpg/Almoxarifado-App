@@ -584,13 +584,6 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                         <ImageIcon className="w-5 h-5" />
                       </a>
                     )}
-                    <button 
-                      onClick={() => handleOpenModal(receipt)}
-                      className="p-2 hover:bg-surface-container-high text-primary rounded-xl transition-colors"
-                      title="Editar Carga"
-                    >
-                      <Edit2 className="w-5 h-5" />
-                    </button>
                     {STATUS_OPTIONS.map((status) => (
                       <button
                         key={status}
@@ -605,10 +598,17 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                         {status}
                       </button>
                     ))}
+                    <button 
+                      onClick={() => handleOpenModal(receipt)}
+                      className="p-2 hover:bg-surface-container-high text-primary rounded-xl transition-colors ml-2"
+                      title="Editar Carga"
+                    >
+                      <Edit2 className="w-5 h-5" />
+                    </button>
                     {isAdmin && (
                       <button 
                         onClick={() => setDeleteModal({ isOpen: true, id: receipt.id })}
-                        className="p-2 hover:bg-error/10 text-on-surface-variant hover:text-error rounded-xl transition-colors ml-2"
+                        className="p-2 hover:bg-error/10 text-on-surface-variant hover:text-error rounded-xl transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
