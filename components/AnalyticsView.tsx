@@ -87,7 +87,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
             <div className="w-2 h-2 rounded-full bg-tertiary animate-pulse" />
             <span className="font-body text-[10px] font-bold tracking-widest uppercase text-tertiary">Monitoramento em Tempo Real</span>
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight text-on-surface font-headline">Painel FlowUp OPs</h1>
+          <h1 className="text-4xl font-extrabold tracking-tight text-on-surface font-headline">Painel de Ops</h1>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">

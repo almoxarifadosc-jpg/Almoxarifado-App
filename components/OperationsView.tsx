@@ -356,7 +356,7 @@ export function OperationsView({
       <section className="mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div>
-              <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">Gestão de OPs</h2>
+              <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">Ordens de Prod.</h2>
               <p className="text-on-surface-variant mt-1 font-medium">Controle de fluxo de separações em tempo real.</p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
