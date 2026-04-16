@@ -12,7 +12,8 @@ import {
   Phone, 
   User,
   Building2,
-  X
+  X,
+  Truck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,7 @@ interface Supplier {
   cnpj: string;
   phone?: string;
   contact?: string;
+  is_driver?: boolean;
   created_at: string;
 }
 
@@ -42,7 +44,8 @@ export function SuppliersView() {
     name: '',
     cnpj: '',
     phone: '',
-    contact: ''
+    contact: '',
+    is_driver: false
   });
 
   const fetchSuppliers = async () => {
@@ -87,7 +90,8 @@ export function SuppliersView() {
         name: supplier.name,
         cnpj: supplier.cnpj,
         phone: supplier.phone || '',
-        contact: supplier.contact || ''
+        contact: supplier.contact || '',
+        is_driver: supplier.is_driver || false
       });
     } else {
       setEditingSupplier(null);
@@ -95,7 +99,8 @@ export function SuppliersView() {
         name: '',
         cnpj: '',
         phone: '',
-        contact: ''
+        contact: '',
+        is_driver: false
       });
     }
     setError(null);
@@ -232,8 +237,16 @@ export function SuppliersView() {
               className="glass-card p-6 rounded-3xl border border-outline-variant/10 shadow-sm hover:shadow-md transition-all group"
             >
               <div className="flex justify-between items-start mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                  <Building2 className="w-6 h-6" />
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                    <Building2 className="w-6 h-6" />
+                  </div>
+                  {supplier.is_driver && (
+                    <span className="bg-tertiary/10 text-tertiary text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 uppercase tracking-widest">
+                      <Truck className="w-3 h-3" />
+                      Motorista
+                    </span>
+                  )}
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button 
@@ -368,6 +381,34 @@ export function SuppliersView() {
                       onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
                     />
                   </div>
+                </div>
+
+                <div className="p-4 bg-surface-container-low rounded-2xl flex items-center justify-between border border-outline-variant/5">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                      formData.is_driver ? "bg-tertiary/20 text-tertiary" : "bg-on-surface/5 text-on-surface/20"
+                    )}>
+                      <Truck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-on-surface">Este fornecedor é motorista?</p>
+                      <p className="text-[10px] text-on-surface-variant">Ative para aparecer na lista de cargas.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, is_driver: !prev.is_driver }))}
+                    className={cn(
+                      "w-12 h-6 rounded-full relative transition-colors duration-200 ease-in-out",
+                      formData.is_driver ? "bg-tertiary" : "bg-outline-variant/30"
+                    )}
+                  >
+                    <div className={cn(
+                      "absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-200 ease-in-out",
+                      formData.is_driver ? "right-1" : "left-1"
+                    )} />
+                  </button>
                 </div>
 
                 <div className="pt-4 flex gap-3">

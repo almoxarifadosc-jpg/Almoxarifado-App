@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils';
 
 interface Receipt {
   id: string;
-  invoice_number: string;
+  load_id: string;
   supplier_type: 'Intercompany' | 'Externo';
   supplier_name: string;
   status: 'Pendente' | 'Enviado' | 'Recebido';
@@ -141,8 +141,8 @@ export function ReceiptsDashboardView() {
     >
       <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">Dashboard de Recebimento</h2>
-          <p className="text-on-surface-variant mt-1 font-medium">Análise de volumes e performance de recebimentos.</p>
+          <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">Dashboard de Cargas</h2>
+          <p className="text-on-surface-variant mt-1 font-medium">Análise de volumes e performance de cargas.</p>
         </div>
 
         <div className="flex items-center gap-2 bg-surface-container-low p-2 rounded-2xl border border-outline-variant/10">
@@ -166,7 +166,7 @@ export function ReceiptsDashboardView() {
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'Total Lançamentos', value: kpis.total, icon: Package, color: 'text-primary', bg: 'bg-primary/10' },
+          { label: 'Total de Cargas', value: kpis.total, icon: Package, color: 'text-primary', bg: 'bg-primary/10' },
           { label: 'Pendentes', value: kpis.pendente, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10' },
           { label: 'Enviados', value: kpis.enviado, icon: Truck, color: 'text-blue-500', bg: 'bg-blue-500/10' },
           { label: 'Recebidos', value: kpis.recebido, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
@@ -236,7 +236,7 @@ export function ReceiptsDashboardView() {
               <div key={s.name} className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-bold text-on-surface">{s.name}</span>
-                  <span className="text-xs font-black text-primary">{s.count} NFs</span>
+                  <span className="text-xs font-black text-primary">{s.count} Cargas</span>
                 </div>
                 <div className="h-2 w-full bg-surface-container-low rounded-full overflow-hidden">
                   <motion.div 

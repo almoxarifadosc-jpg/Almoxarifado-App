@@ -17,7 +17,9 @@ import {
   Building2,
   Trash2,
   Edit2,
-  MessageSquareText
+  MessageSquareText,
+  FileText,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -25,7 +27,10 @@ import { supabase } from '@/lib/supabase';
 
 interface Receipt {
   id: string;
-  invoice_number: string;
+  load_id: string;
+  invoices: string[];
+  invoice_count: number;
+  driver: string;
   supplier_type: 'Intercompany' | 'Externo';
   supplier_name: string;
   status: 'Pendente' | 'Enviado' | 'Recebido';
@@ -39,6 +44,7 @@ interface Supplier {
   id: string;
   name: string;
   cnpj: string;
+  is_driver?: boolean;
 }
 
 interface ReceiptsViewProps {
@@ -59,6 +65,8 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
   const [dbSuppliers, setDbSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isInvoiceListOpen, setIsInvoiceListOpen] = useState(false);
+  const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
   const [observationModal, setObservationModal] = useState<{ isOpen: boolean; text: string }>({ isOpen: false, text: '' });
   const [filterText, setFilterText] = useState('');
@@ -74,12 +82,32 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
   const [typeFilter, setTypeFilter] = useState<'All' | 'Intercompany' | 'Externo'>('All');
   
   const [formData, setFormData] = useState({
-    invoice_number: '',
+    invoices: [] as string[],
+    driver: '',
     supplier_type: 'Intercompany' as 'Intercompany' | 'Externo',
     supplier_name: '',
     observation: '',
     image_url: ''
   });
+
+  const [currentNF, setCurrentNF] = useState('');
+
+  const addNF = () => {
+    if (currentNF.trim() && !formData.invoices.includes(currentNF.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        invoices: [...prev.invoices, currentNF.trim()]
+      }));
+      setCurrentNF('');
+    }
+  };
+
+  const removeNF = (nf: string) => {
+    setFormData(prev => ({
+      ...prev,
+      invoices: prev.invoices.filter(item => item !== nf)
+    }));
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -124,7 +152,7 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
   };
 
   const fetchSuppliers = async () => {
-    const { data } = await supabase.from('suppliers').select('id, name, cnpj').order('name');
+    const { data } = await supabase.from('suppliers').select('id, name, cnpj, is_driver').order('name');
     if (data) setDbSuppliers(data);
   };
 
@@ -146,14 +174,28 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Generate sequential load_id
+    const nextLoadNum = receipts.length > 0 
+      ? Math.max(...receipts.map(r => parseInt(r.load_id || '0'))) + 1 
+      : 1;
+    const load_id = nextLoadNum.toString().padStart(4, '0');
+
     const { error } = await supabase.from('receipts').insert([
-      { ...formData, status: 'Pendente', updated_by_name: userName }
+      { 
+        ...formData, 
+        load_id,
+        invoice_count: formData.invoices.length,
+        status: 'Pendente', 
+        updated_by_name: userName 
+      }
     ]);
 
     if (!error) {
       setIsModalOpen(false);
       setFormData({
-        invoice_number: '',
+        invoices: [],
+        driver: '',
         supplier_type: 'Intercompany',
         supplier_name: '',
         observation: '',
@@ -193,8 +235,9 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
   };
 
   const filteredReceipts = receipts.filter(r => {
-    const matchesText = r.invoice_number.toLowerCase().includes(filterText.toLowerCase()) || 
-                       r.supplier_name.toLowerCase().includes(filterText.toLowerCase());
+    const matchesText = (r.load_id || '').toLowerCase().includes(filterText.toLowerCase()) || 
+                       r.supplier_name.toLowerCase().includes(filterText.toLowerCase()) ||
+                       (r.driver || '').toLowerCase().includes(filterText.toLowerCase());
     const matchesType = typeFilter === 'All' || r.supplier_type === typeFilter;
     
     const receiptDate = new Date(r.created_at);
@@ -208,6 +251,9 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
     return matchesText && matchesType && matchesDate;
   });
 
+  const drivers = useMemo(() => dbSuppliers.filter(s => !!s.is_driver), [dbSuppliers]);
+  const suppliersOnly = useMemo(() => dbSuppliers.filter(s => !s.is_driver), [dbSuppliers]);
+  
   const kpis = useMemo(() => {
     return {
       pendente: filteredReceipts.filter(r => r.status === 'Pendente').length,
@@ -249,15 +295,15 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
       <section className="mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div>
-            <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">Recebimentos</h2>
-            <p className="text-on-surface-variant mt-1 font-medium">Controle de entradas Intercompany e Externas.</p>
+            <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">Cargas</h2>
+            <p className="text-on-surface-variant mt-1 font-medium">Controle de entradas de cargas Intercompany e Externas.</p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <div className="flex flex-wrap items-center gap-2 bg-surface-container-low p-1.5 rounded-2xl border border-outline-variant/10">
               <div className="relative flex-1 min-w-[200px]">
                 <input 
                   type="text"
-                  placeholder="Buscar NF ou Fornecedor..."
+                  placeholder="Buscar Carga, Motorista ou Fornecedor..."
                   value={filterText}
                   onChange={(e) => setFilterText(e.target.value)}
                   className="w-full bg-transparent text-on-surface border-0 rounded-xl px-4 py-2 pl-10 focus:ring-0 outline-none text-sm"
@@ -296,7 +342,7 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
               className="px-6 py-3 rounded-xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
             >
               <Plus className="w-5 h-5" />
-              Novo Recebimento
+              Nova Carga
             </button>
           </div>
         </div>
@@ -325,7 +371,7 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-          <p className="text-on-surface-variant font-bold animate-pulse">Carregando recebimentos...</p>
+          <p className="text-on-surface-variant font-bold animate-pulse">Carregando cargas...</p>
         </div>
       ) : filteredReceipts.length === 0 ? (
         <div className="glass-card p-12 rounded-3xl border border-dashed border-outline-variant/30 flex flex-col items-center text-center gap-4">
@@ -333,8 +379,8 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
             <Truck className="w-10 h-10" />
           </div>
           <div>
-            <h3 className="text-xl font-headline font-bold text-on-surface">Nenhum recebimento encontrado</h3>
-            <p className="text-on-surface-variant mt-1">Ajuste os filtros ou adicione um novo lançamento.</p>
+            <h3 className="text-xl font-headline font-bold text-on-surface">Nenhuma carga encontrada</h3>
+            <p className="text-on-surface-variant mt-1">Ajuste os filtros ou adicione uma nova carga.</p>
           </div>
         </div>
       ) : (
@@ -413,7 +459,7 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="font-headline font-bold text-on-surface text-lg leading-tight">NF {receipt.invoice_number}</h4>
+                        <h4 className="font-headline font-bold text-on-surface text-lg leading-tight">Carga #{receipt.load_id}</h4>
                         <span className={cn(
                           "px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-widest",
                           receipt.supplier_type === 'Intercompany' ? "bg-primary/10 text-primary" : "bg-tertiary/10 text-tertiary"
@@ -422,6 +468,28 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                         </span>
                       </div>
                       <div className="flex flex-col gap-0.5 mt-1">
+                        <div className="flex items-center gap-2 text-on-surface-variant">
+                          <Truck className="w-3 h-3 opacity-40" />
+                          <span className="text-sm font-bold">Motorista: {receipt.driver}</span>
+                        </div>
+                    <div className="flex flex-center gap-2 text-on-surface-variant">
+                          <Package className="w-3 h-3 opacity-40" />
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{receipt.invoice_count} Notas Fiscais</span>
+                            {receipt.invoices && receipt.invoices.length > 0 && (
+                              <button 
+                                onClick={() => {
+                                  setSelectedInvoices(receipt.invoices);
+                                  setIsInvoiceListOpen(true);
+                                }}
+                                className="p-1 hover:bg-primary/10 text-primary rounded-md transition-colors"
+                                title="Ver lista de NFs"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
                         <div className="flex items-center gap-2 text-on-surface-variant">
                           <Building2 className="w-3 h-3 opacity-40" />
                           <span className="text-sm font-bold">{receipt.supplier_name}</span>
@@ -503,8 +571,8 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                     <Plus className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-headline font-extrabold text-on-surface">Novo Recebimento</h3>
-                    <p className="text-sm text-on-surface-variant">Preencha os dados da Nota Fiscal</p>
+                    <h3 className="text-2xl font-headline font-extrabold text-on-surface">Nova Carga</h3>
+                    <p className="text-sm text-on-surface-variant">Preencha os dados da carga</p>
                   </div>
                 </div>
                 <button 
@@ -516,18 +584,65 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Nota Fiscal</label>
+                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Motorista</label>
+                    <select 
+                      required
+                      className="w-full bg-surface-container-low text-on-surface border-0 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer" 
+                      value={formData.driver}
+                      onChange={(e) => setFormData({ ...formData, driver: e.target.value })}
+                    >
+                      <option value="" disabled>Selecione um motorista</option>
+                      {drivers.map(d => (
+                        <option key={d.id} value={d.name}>{d.name}</option>
+                      ))}
+                      {!drivers.length && (
+                        <option value="" disabled>Nenhum motorista cadastrado</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Adicionar Notas Fiscais</label>
+                  <div className="flex gap-2">
                     <input 
                       type="text"
-                      required
-                      className="w-full bg-surface-container-low text-on-surface border-0 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none" 
-                      placeholder="ex: 123456"
-                      value={formData.invoice_number}
-                      onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })}
+                      className="flex-1 bg-surface-container-low text-on-surface border-0 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none" 
+                      placeholder="Número da NF"
+                      value={currentNF}
+                      onChange={(e) => setCurrentNF(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addNF())}
                     />
+                    <button 
+                      type="button"
+                      onClick={addNF}
+                      className="w-12 h-12 flex items-center justify-center bg-primary text-white rounded-2xl shadow-lg shadow-primary/20 active:scale-95 transition-all"
+                    >
+                      <Plus className="w-6 h-6" />
+                    </button>
                   </div>
+                  
+                  {formData.invoices.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3 p-3 bg-surface-container-low/50 rounded-2xl border border-outline-variant/10">
+                      {formData.invoices.map(nf => (
+                        <div key={nf} className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1.5 rounded-xl text-xs font-bold border border-primary/20">
+                          {nf}
+                          <button 
+                            type="button" 
+                            onClick={() => removeNF(nf)}
+                            className="hover:text-error transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Tipo</label>
                     <select 
@@ -539,24 +654,23 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                       <option value="Externo">Externo</option>
                     </select>
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Fornecedor</label>
-                  <select 
-                    required
-                    className="w-full bg-surface-container-low text-on-surface border-0 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer" 
-                    value={formData.supplier_name}
-                    onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-                  >
-                    <option value="" disabled>Selecione um fornecedor</option>
-                    {dbSuppliers.map(s => (
-                      <option key={s.id} value={s.name}>{s.name} - {s.cnpj}</option>
-                    ))}
-                    {!dbSuppliers.length && SUPPLIER_EXAMPLES.map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Fornecedor</label>
+                    <select 
+                      required
+                      className="w-full bg-surface-container-low text-on-surface border-0 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer" 
+                      value={formData.supplier_name}
+                      onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
+                    >
+                      <option value="" disabled>Selecione um fornecedor</option>
+                      {suppliersOnly.map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                      {!suppliersOnly.length && SUPPLIER_EXAMPLES.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -570,7 +684,7 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Imagem da NF</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Imagem da Carga</label>
                   <div className="flex items-center gap-4">
                     <label className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant border-2 border-dashed border-outline-variant/30 rounded-2xl p-4 cursor-pointer transition-all active:scale-95">
                       <input 
@@ -617,10 +731,47 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                     className="flex-[2] bg-primary text-white font-bold py-4 rounded-2xl shadow-xl shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                   >
                     <CheckCircle2 className="w-5 h-5" />
-                    Salvar Recebimento
+                    Salvar Carga
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Invoice List Modal */}
+      <AnimatePresence>
+        {isInvoiceListOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface-container-lowest p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10 relative"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-headline font-bold text-on-surface">Notas Fiscais da Carga</h3>
+              </div>
+              
+              <div className="max-h-[300px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                {selectedInvoices.map((nf, idx) => (
+                  <div key={idx} className="p-3 bg-surface-container-low rounded-xl flex items-center justify-between border border-outline-variant/5">
+                    <span className="text-sm font-bold text-on-surface">NF: {nf}</span>
+                    <span className="text-[10px] font-black uppercase text-on-surface-variant/40">Item {idx + 1}</span>
+                  </div>
+                ))}
+              </div>
+
+              <button 
+                onClick={() => setIsInvoiceListOpen(false)}
+                className="w-full mt-6 bg-primary text-white font-bold py-3 rounded-xl shadow-lg shadow-primary/20 active:scale-95 transition-all"
+              >
+                Fechar
+              </button>
             </motion.div>
           </div>
         )}
@@ -670,9 +821,9 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
               <div className="w-16 h-16 bg-error/10 rounded-full flex items-center justify-center text-error mx-auto mb-6">
                 <Trash2 className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-headline font-bold text-on-surface mb-2">Excluir Recebimento</h3>
+              <h3 className="text-xl font-headline font-bold text-on-surface mb-2">Excluir Carga</h3>
               <p className="text-sm text-on-surface-variant mb-8">
-                Tem certeza que deseja excluir permanentemente este lançamento? Esta ação não pode ser desfeita.
+                Tem certeza que deseja excluir permanentemente esta carga? Esta ação não pode ser desfeita.
               </p>
               
               <div className="flex gap-3">
