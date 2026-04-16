@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { LayoutGrid, Key, LogOut, X, Loader2, CheckCircle, Moon, Sun, Bell, BellOff } from 'lucide-react';
+import { LayoutGrid, Key, LogOut, X, Loader2, CheckCircle, Moon, Sun, Bell, BellOff, Menu as MenuIcon } from 'lucide-react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -18,6 +18,7 @@ interface HeaderProps {
   onToggleDarkMode?: () => void;
   notificationsEnabled?: boolean;
   onRequestNotifications?: () => void;
+  onMenuToggle?: () => void;
 }
 
 export function Header({ 
@@ -31,7 +32,8 @@ export function Header({
   isDarkMode,
   onToggleDarkMode,
   notificationsEnabled,
-  onRequestNotifications
+  onRequestNotifications,
+  onMenuToggle
 }: HeaderProps) {
   const [showLogout, setShowLogout] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -69,6 +71,12 @@ export function Header({
   return (
     <header className="sticky top-0 w-full z-50 bg-surface/80 backdrop-blur-xl flex items-center justify-between px-6 py-4 shadow-sm shadow-on-surface/5">
       <div className="flex items-center gap-3">
+        <button 
+          onClick={onMenuToggle}
+          className="p-2 -ml-2 hover:bg-surface-container-high rounded-xl transition-colors text-primary md:hidden"
+        >
+          <MenuIcon size={24} />
+        </button>
         <div className="w-8 h-8 relative flex items-center justify-center overflow-hidden rounded-lg">
           <img 
             src={logoUrl} 

@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { Header } from '@/components/Header';
-import { Sidebar } from '@/components/Sidebar';
-import { BottomNav, View } from '@/components/BottomNav';
+import { Sidebar, View } from '@/components/Sidebar';
 import { LaunchView } from '@/components/LaunchView';
 import { OperationsView } from '@/components/OperationsView';
 import { AnalyticsView } from '@/components/AnalyticsView';
@@ -51,6 +50,7 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const notificationsEnabledRef = useRef(false);
 
   // Sync ref with state
@@ -508,6 +508,8 @@ export default function Page() {
         isAdmin={currentUser?.is_admin}
         isViewer={currentUser?.is_viewer}
         category={currentUser?.category}
+        isMobileOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -523,6 +525,7 @@ export default function Page() {
           onToggleDarkMode={toggleDarkMode}
           notificationsEnabled={notificationsEnabled}
           onRequestNotifications={requestNotificationPermission}
+          onMenuToggle={() => setIsMobileMenuOpen(true)}
         />
         
         <div className="flex-1 overflow-x-hidden">
@@ -573,14 +576,6 @@ export default function Page() {
             )}
           </AnimatePresence>
         </div>
-
-        <BottomNav 
-          currentView={currentView} 
-          onViewChange={setCurrentView} 
-          isAdmin={currentUser?.is_admin}
-          isViewer={currentUser?.is_viewer}
-          category={currentUser?.category}
-        />
       </div>
     </div>
   );

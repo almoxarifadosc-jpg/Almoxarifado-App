@@ -11,11 +11,13 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
-  Menu
+  Menu,
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { View } from './BottomNav';
+
+export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS';
 
 interface SidebarProps {
   currentView: View;
@@ -23,9 +25,11 @@ interface SidebarProps {
   isAdmin?: boolean;
   isViewer?: boolean;
   category?: string;
+  isMobileOpen?: boolean;
+  onClose?: () => void;
 }
 
-export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category }: SidebarProps) {
+export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category, isMobileOpen, onClose }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const sections = [
@@ -58,15 +62,11 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
     }
   ];
 
-  return (
-    <motion.aside
-      initial={false}
-      animate={{ width: isCollapsed ? '80px' : '260px' }}
-      className="hidden md:flex flex-col h-screen sticky top-0 bg-surface border-r border-outline-variant/10 z-40 transition-colors duration-300"
-    >
+  const sidebarContent = (isMobile: boolean) => (
+    <>
       {/* Header / Toggle */}
       <div className="p-6 flex items-center justify-between">
-        {!isCollapsed && (
+        {(!isCollapsed || isMobile) && (
           <motion.span 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -75,12 +75,21 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
             Menu
           </motion.span>
         )}
-        <button 
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-2 hover:bg-surface-container-high rounded-xl transition-colors text-on-surface-variant"
-        >
-          {isCollapsed ? <Menu size={20} /> : <ChevronLeft size={20} />}
-        </button>
+        {isMobile ? (
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-surface-container-high rounded-xl transition-colors text-on-surface-variant"
+          >
+            <X size={20} />
+          </button>
+        ) : (
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-2 hover:bg-surface-container-high rounded-xl transition-colors text-on-surface-variant"
+          >
+            {isCollapsed ? <Menu size={20} /> : <ChevronLeft size={20} />}
+          </button>
+        )}
       </div>
 
       {/* Navigation Links */}
@@ -90,7 +99,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
 
           return (
             <div key={idx} className="space-y-1">
-              {!isCollapsed && (
+              {(!isCollapsed || isMobile) && (
                 <motion.h3
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -99,7 +108,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
                   {section.title}
                 </motion.h3>
               )}
-              {isCollapsed && (
+              {(isCollapsed && !isMobile) && (
                 <div className="h-[1px] bg-outline-variant/10 mx-4 mb-4" />
               )}
               
@@ -111,7 +120,10 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => onViewChange(tab.id)}
+                      onClick={() => {
+                        onViewChange(tab.id);
+                        if (isMobile && onClose) onClose();
+                      }}
                       className={cn(
                         "w-full flex items-center gap-4 p-3 rounded-2xl transition-all group relative",
                         isActive 
@@ -126,7 +138,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
                         <Icon size={20} />
                       </div>
                       
-                      {!isCollapsed && (
+                      {(!isCollapsed || isMobile) && (
                         <motion.span
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
@@ -136,7 +148,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
                         </motion.span>
                       )}
 
-                      {isCollapsed && (
+                      {(isCollapsed && !isMobile) && (
                         <div className="absolute left-full ml-4 px-3 py-2 bg-on-surface text-surface text-xs font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
                           {tab.label}
                         </div>
@@ -159,7 +171,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
 
       {/* Footer Info */}
       <div className="p-4 border-t border-outline-variant/10">
-        {!isCollapsed ? (
+        {(!isCollapsed || isMobile) ? (
           <div className="flex items-center gap-3 p-2">
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
               {category?.[0] || 'V'}
@@ -177,6 +189,46 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
           </div>
         )}
       </div>
-    </motion.aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <motion.aside
+        initial={false}
+        animate={{ width: isCollapsed ? '80px' : '260px' }}
+        className="hidden md:flex flex-col h-screen sticky top-0 bg-surface border-r border-outline-variant/10 z-40 transition-colors duration-300"
+      >
+        {sidebarContent(false)}
+      </motion.aside>
+
+      {/* Mobile Drawer */}
+      <AnimatePresence>
+        {isMobileOpen && (
+          <div className="fixed inset-0 z-[100] md:hidden">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={onClose}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            
+            {/* Drawer */}
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="absolute left-0 top-0 bottom-0 w-[280px] bg-surface flex flex-col shadow-2xl"
+            >
+              {sidebarContent(true)}
+            </motion.aside>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
