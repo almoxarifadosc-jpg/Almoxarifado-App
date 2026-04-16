@@ -79,6 +79,8 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
     return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
   });
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<'All' | 'Intercompany' | 'Externo'>('All');
   
   const [formData, setFormData] = useState({
@@ -174,24 +176,31 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
+    setFormError(null);
     
-    // Generate sequential load_id
-    const nextLoadNum = receipts.length > 0 
-      ? Math.max(...receipts.map(r => parseInt(r.load_id || '0'))) + 1 
-      : 1;
-    const load_id = nextLoadNum.toString().padStart(4, '0');
+    try {
+      // Generate sequential load_id
+      const nextLoadNum = receipts.length > 0 
+        ? Math.max(...receipts.map(r => {
+            const num = parseInt(r.load_id || '0');
+            return isNaN(num) ? 0 : num;
+          })) + 1 
+        : 1;
+      const load_id = nextLoadNum.toString().padStart(4, '0');
 
-    const { error } = await supabase.from('receipts').insert([
-      { 
-        ...formData, 
-        load_id,
-        invoice_count: formData.invoices.length,
-        status: 'Pendente', 
-        updated_by_name: userName 
-      }
-    ]);
+      const { error } = await supabase.from('receipts').insert([
+        { 
+          ...formData, 
+          load_id,
+          invoice_count: formData.invoices.length,
+          status: 'Pendente', 
+          updated_by_name: userName 
+        }
+      ]);
 
-    if (!error) {
+      if (error) throw error;
+
       setIsModalOpen(false);
       setFormData({
         invoices: [],
@@ -202,6 +211,13 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
         image_url: ''
       });
       fetchReceipts(false);
+    } catch (err: any) {
+      console.error('Erro ao salvar:', err.message);
+      setFormError(err.message === 'new row violates row-level security policy for table "receipts"' 
+        ? 'Erro de permissão: Você não tem autorização para inserir dados.' 
+        : `Erro ao salvar: ${err.message}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -584,6 +600,16 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
+                {formError && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="p-4 bg-error/10 text-error rounded-2xl flex items-center gap-3 border border-error/20"
+                  >
+                    <AlertCircle className="w-5 h-5 shrink-0" />
+                    <p className="text-xs font-bold leading-tight">{formError}</p>
+                  </motion.div>
+                )}
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Motorista</label>
@@ -728,10 +754,15 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                   </button>
                   <button 
                     type="submit"
-                    className="flex-[2] bg-primary text-white font-bold py-4 rounded-2xl shadow-xl shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    disabled={saving}
+                    className="flex-[2] bg-primary text-white font-bold py-4 rounded-2xl shadow-xl shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    <CheckCircle2 className="w-5 h-5" />
-                    Salvar Carga
+                    {saving ? (
+                      <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-5 h-5" />
+                    )}
+                    {saving ? 'Salvando...' : 'Salvar Carga'}
                   </button>
                 </div>
               </form>
