@@ -65,6 +65,7 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
   const [dbSuppliers, setDbSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
   const [isInvoiceListOpen, setIsInvoiceListOpen] = useState(false);
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
@@ -174,34 +175,76 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
     };
   }, []);
 
+  const handleOpenModal = (receipt: Receipt | null = null) => {
+    if (receipt) {
+      setEditingReceipt(receipt);
+      setFormData({
+        invoices: receipt.invoices || [],
+        driver: receipt.driver || '',
+        supplier_type: receipt.supplier_type as any,
+        supplier_name: receipt.supplier_name,
+        observation: receipt.observation || '',
+        image_url: receipt.image_url || ''
+      });
+    } else {
+      setEditingReceipt(null);
+      setFormData({
+        invoices: [],
+        driver: '',
+        supplier_type: 'Intercompany',
+        supplier_name: '',
+        observation: '',
+        image_url: ''
+      });
+    }
+    setFormError(null);
+    setIsModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setFormError(null);
     
     try {
-      // Generate sequential load_id
-      const nextLoadNum = receipts.length > 0 
-        ? Math.max(...receipts.map(r => {
-            const num = parseInt(r.load_id || '0');
-            return isNaN(num) ? 0 : num;
-          })) + 1 
-        : 1;
-      const load_id = nextLoadNum.toString().padStart(4, '0');
+      let error;
 
-      const { error } = await supabase.from('receipts').insert([
-        { 
-          ...formData, 
-          load_id,
-          invoice_count: formData.invoices.length,
-          status: 'Pendente', 
-          updated_by_name: userName 
-        }
-      ]);
+      if (editingReceipt) {
+        const { error: updateError } = await supabase
+          .from('receipts')
+          .update({ 
+            ...formData, 
+            invoice_count: formData.invoices.length,
+            updated_by_name: userName 
+          })
+          .eq('id', editingReceipt.id);
+        error = updateError;
+      } else {
+        // Generate sequential load_id
+        const nextLoadNum = receipts.length > 0 
+          ? Math.max(...receipts.map(r => {
+              const num = parseInt(r.load_id || '0');
+              return isNaN(num) ? 0 : num;
+            })) + 1 
+          : 1;
+        const load_id = nextLoadNum.toString().padStart(4, '0');
+
+        const { error: insertError } = await supabase.from('receipts').insert([
+          { 
+            ...formData, 
+            load_id,
+            invoice_count: formData.invoices.length,
+            status: 'Pendente', 
+            updated_by_name: userName 
+          }
+        ]);
+        error = insertError;
+      }
 
       if (error) throw error;
 
       setIsModalOpen(false);
+      setEditingReceipt(null);
       setFormData({
         invoices: [],
         driver: '',
@@ -214,7 +257,7 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
     } catch (err: any) {
       console.error('Erro ao salvar:', err.message);
       setFormError(err.message === 'new row violates row-level security policy for table "receipts"' 
-        ? 'Erro de permissão: Você não tem autorização para inserir dados.' 
+        ? 'Erro de permissão: Você não tem autorização para realizar esta ação.' 
         : `Erro ao salvar: ${err.message}`);
     } finally {
       setSaving(false);
@@ -354,7 +397,7 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
               </select>
             </div>
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => handleOpenModal()}
               className="px-6 py-3 rounded-xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
             >
               <Plus className="w-5 h-5" />
@@ -541,6 +584,13 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                         <ImageIcon className="w-5 h-5" />
                       </a>
                     )}
+                    <button 
+                      onClick={() => handleOpenModal(receipt)}
+                      className="p-2 hover:bg-surface-container-high text-primary rounded-xl transition-colors"
+                      title="Editar Carga"
+                    >
+                      <Edit2 className="w-5 h-5" />
+                    </button>
                     {STATUS_OPTIONS.map((status) => (
                       <button
                         key={status}
@@ -587,8 +637,12 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                     <Plus className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-headline font-extrabold text-on-surface">Nova Carga</h3>
-                    <p className="text-sm text-on-surface-variant">Preencha os dados da carga</p>
+                    <h3 className="text-2xl font-headline font-extrabold text-on-surface">
+                      {editingReceipt ? `Editar Carga #${editingReceipt.load_id}` : 'Nova Carga'}
+                    </h3>
+                    <p className="text-sm text-on-surface-variant">
+                      {editingReceipt ? 'Atualize os dados da carga' : 'Preencha os dados da carga'}
+                    </p>
                   </div>
                 </div>
                 <button 
