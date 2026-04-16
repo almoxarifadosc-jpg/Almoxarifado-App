@@ -49,7 +49,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
     {
       title: 'Intercompany',
       items: [
-        { id: 'RECEIPTS' as View, label: 'Recebimentos', icon: Truck },
+        { id: 'RECEIPTS' as View, label: 'Carregamentos', icon: Truck },
         { id: 'RECEIPTS_DASHBOARD' as View, label: 'Dash Rec.', icon: LayoutDashboard },
         { id: 'SUPPLIERS' as View, label: 'Fornecedores', icon: Users },
       ].filter(() => !isViewer)
