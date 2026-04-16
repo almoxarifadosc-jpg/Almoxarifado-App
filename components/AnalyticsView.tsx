@@ -79,7 +79,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 1.02 }}
-      className="pt-24 px-4 max-w-[1600px] mx-auto pb-32"
+      className="pt-8 px-4 max-w-[1600px] mx-auto pb-32"
     >
       <div className="mb-8 flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div>

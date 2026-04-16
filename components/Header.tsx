@@ -12,6 +12,7 @@ interface HeaderProps {
   onLogout: () => void;
   isAdmin?: boolean;
   isViewer?: boolean;
+  category?: string;
   logoUrl?: string;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
@@ -25,6 +26,7 @@ export function Header({
   onLogout, 
   isAdmin, 
   isViewer, 
+  category,
   logoUrl = '/app-logo.png?v=4',
   isDarkMode,
   onToggleDarkMode,
@@ -62,8 +64,10 @@ export function Header({
     }
   };
 
+  const isBemplas = category === 'Bemplas';
+
   return (
-    <header className="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-xl flex items-center justify-between px-6 py-4 shadow-sm shadow-on-surface/5">
+    <header className="sticky top-0 w-full z-50 bg-surface/80 backdrop-blur-xl flex items-center justify-between px-6 py-4 shadow-sm shadow-on-surface/5">
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 relative flex items-center justify-center overflow-hidden rounded-lg">
           <img 
@@ -75,46 +79,6 @@ export function Header({
         <h1 className="font-headline font-bold tracking-tight text-xl text-primary">Almoxarifado</h1>
       </div>
       
-      {/* Desktop Navigation */}
-      <nav className="hidden md:flex items-center gap-8">
-        {!isViewer && (
-          <button 
-            onClick={() => onViewChange('OPERATIONS')}
-            className={`font-body text-sm font-semibold transition-colors ${currentView === 'OPERATIONS' ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
-          >
-            Operações
-          </button>
-        )}
-        <button 
-          onClick={() => onViewChange('ANALYTICS')}
-          className={`font-body text-sm font-semibold transition-colors ${currentView === 'ANALYTICS' ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
-        >
-          Painel de Separação
-        </button>
-        <button 
-          onClick={() => onViewChange('DASHBOARD')}
-          className={`font-body text-sm font-semibold transition-colors ${currentView === 'DASHBOARD' ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
-        >
-          Dashboard
-        </button>
-        {!isViewer && (
-          <button 
-            onClick={() => onViewChange('LAUNCH')}
-            className={`font-body text-sm font-semibold transition-colors ${currentView === 'LAUNCH' ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
-          >
-            Portal
-          </button>
-        )}
-        {isAdmin && (
-          <button 
-            onClick={() => onViewChange('ADMIN_PANEL')}
-            className={`font-body text-sm font-semibold transition-colors ${currentView === 'ADMIN_PANEL' ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
-          >
-            Admin
-          </button>
-        )}
-      </nav>
-
       <div className="flex items-center gap-4">
         <button 
           onClick={onRequestNotifications}

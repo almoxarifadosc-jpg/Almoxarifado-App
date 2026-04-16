@@ -87,7 +87,7 @@ export function LaunchView({ posts, onAddPost, onUpdatePost, onDeletePost, filte
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="pt-24 px-6 max-w-4xl mx-auto pb-32"
+      className="pt-8 px-6 max-w-4xl mx-auto pb-32"
     >
       <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>

@@ -351,7 +351,7 @@ export function OperationsView({
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      className="pt-24 px-4 max-w-7xl mx-auto pb-32"
+      className="pt-8 px-4 max-w-7xl mx-auto pb-32"
     >
       <section className="mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">

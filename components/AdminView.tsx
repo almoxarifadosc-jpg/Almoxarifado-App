@@ -13,6 +13,7 @@ interface Profile {
   status: 'PENDING' | 'APPROVED';
   is_admin: boolean;
   is_viewer: boolean;
+  category?: string;
   allowed_groups?: string[];
 }
 
@@ -32,7 +33,13 @@ export function AdminView() {
   const [savingLogo, setSavingLogo] = useState(false);
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-  const [userFormData, setUserFormData] = useState({ name: '', is_admin: false, is_viewer: false, allowed_groups: '' });
+  const [userFormData, setUserFormData] = useState({ 
+    name: '', 
+    is_admin: false, 
+    is_viewer: false, 
+    category: 'Ventisol',
+    allowed_groups: '' 
+  });
 
   const fetchPendingUsers = useCallback(async () => {
     try {
@@ -70,6 +77,7 @@ export function AdminView() {
       name: user.name,
       is_admin: user.is_admin,
       is_viewer: user.is_viewer,
+      category: user.category || 'Ventisol',
       allowed_groups: user.allowed_groups?.join(', ') || ''
     });
     setIsUserModalOpen(true);
@@ -87,6 +95,7 @@ export function AdminView() {
         name: userFormData.name,
         is_admin: userFormData.is_admin,
         is_viewer: userFormData.is_viewer,
+        category: userFormData.category,
         allowed_groups: groupsArray
       })
       .eq('id', editingUser.id);
@@ -310,7 +319,7 @@ export function AdminView() {
   }
 
   return (
-    <div className="min-h-screen pt-24 pb-32 px-4 bg-surface transition-colors duration-300">
+    <div className="min-h-screen pt-8 pb-32 px-4 bg-surface transition-colors duration-300">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -439,6 +448,9 @@ export function AdminView() {
                         )}
                         {user.is_viewer && (
                           <span className="text-[10px] bg-tertiary/10 text-tertiary px-2 py-0.5 rounded-full font-bold ml-1">Visualizador</span>
+                        )}
+                        {user.category && (
+                          <span className="text-[10px] bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded-full font-bold ml-1">{user.category}</span>
                         )}
                       </div>
                       <p className="text-xs text-on-surface-variant">{user.email}</p>
@@ -578,6 +590,19 @@ export function AdminView() {
                     onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
                     className="w-full bg-surface-container-low text-on-surface border border-outline-variant/20 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-sm"
                   />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant px-1">Categoria / Empresa</label>
+                  <select 
+                    value={userFormData.category}
+                    onChange={(e) => setUserFormData({ ...userFormData, category: e.target.value })}
+                    className="w-full bg-surface-container-low text-on-surface border border-outline-variant/20 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-sm appearance-none cursor-pointer"
+                  >
+                    <option value="Ventisol">Ventisol</option>
+                    <option value="Bemplas">Bemplas</option>
+                    <option value="Recebimento">Recebimento</option>
+                  </select>
                 </div>
 
                 <div className="space-y-1">

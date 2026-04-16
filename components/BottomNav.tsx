@@ -1,27 +1,32 @@
 'use client';
 
 import React from 'react';
-import { Rocket, Network, BarChart3, ShieldCheck, LayoutDashboard } from 'lucide-react';
+import { Rocket, Network, BarChart3, ShieldCheck, LayoutDashboard, Truck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL';
+export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS';
 
 interface BottomNavProps {
   currentView: View;
   onViewChange: (view: View) => void;
   isAdmin?: boolean;
   isViewer?: boolean;
+  category?: string;
 }
 
-export function BottomNav({ currentView, onViewChange, isAdmin, isViewer }: BottomNavProps) {
+export function BottomNav({ currentView, onViewChange, isAdmin, isViewer, category }: BottomNavProps) {
   let tabs = [
     { id: 'OPERATIONS' as View, label: 'Operações', icon: Network },
-    { id: 'ANALYTICS' as View, label: 'Painel de Separação', icon: BarChart3 },
+    { id: 'RECEIPTS' as View, label: 'Recebimentos', icon: Truck },
+    { id: 'RECEIPTS_DASHBOARD' as View, label: 'Dash Rec.', icon: LayoutDashboard },
+    { id: 'ANALYTICS' as View, label: 'Separação', icon: BarChart3 },
     { id: 'DASHBOARD' as View, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'LAUNCH' as View, label: 'Portal', icon: Rocket },
   ];
 
-  if (isViewer) {
+  if (category === 'Bemplas') {
+    tabs = tabs.filter(tab => tab.id === 'RECEIPTS' || tab.id === 'RECEIPTS_DASHBOARD');
+  } else if (isViewer) {
     // Painel de Separação and Dashboard for viewers
     tabs = tabs.filter(tab => tab.id === 'ANALYTICS' || tab.id === 'DASHBOARD');
   }

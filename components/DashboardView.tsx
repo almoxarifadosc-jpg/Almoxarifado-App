@@ -193,7 +193,7 @@ export function DashboardView({ operations }: DashboardViewProps) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="max-w-7xl mx-auto px-4 pt-24 pb-32 md:px-8"
+      className="max-w-7xl mx-auto px-4 pt-8 pb-32 md:px-8"
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
         <div>

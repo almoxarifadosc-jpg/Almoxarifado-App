@@ -3,13 +3,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { Header } from '@/components/Header';
+import { Sidebar } from '@/components/Sidebar';
 import { BottomNav, View } from '@/components/BottomNav';
 import { LaunchView } from '@/components/LaunchView';
 import { OperationsView } from '@/components/OperationsView';
 import { AnalyticsView } from '@/components/AnalyticsView';
 import { DashboardView } from '@/components/DashboardView';
+import { ReceiptsView } from '@/components/ReceiptsView';
+import { ReceiptsDashboardView } from '@/components/ReceiptsDashboardView';
 import { AuthView } from '@/components/AuthView';
 import { AdminView } from '@/components/AdminView';
+import { SuppliersView } from '@/components/SuppliersView';
 import { SupabaseSetupView } from '@/components/SupabaseSetupView';
 import { Factory, Settings, CheckCircle2, Loader2 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -497,64 +501,87 @@ export default function Page() {
   }
 
   return (
-    <main className="min-h-screen">
-      <Header 
-        currentView={currentView} 
-        onViewChange={setCurrentView} 
-        onLogout={handleLogout}
+    <div className="flex min-h-screen bg-surface transition-colors duration-300">
+      <Sidebar 
+        currentView={currentView}
+        onViewChange={setCurrentView}
         isAdmin={currentUser?.is_admin}
         isViewer={currentUser?.is_viewer}
-        logoUrl={logoUrl}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={toggleDarkMode}
-        notificationsEnabled={notificationsEnabled}
-        onRequestNotifications={requestNotificationPermission}
+        category={currentUser?.category}
       />
-      
-      <AnimatePresence mode="wait">
-        {currentView === 'LAUNCH' && (
-          <LaunchView 
-            key="launch" 
-            posts={filteredNews} 
-            onAddPost={addNewsPost} 
-            onUpdatePost={updateNewsPost}
-            onDeletePost={deleteNewsPost}
-            filter={newsFilter}
-            onFilterChange={setNewsFilter}
-          />
-        )}
-        {currentView === 'OPERATIONS' && (
-          <OperationsView 
-            key="operations" 
-            operations={operations} 
-            productionLines={productionLines}
-            onToggleStep={toggleStep}
-            onToggleStatus={toggleOperationStatus}
-            onAddOperation={addOperation}
-            onUpdateOperation={updateOperation}
-            onDeleteOperation={deleteOperation}
-            isAdmin={currentUser?.is_admin}
-            isViewer={currentUser?.is_viewer}
-            allowedGroups={currentUser?.allowed_groups}
-          />
-        )}
-        {currentView === 'ANALYTICS' && (
-          <AnalyticsView key="analytics" operations={operations} />
-        )}
-        {currentView === 'DASHBOARD' && (
-          <DashboardView key="dashboard" operations={operations} />
-        )}
-        {currentView === 'ADMIN_PANEL' && (
-          <AdminView key="admin" />
-        )}
-      </AnimatePresence>
 
-      <BottomNav 
-        currentView={currentView} 
-        onViewChange={setCurrentView} 
-        isAdmin={currentUser?.is_admin}
-        isViewer={currentUser?.is_viewer}
-      />
-    </main>
+      <div className="flex-1 flex flex-col min-w-0">
+        <Header 
+          currentView={currentView} 
+          onViewChange={setCurrentView} 
+          onLogout={handleLogout}
+          isAdmin={currentUser?.is_admin}
+          isViewer={currentUser?.is_viewer}
+          category={currentUser?.category}
+          logoUrl={logoUrl}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={toggleDarkMode}
+          notificationsEnabled={notificationsEnabled}
+          onRequestNotifications={requestNotificationPermission}
+        />
+        
+        <div className="flex-1 overflow-x-hidden">
+          <AnimatePresence mode="wait">
+            {currentView === 'LAUNCH' && (
+              <LaunchView 
+                key="launch" 
+                posts={filteredNews} 
+                onAddPost={addNewsPost} 
+                onUpdatePost={updateNewsPost}
+                onDeletePost={deleteNewsPost}
+                filter={newsFilter}
+                onFilterChange={setNewsFilter}
+              />
+            )}
+            {currentView === 'OPERATIONS' && (
+              <OperationsView 
+                key="operations" 
+                operations={operations} 
+                productionLines={productionLines}
+                onToggleStep={toggleStep}
+                onToggleStatus={toggleOperationStatus}
+                onAddOperation={addOperation}
+                onUpdateOperation={updateOperation}
+                onDeleteOperation={deleteOperation}
+                isAdmin={currentUser?.is_admin}
+                isViewer={currentUser?.is_viewer}
+                allowedGroups={currentUser?.allowed_groups}
+              />
+            )}
+            {currentView === 'ANALYTICS' && (
+              <AnalyticsView key="analytics" operations={operations} />
+            )}
+            {currentView === 'DASHBOARD' && (
+              <DashboardView key="dashboard" operations={operations} />
+            )}
+            {currentView === 'RECEIPTS' && (
+              <ReceiptsView key="receipts" isAdmin={currentUser?.is_admin} userName={currentUser?.name} />
+            )}
+            {currentView === 'RECEIPTS_DASHBOARD' && (
+              <ReceiptsDashboardView key="receipts-dashboard" />
+            )}
+            {currentView === 'SUPPLIERS' && (
+              <SuppliersView key="suppliers" />
+            )}
+            {currentView === 'ADMIN_PANEL' && (
+              <AdminView key="admin" />
+            )}
+          </AnimatePresence>
+        </div>
+
+        <BottomNav 
+          currentView={currentView} 
+          onViewChange={setCurrentView} 
+          isAdmin={currentUser?.is_admin}
+          isViewer={currentUser?.is_viewer}
+          category={currentUser?.category}
+        />
+      </div>
+    </div>
   );
 }
