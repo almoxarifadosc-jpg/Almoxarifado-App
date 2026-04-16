@@ -77,13 +77,6 @@ export function Header({
         >
           <MenuIcon size={24} />
         </button>
-        <div className="w-8 h-8 relative flex items-center justify-center overflow-hidden rounded-lg">
-          <img 
-            src={logoUrl} 
-            alt="Logo" 
-            className="w-full h-full object-contain"
-          />
-        </div>
         <h1 className="font-headline font-bold tracking-tight text-xl text-primary">Almoxarifado</h1>
       </div>
       

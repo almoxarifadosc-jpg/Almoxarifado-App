@@ -37,7 +37,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
       title: 'Ventisol',
       items: [
         { id: 'OPERATIONS' as View, label: 'Operações', icon: Network },
-        { id: 'ANALYTICS' as View, label: 'Separação', icon: BarChart3 },
+        { id: 'ANALYTICS' as View, label: 'FlowUp OPs', icon: BarChart3 },
         { id: 'DASHBOARD' as View, label: 'Dashboard', icon: LayoutDashboard },
         { id: 'LAUNCH' as View, label: 'Portal', icon: Rocket },
       ].filter(item => {
@@ -52,7 +52,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
         { id: 'RECEIPTS' as View, label: 'Recebimentos', icon: Truck },
         { id: 'RECEIPTS_DASHBOARD' as View, label: 'Dash Rec.', icon: LayoutDashboard },
         { id: 'SUPPLIERS' as View, label: 'Fornecedores', icon: Users },
-      ]
+      ].filter(() => !isViewer)
     },
     {
       title: 'Admin',

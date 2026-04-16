@@ -21,9 +21,10 @@ interface AuthViewProps {
   onAuthSuccess: () => void;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
+  logoUrl?: string;
 }
 
-export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode }: AuthViewProps) {
+export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl }: AuthViewProps) {
   const [mode, setMode] = useState<AuthMode>('LOGIN');
   const [formData, setFormData] = useState({ email: '', password: '', name: '' });
   const [error, setError] = useState('');
@@ -237,8 +238,12 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode }: AuthVi
           {isDarkMode ? <Sun className="w-5 h-5 text-primary" /> : <Moon className="w-5 h-5 text-on-surface-variant" />}
         </button>
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-primary/5 rounded-3xl flex items-center justify-center mx-auto mb-4">
-            <User className="w-10 h-10 text-primary" />
+          <div className="w-20 h-20 bg-primary/5 rounded-3xl flex items-center justify-center mx-auto mb-4 overflow-hidden">
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-2" />
+            ) : (
+              <User className="w-10 h-10 text-primary" />
+            )}
           </div>
           <h2 className="text-3xl font-headline font-extrabold text-on-surface">
             {mode === 'LOGIN' ? 'Bem-vindo' : 'Criar Conta'}

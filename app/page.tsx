@@ -496,6 +496,7 @@ export default function Page() {
         onAuthSuccess={checkUser} 
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}
+        logoUrl={logoUrl}
       />
     );
   }
@@ -562,13 +563,13 @@ export default function Page() {
             {currentView === 'DASHBOARD' && (
               <DashboardView key="dashboard" operations={operations} />
             )}
-            {currentView === 'RECEIPTS' && (
+            {currentView === 'RECEIPTS' && !currentUser?.is_viewer && (
               <ReceiptsView key="receipts" isAdmin={currentUser?.is_admin} userName={currentUser?.name} />
             )}
-            {currentView === 'RECEIPTS_DASHBOARD' && (
+            {currentView === 'RECEIPTS_DASHBOARD' && !currentUser?.is_viewer && (
               <ReceiptsDashboardView key="receipts-dashboard" />
             )}
-            {currentView === 'SUPPLIERS' && (
+            {currentView === 'SUPPLIERS' && !currentUser?.is_viewer && (
               <SuppliersView key="suppliers" />
             )}
             {currentView === 'ADMIN_PANEL' && (
