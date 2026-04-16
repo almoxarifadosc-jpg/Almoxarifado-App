@@ -41,6 +41,8 @@ export function AdminView() {
     allowed_groups: '' 
   });
 
+  const categories = ['Ventisol', 'Bemplas', 'Recebimento'];
+
   const fetchPendingUsers = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -599,9 +601,9 @@ export function AdminView() {
                     onChange={(e) => setUserFormData({ ...userFormData, category: e.target.value })}
                     className="w-full bg-surface-container-low text-on-surface border border-outline-variant/20 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-sm appearance-none cursor-pointer"
                   >
-                    <option value="Ventisol">Ventisol</option>
-                    <option value="Bemplas">Bemplas</option>
-                    <option value="Recebimento">Recebimento</option>
+                    {categories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
 
