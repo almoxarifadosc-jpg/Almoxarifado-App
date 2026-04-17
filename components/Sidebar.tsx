@@ -9,15 +9,17 @@ import {
   LayoutDashboard, 
   Truck,
   Users,
+  FileText,
   ChevronLeft,
   ChevronRight,
   Menu,
-  X
+  X,
+  ClipboardList
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
-export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS';
+export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS' | 'ORDERS' | 'SORTING';
 
 interface SidebarProps {
   currentView: View;
@@ -38,11 +40,13 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
       items: [
         { id: 'OPERATIONS' as View, label: 'Ordens de Prod.', icon: Network },
         { id: 'ANALYTICS' as View, label: 'Painel de Ops', icon: BarChart3 },
+        { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
         { id: 'DASHBOARD' as View, label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'ORDERS' as View, label: 'Importar PDF', icon: FileText },
         { id: 'LAUNCH' as View, label: 'Portal', icon: Rocket },
       ].filter(item => {
         if (category === 'Bemplas') return false;
-        if (isViewer && (item.id === 'OPERATIONS' || item.id === 'LAUNCH')) return false;
+        if (isViewer && (item.id === 'OPERATIONS' || item.id === 'LAUNCH' || item.id === 'ORDERS' || item.id === 'SORTING')) return false;
         return true;
       })
     },

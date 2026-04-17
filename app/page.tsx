@@ -13,6 +13,8 @@ import { ReceiptsDashboardView } from '@/components/ReceiptsDashboardView';
 import { AuthView } from '@/components/AuthView';
 import { AdminView } from '@/components/AdminView';
 import { SuppliersView } from '@/components/SuppliersView';
+import { PurchaseOrdersView } from '@/components/PurchaseOrdersView';
+import { SortingView } from '@/components/SortingView';
 import { SupabaseSetupView } from '@/components/SupabaseSetupView';
 import { Factory, Settings, CheckCircle2, Loader2 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -571,6 +573,12 @@ export default function Page() {
             )}
             {currentView === 'SUPPLIERS' && !currentUser?.is_viewer && (
               <SuppliersView key="suppliers" />
+            )}
+            {currentView === 'ORDERS' && !currentUser?.is_viewer && (
+              <PurchaseOrdersView key="orders" isAdmin={currentUser?.is_admin} />
+            )}
+            {currentView === 'SORTING' && !currentUser?.is_viewer && (
+              <SortingView key="sorting" isAdmin={currentUser?.is_admin} />
             )}
             {currentView === 'ADMIN_PANEL' && (
               <AdminView key="admin" />
