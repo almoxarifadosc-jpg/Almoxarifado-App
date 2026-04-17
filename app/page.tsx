@@ -578,7 +578,7 @@ export default function Page() {
               <PurchaseOrdersView key="orders" isAdmin={currentUser?.is_admin} />
             )}
             {currentView === 'SORTING' && !currentUser?.is_viewer && (
-              <SortingView key="sorting" isAdmin={currentUser?.is_admin} />
+              <SortingView key="sorting" isAdmin={currentUser?.is_admin} currentUserId={currentUser?.id} />
             )}
             {currentView === 'ADMIN_PANEL' && (
               <AdminView key="admin" />

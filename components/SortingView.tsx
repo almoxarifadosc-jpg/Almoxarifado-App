@@ -52,7 +52,7 @@ interface Profile {
   email: string;
 }
 
-export function SortingView({ isAdmin }: { isAdmin?: boolean }) {
+export function SortingView({ isAdmin, currentUserId }: { isAdmin?: boolean, currentUserId?: string }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,10 +154,18 @@ export function SortingView({ isAdmin }: { isAdmin?: boolean }) {
     }
   };
 
-  const filteredOrders = orders.filter(o => 
-    o.order_number.toLowerCase().includes(filterText.toLowerCase()) ||
-    o.supplier_name.toLowerCase().includes(filterText.toLowerCase())
-  );
+  const filteredOrders = orders.filter(o => {
+    // 1. Filtro por permissão de visualização
+    const isAssigned = o.assigned_users?.includes(currentUserId || '');
+    const canSee = isAdmin || isAssigned;
+    if (!canSee) return false;
+
+    // 2. Filtro por busca de texto
+    return (
+      o.order_number.toLowerCase().includes(filterText.toLowerCase()) ||
+      o.supplier_name.toLowerCase().includes(filterText.toLowerCase())
+    );
+  });
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -258,36 +266,42 @@ export function SortingView({ isAdmin }: { isAdmin?: boolean }) {
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-2">Responsáveis</h4>
                 <div className="flex -space-x-2">
                   {order.assigned_users && order.assigned_users.length > 0 ? (
-                    order.assigned_users.map(uid => {
-                      const user = profiles.find(p => p.id === uid);
-                      return (
-                        <div key={uid} className="w-8 h-8 rounded-full border-2 border-surface bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary" title={user?.name}>
-                          {user?.name?.[0] || '?'}
-                        </div>
-                      );
-                    })
+                    <>
+                      {order.assigned_users.map(uid => {
+                        const user = profiles.find(p => p.id === uid);
+                        return (
+                          <div key={uid} className="w-8 h-8 rounded-full border-2 border-surface bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary" title={user?.name}>
+                            {user?.name?.[0] || '?'}
+                          </div>
+                        );
+                      })}
+                      {isAdmin && (
+                        <button 
+                          onClick={() => {
+                            setAssigningOrder(order);
+                            setIsAssignModalOpen(true);
+                          }}
+                          className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors z-10"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      )}
+                    </>
                   ) : (
-                    <button 
-                      onClick={() => {
-                        setAssigningOrder(order);
-                        setIsAssignModalOpen(true);
-                      }}
-                      className="w-8 h-8 rounded-full border-2 border-dashed border-outline-variant flex items-center justify-center text-on-surface-variant/40 hover:text-primary hover:border-primary transition-colors"
-                      title="Atribuir Responsáveis"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  )}
-                  {order.assigned_users && order.assigned_users.length > 0 && (
-                     <button 
+                    isAdmin ? (
+                      <button 
                         onClick={() => {
                           setAssigningOrder(order);
                           setIsAssignModalOpen(true);
                         }}
-                        className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors z-10"
+                        className="w-8 h-8 rounded-full border-2 border-dashed border-outline-variant flex items-center justify-center text-on-surface-variant/40 hover:text-primary hover:border-primary transition-colors"
+                        title="Atribuir Responsáveis"
                       >
                         <Plus className="w-4 h-4" />
                       </button>
+                    ) : (
+                      <p className="text-[10px] font-bold text-on-surface-variant italic opacity-40">Ninguém atribuído</p>
+                    )
                   )}
                 </div>
               </div>

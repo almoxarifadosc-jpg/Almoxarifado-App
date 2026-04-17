@@ -46,7 +46,8 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
         { id: 'LAUNCH' as View, label: 'Portal', icon: Rocket },
       ].filter(item => {
         if (category === 'Bemplas') return false;
-        if (isViewer && (item.id === 'OPERATIONS' || item.id === 'LAUNCH' || item.id === 'ORDERS' || item.id === 'SORTING')) return false;
+        if (item.id === 'ORDERS' && !isAdmin) return false;
+        if (isViewer && (item.id === 'OPERATIONS' || item.id === 'LAUNCH' || item.id === 'SORTING')) return false;
         return true;
       })
     },
