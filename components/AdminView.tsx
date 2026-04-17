@@ -13,6 +13,7 @@ interface Profile {
   status: 'PENDING' | 'APPROVED';
   is_admin: boolean;
   is_viewer: boolean;
+  is_conferente: boolean;
   category?: string;
   allowed_groups?: string[];
 }
@@ -37,6 +38,7 @@ export function AdminView() {
     name: '', 
     is_admin: false, 
     is_viewer: false, 
+    is_conferente: false,
     category: 'Ventisol',
     allowed_groups: '' 
   });
@@ -79,6 +81,7 @@ export function AdminView() {
       name: user.name,
       is_admin: user.is_admin,
       is_viewer: user.is_viewer,
+      is_conferente: user.is_conferente,
       category: user.category || 'Ventisol',
       allowed_groups: user.allowed_groups?.join(', ') || ''
     });
@@ -97,6 +100,7 @@ export function AdminView() {
         name: userFormData.name,
         is_admin: userFormData.is_admin,
         is_viewer: userFormData.is_viewer,
+        is_conferente: userFormData.is_conferente,
         category: userFormData.category,
         allowed_groups: groupsArray
       })
@@ -451,6 +455,9 @@ export function AdminView() {
                         {user.is_viewer && (
                           <span className="text-[10px] bg-tertiary/10 text-tertiary px-2 py-0.5 rounded-full font-bold ml-1">Visualizador</span>
                         )}
+                        {user.is_conferente && (
+                          <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full font-bold ml-1">Conferente</span>
+                        )}
                         {user.category && (
                           <span className="text-[10px] bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded-full font-bold ml-1">{user.category}</span>
                         )}
@@ -618,12 +625,12 @@ export function AdminView() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="grid grid-cols-3 gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => setUserFormData({ ...userFormData, is_admin: !userFormData.is_admin })}
                     className={cn(
-                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[8px] uppercase tracking-widest leading-none",
                       userFormData.is_admin 
                         ? "bg-primary border-primary text-white shadow-lg shadow-primary/20" 
                         : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-primary/30"
@@ -635,13 +642,25 @@ export function AdminView() {
                     type="button"
                     onClick={() => setUserFormData({ ...userFormData, is_viewer: !userFormData.is_viewer })}
                     className={cn(
-                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[8px] uppercase tracking-widest leading-none",
                       userFormData.is_viewer 
                         ? "bg-tertiary border-tertiary text-white shadow-lg shadow-tertiary/20" 
                         : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-tertiary/30"
                     )}
                   >
                     Visualizador
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUserFormData({ ...userFormData, is_conferente: !userFormData.is_conferente })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[8px] uppercase tracking-widest leading-none",
+                      userFormData.is_conferente
+                        ? "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-emerald-500/30"
+                    )}
+                  >
+                    Conferente
                   </button>
                 </div>
 

@@ -16,11 +16,15 @@ import {
   Users,
   ClipboardList,
   Edit3,
-  Plus
+  Plus,
+  UserCheck,
+  Eraser,
+  Pen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import SignatureCanvas from 'react-signature-canvas';
 
 interface OrderItem {
   code?: string;
@@ -30,6 +34,7 @@ interface OrderItem {
   unitPrice?: number;
   totalPrice?: number;
   collector_name?: string;
+  is_conferred?: boolean;
 }
 
 interface PurchaseOrder {
@@ -44,6 +49,10 @@ interface PurchaseOrder {
   pdf_url?: string;
   created_at: string;
   assigned_users?: string[]; // IDs dos usuários responsáveis
+  conferred_by_id?: string;
+  conferred_by_name?: string;
+  conferred_at?: string;
+  signature_url?: string;
 }
 
 interface Profile {
@@ -52,7 +61,12 @@ interface Profile {
   email: string;
 }
 
-export function SortingView({ isAdmin, currentUserId }: { isAdmin?: boolean, currentUserId?: string }) {
+export function SortingView({ isAdmin, currentUserId, isConferente, currentUserName }: { 
+  isAdmin?: boolean, 
+  currentUserId?: string,
+  isConferente?: boolean,
+  currentUserName?: string
+}) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +78,7 @@ export function SortingView({ isAdmin, currentUserId }: { isAdmin?: boolean, cur
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [assigningOrder, setAssigningOrder] = useState<PurchaseOrder | null>(null);
+  const sigCanvas = React.useRef<SignatureCanvas>(null);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -106,16 +121,63 @@ export function SortingView({ isAdmin, currentUserId }: { isAdmin?: boolean, cur
     });
   };
 
+  const handleToggleItemConferred = (index: number) => {
+    if (!editingOrder || !isConferente) return;
+    setEditingOrder(prev => {
+      if (!prev) return null;
+      const newItems = [...(prev.items || [])];
+      newItems[index] = { 
+        ...newItems[index], 
+        is_conferred: !newItems[index].is_conferred 
+      };
+      return { ...prev, items: newItems };
+    });
+  };
+
+  const calculatePercentages = (items: OrderItem[]) => {
+    if (!items || items.length === 0) return { separation: 0, conference: 0 };
+    const separatedCount = items.filter(i => (i.quantity || 0) > 0).length;
+    const conferredCount = items.filter(i => i.is_conferred).length;
+    
+    return {
+      separation: Math.round((separatedCount / items.length) * 100),
+      conference: Math.round((conferredCount / items.length) * 100)
+    };
+  };
+
   const updateOrder = async () => {
     if (!editingOrder?.id) return;
     setIsProcessing(true);
     setError(null);
     try {
+      let signatureUrl = editingOrder.signature_url;
+
+      // 1. Upload Signature if drawn
+      if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
+        const signatureDataUrl = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
+        const blob = await (await fetch(signatureDataUrl)).blob();
+        const fileName = `signature_${editingOrder.id}_${Date.now()}.png`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('orders')
+          .upload(fileName, blob, { contentType: 'image/png' });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('orders')
+          .getPublicUrl(fileName);
+        
+        signatureUrl = publicUrl;
+      }
+
+      // 2. Update Database
       const { error: dbError } = await supabase
         .from('purchase_orders')
         .update({
           items: editingOrder.items,
-          status: 'Processado'
+          status: 'Processado',
+          signature_url: signatureUrl
         })
         .eq('id', editingOrder.id);
 
@@ -127,6 +189,58 @@ export function SortingView({ isAdmin, currentUserId }: { isAdmin?: boolean, cur
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       setError(`Falha ao salvar: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const conferOrder = async () => {
+    if (!editingOrder?.id || !currentUserId || !currentUserName) return;
+    setIsProcessing(true);
+    setError(null);
+    try {
+      let signatureUrl = editingOrder.signature_url;
+
+      // 1. Upload Signature if drawn (Conferente also signs to validate)
+      if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
+        const signatureDataUrl = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
+        const blob = await (await fetch(signatureDataUrl)).blob();
+        const fileName = `signature_conferente_${editingOrder.id}_${Date.now()}.png`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('orders')
+          .upload(fileName, blob, { contentType: 'image/png' });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('orders')
+          .getPublicUrl(fileName);
+        
+        signatureUrl = publicUrl;
+      }
+
+      // 2. Update Database
+      const { error: dbError } = await supabase
+        .from('purchase_orders')
+        .update({
+          items: editingOrder.items,
+          conferred_by_id: currentUserId,
+          conferred_by_name: currentUserName,
+          conferred_at: new Date().toISOString(),
+          status: 'Processado',
+          signature_url: signatureUrl
+        })
+        .eq('id', editingOrder.id);
+
+      if (dbError) throw dbError;
+      await fetchOrders();
+      setIsEditModalOpen(false);
+      setEditingOrder(null);
+      setSuccess('Conferência com Assinatura registrada!');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(`Erro na conferência: ${err.message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -168,7 +282,7 @@ export function SortingView({ isAdmin, currentUserId }: { isAdmin?: boolean, cur
   });
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-8 max-w-[1600px] mx-auto">
       <AnimatePresence>
         {success && (
           <motion.div 
@@ -218,7 +332,7 @@ export function SortingView({ isAdmin, currentUserId }: { isAdmin?: boolean, cur
             <motion.div 
               key={order.id}
               layout
-              className="bg-surface-container-lowest p-6 rounded-[32px] border border-outline-variant/10 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-center gap-8 group"
+              className="bg-surface-container-lowest p-6 rounded-[32px] border border-outline-variant/10 shadow-sm hover:shadow-md transition-all flex flex-col lg:flex-row items-center gap-10 group"
             >
               {/* OP / Info Principal */}
               <div className="flex items-center gap-6 min-w-[200px]">
@@ -237,27 +351,67 @@ export function SortingView({ isAdmin, currentUserId }: { isAdmin?: boolean, cur
               </div>
 
               {/* Detalhes Médios */}
-              <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-8 w-full">
+              <div className="flex-1 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8 w-full">
                 <div>
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Localização</h4>
                   <p className="text-sm font-bold text-on-surface truncate">{order.product_location || '-'}</p>
                 </div>
                 <div>
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Quantidade</h4>
-                  <p className="text-sm font-bold text-on-surface">{order.total_amount}</p>
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Items</h4>
+                  <p className="text-sm font-bold text-on-surface">{order.items?.length || 0}</p>
                 </div>
                 <div>
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Data</h4>
                   <p className="text-sm font-bold text-on-surface">{new Date(order.date).toLocaleDateString('pt-BR')}</p>
                 </div>
+
+                {/* Porcentagens */}
+                <div className="col-span-2 flex items-center gap-6 border-l border-outline-variant/10 pl-6">
+                  {(() => {
+                    const { separation, conference } = calculatePercentages(order.items);
+                    return (
+                      <>
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[80px]">
+                          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-secondary">Separação</span>
+                            <span className="text-on-surface">{separation}%</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${separation}%` }}
+                              className="h-full bg-secondary rounded-full"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[80px]">
+                          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-emerald-500">Conferência</span>
+                            <span className="text-on-surface">{conference}%</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${conference}%` }}
+                              className="h-full bg-emerald-500 rounded-full"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
                 <div>
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Status</h4>
-                  <span className={cn(
-                    "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                    order.status === 'Processado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
-                  )}>
-                    {order.status}
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-center",
+                      order.status === 'Processado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                    )}>
+                      {order.status}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -307,18 +461,41 @@ export function SortingView({ isAdmin, currentUserId }: { isAdmin?: boolean, cur
               </div>
 
               {/* Ações */}
-              <div className="flex gap-2">
+              <div className="flex flex-col xl:flex-row items-center gap-3 ml-auto">
                 <button 
                   onClick={() => {
                     setEditingOrder(order);
                     setIsEditModalOpen(true);
                   }}
-                  className="bg-primary/10 text-primary p-4 rounded-2xl hover:bg-primary/20 transition-all flex items-center gap-2 font-bold"
+                  className="w-full xl:w-auto bg-primary/10 text-primary p-4 rounded-2xl hover:bg-primary/20 transition-all flex items-center justify-center gap-2 font-bold"
                   title="Realizar Separação"
                 >
                   <Edit3 className="w-5 h-5" />
-                  <span className="hidden lg:block text-sm">Separar</span>
+                  <span className="text-sm">Separar</span>
                 </button>
+
+                {order.conferred_by_name ? (
+                  <div className="w-full xl:w-auto flex flex-col items-center xl:items-end gap-0.5 px-6 py-3 bg-emerald-500 text-white rounded-2xl border border-emerald-600 shadow-lg shadow-emerald-500/10 min-w-[180px] animate-in fade-in zoom-in duration-300">
+                    <div className="flex items-center gap-2">
+                       <CheckCircle2 className="w-4 h-4 fill-white/20" />
+                       <span className="text-[11px] font-black uppercase tracking-[0.15em]">Conferido</span>
+                    </div>
+                    <span className="text-[10px] font-bold opacity-90 truncate max-w-[150px]">por {order.conferred_by_name}</span>
+                  </div>
+                ) : (
+                  isConferente && (
+                    <button 
+                      onClick={() => {
+                        setEditingOrder(order);
+                        setIsEditModalOpen(true);
+                      }}
+                      className="w-full xl:w-auto bg-surface-container-high text-on-surface-variant p-4 rounded-2xl hover:bg-emerald-500 hover:text-white hover:border-emerald-400 border border-outline-variant/10 shadow-sm transition-all flex items-center justify-center gap-2 font-bold group/conf shadow-emerald-500/0 hover:shadow-emerald-500/20"
+                    >
+                      <UserCheck className="w-5 h-5 group-hover/conf:scale-110 transition-transform" />
+                      <span className="text-sm">Conferir</span>
+                    </button>
+                  )
+                )}
               </div>
             </motion.div>
           ))}
@@ -365,7 +542,7 @@ export function SortingView({ isAdmin, currentUserId }: { isAdmin?: boolean, cur
 
                   <div className="divide-y divide-outline-variant/10">
                     {editingOrder.items?.map((item, idx) => (
-                      <div key={idx} className="p-4 md:px-6 md:py-3 hover:bg-surface-container-low/50 transition-colors grid grid-cols-1 md:grid-cols-[1fr,100px,100px,80px] items-center gap-4 md:gap-0">
+                      <div key={idx} className="p-4 md:px-6 md:py-3 hover:bg-surface-container-low/50 transition-colors grid grid-cols-1 md:grid-cols-[1fr,100px,100px,80px,50px] items-center gap-4 md:gap-0">
                         {/* Material Info */}
                         <div className="min-w-0">
                           {/* Desktop: Descrição > Código */}
@@ -409,27 +586,139 @@ export function SortingView({ isAdmin, currentUserId }: { isAdmin?: boolean, cur
                             </span>
                           </div>
                         </div>
+
+                        {/* Conferido Check Column */}
+                        <div className="flex justify-center">
+                          <button 
+                            onClick={() => handleToggleItemConferred(idx)}
+                            disabled={!isConferente}
+                            className={cn(
+                              "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+                              item.is_conferred 
+                                ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
+                                : "bg-surface-container-high text-on-surface-variant/30 hover:bg-emerald-500/10 hover:text-emerald-500 border border-outline-variant/10"
+                            )}
+                            title={isConferente ? "Alternar Conferência" : "Apenas conferentes"}
+                          >
+                            <UserCheck className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
+
+                {/* Área de Assinatura Eletrônica Manuscrita */}
+                <div className="mt-8 pt-6 border-t border-outline-variant/10">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Pen className="w-4 h-4 text-primary" />
+                        <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-on-surface">Assinatura Eletrônica Manuscrita</h4>
+                      </div>
+                      <p className="text-[10px] text-on-surface-variant opacity-60 font-medium">Validado eletronicamente conforme diretrizes de conferência.</p>
+                    </div>
+                    {isConferente && !editingOrder.signature_url && (
+                      <button 
+                        type="button"
+                        onClick={() => sigCanvas.current?.clear()}
+                        className="text-[10px] font-black uppercase tracking-widest text-error flex items-center gap-2 hover:bg-error/5 px-4 py-2 rounded-xl transition-colors self-start md:self-center"
+                      >
+                        <Eraser className="w-4 h-4" />
+                        Limpar Área
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="bg-surface-container-high rounded-[40px] border border-outline-variant/20 p-6 shadow-inner overflow-hidden">
+                    {editingOrder.signature_url ? (
+                      <div className="w-full flex flex-col items-center justify-center py-6 bg-white/40 rounded-3xl relative group border border-outline-variant/5">
+                        <img 
+                          src={editingOrder.signature_url} 
+                          alt="Assinatura Manuscrita" 
+                          className="max-h-40 object-contain drop-shadow-sm"
+                        />
+                        <div className="mt-4 flex flex-col items-center">
+                           <div className="flex items-center gap-2 text-emerald-500 mb-1">
+                             <CheckCircle2 className="w-4 h-4" />
+                             <span className="text-[11px] font-black uppercase tracking-widest">Documento Assinado</span>
+                           </div>
+                           <p className="text-[9px] text-on-surface-variant font-mono opacity-50 uppercase tracking-tighter">HASH: {editingOrder.id.substring(0, 12).toUpperCase()} / DT: {editingOrder.conferred_at ? new Date(editingOrder.conferred_at).toLocaleString() : new Date().toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ) : isConferente ? (
+                      <div className="w-full bg-white rounded-3xl border-2 border-dashed border-outline-variant/30 overflow-hidden touch-none relative">
+                        <SignatureCanvas 
+                          ref={sigCanvas}
+                          penColor="#000"
+                          canvasProps={{
+                            className: "signature-canvas w-full h-48 cursor-crosshair",
+                          }}
+                        />
+                        <div className="absolute inset-0 pointer-events-none border-[12px] border-white/50 opacity-10"></div>
+                        <div className="bg-surface-container-low p-3 text-center border-t border-outline-variant/10">
+                          <p className="text-[10px] font-bold text-primary uppercase tracking-[0.1em] flex items-center justify-center gap-2">
+                            <Pen className="w-3 h-3" />
+                            Assine no campo acima utilizando o dedo ou caneta stylus
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full flex flex-col items-center justify-center py-12 bg-surface-container-low/50 rounded-3xl border-2 border-dashed border-outline-variant/10 opacity-40">
+                        <Pen className="w-8 h-8 mb-2" />
+                        <p className="text-[10px] font-black uppercase tracking-widest text-center">Aguardando assinatura do conferente</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="mt-4 px-2">
+                    <p className="text-[9px] leading-relaxed text-on-surface-variant opacity-40 text-center font-medium">
+                      Ao assinar este documento, você confirma a integridade dos itens conferidos e aceita os termos de responsabilidade técnica pela separação dos materiais descritos nesta Ordem de Produção.
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="p-8 border-t border-outline-variant/10 flex justify-end gap-3">
-                <button 
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-6 py-3 rounded-2xl font-bold text-on-surface-variant hover:bg-surface-container-high"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={updateOrder}
-                  disabled={isProcessing}
-                  className="bg-primary text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-primary/20 flex items-center gap-2"
-                >
-                  {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                  Salvar Separação
-                </button>
+              <div className="p-8 border-t border-outline-variant/10 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-4">
+                  {editingOrder.conferred_by_name ? (
+                    <div className="flex items-center gap-2 text-emerald-500 bg-emerald-500/10 px-4 py-2 rounded-2xl border border-emerald-500/20 animate-in fade-in zoom-in duration-300">
+                      <UserCheck className="w-5 h-5" />
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest leading-none mb-1">Conferido por</p>
+                        <p className="text-sm font-bold">{editingOrder.conferred_by_name}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    isConferente && (
+                      <button 
+                        onClick={conferOrder}
+                        disabled={isProcessing}
+                        className="bg-emerald-500 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-emerald-500/20 flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+                      >
+                        {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserCheck className="w-5 h-5" />}
+                        Marcar como Conferido
+                      </button>
+                    )
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-6 py-3 rounded-2xl font-bold text-on-surface-variant hover:bg-surface-container-high"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={updateOrder}
+                    disabled={isProcessing}
+                    className="bg-primary text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-primary/20 flex items-center gap-2"
+                  >
+                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                    Salvar Separação
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
