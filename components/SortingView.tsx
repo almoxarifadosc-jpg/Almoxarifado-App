@@ -45,13 +45,16 @@ interface PurchaseOrder {
   date: string;
   total_amount: number;
   items: OrderItem[];
-  status: 'Pendente' | 'Processado' | 'Recusado';
+  status: 'Pendente' | 'Processado' | 'Recusado' | 'Baixada';
   pdf_url?: string;
   created_at: string;
   assigned_users?: string[]; // IDs dos usuários responsáveis
   conferred_by_id?: string;
   conferred_by_name?: string;
   conferred_at?: string;
+  is_signed?: boolean;
+  signed_at?: string;
+  signed_by_name?: string;
   signature_url?: string;
 }
 
@@ -75,6 +78,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
   const [success, setSuccess] = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'EDIT' | 'SIGN'>('EDIT');
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [assigningOrder, setAssigningOrder] = useState<PurchaseOrder | null>(null);
@@ -203,28 +207,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
     setIsProcessing(true);
     setError(null);
     try {
-      let signatureUrl = editingOrder.signature_url;
-
-      // 1. Upload Signature if drawn (Conferente also signs to validate)
-      if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
-        const signatureDataUrl = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
-        const blob = await (await fetch(signatureDataUrl)).blob();
-        const fileName = `signature_conferente_${editingOrder.id}_${Date.now()}.png`;
-
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('orders')
-          .upload(fileName, blob, { contentType: 'image/png' });
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('orders')
-          .getPublicUrl(fileName);
-        
-        signatureUrl = publicUrl;
-      }
-
-      // 2. Update Database
+      // 2. Update Database - Just mark as conferred
       const { error: dbError } = await supabase
         .from('purchase_orders')
         .update({
@@ -232,8 +215,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
           conferred_by_id: currentUserId,
           conferred_by_name: currentUserName,
           conferred_at: new Date().toISOString(),
-          status: 'Processado',
-          signature_url: signatureUrl
+          status: 'Processado'
         })
         .eq('id', editingOrder.id);
 
@@ -242,10 +224,86 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
       setIsEditModalOpen(false);
       setEditingOrder(null);
       setIsConferConfirming(false);
-      setSuccess('Conferência com Assinatura registrada!');
+      setSuccess('OP Conferida com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       setError(`Erro na conferência: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const signOrder = async () => {
+    if (!editingOrder?.id || !currentUserName) return;
+    
+    if (!sigCanvas.current || sigCanvas.current.isEmpty()) {
+      setError("Por favor, realize a assinatura antes de salvar.");
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+    try {
+      // 1. Upload Signature
+      const signatureDataUrl = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
+      const blob = await (await fetch(signatureDataUrl)).blob();
+      const fileName = `signature_${editingOrder.id}_${Date.now()}.png`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('orders')
+        .upload(fileName, blob, { contentType: 'image/png' });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('orders')
+        .getPublicUrl(fileName);
+      
+      const signatureUrl = publicUrl;
+
+      // 2. Update Database
+      const { error: dbError } = await supabase
+        .from('purchase_orders')
+        .update({
+          signature_url: signatureUrl,
+          is_signed: true,
+          signed_at: new Date().toISOString(),
+          signed_by_name: currentUserName
+        })
+        .eq('id', editingOrder.id);
+
+      if (dbError) throw dbError;
+      await fetchOrders();
+      setIsEditModalOpen(false);
+      setEditingOrder(null);
+      setSuccess('Assinatura salva com sucesso!');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(`Erro ao salvar assinatura: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const baixarOrder = async (orderId: string) => {
+    if (!isAdmin) return;
+    
+    const confirmed = window.confirm("Deseja realmente baixar esta OP? Após esta ação, ela não poderá mais ser revertida.");
+    if (!confirmed) return;
+
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('purchase_orders')
+        .update({ status: 'Baixada' })
+        .eq('id', orderId);
+
+      if (error) throw error;
+      await fetchOrders();
+      setSuccess('OP Baixada com sucesso!');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(`Erro ao baixar OP: ${err.message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -284,13 +342,14 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
       return;
     }
     
-    setIsProcessing(true);
-    setError(null);
-    
     try {
       const orderToRevert = orders.find(o => o.id === orderId);
       if (!orderToRevert) {
         throw new Error('OP não encontrada no estado local.');
+      }
+
+      if (orderToRevert.status === 'Baixada') {
+        throw new Error('Não é possível reverter uma OP com status "Baixada".');
       }
 
       console.log('Resetando itens da OP...');
@@ -514,10 +573,60 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                   })()}
                 </div>
 
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {(() => {
+                      const { separation, conference } = calculatePercentages(order.items);
+                      const isSeparated = separation === 100;
+                      const isConferred = order.conferred_by_name != null;
+                      const isSigned = order.is_signed === true;
+                      const isBaixada = order.status === 'Baixada';
+
+                      return (
+                        <>
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
+                            isSeparated 
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" 
+                              : "bg-surface-container-high text-on-surface-variant/40 border-outline-variant/10 opacity-50"
+                          )}>
+                            Separada
+                          </span>
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
+                            isConferred 
+                              ? "bg-blue-500/10 text-blue-600 border-blue-500/20" 
+                              : "bg-surface-container-high text-on-surface-variant/40 border-outline-variant/10 opacity-50"
+                          )}>
+                            Conferida
+                          </span>
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
+                            isSigned 
+                              ? "bg-purple-500/10 text-purple-600 border-purple-500/20" 
+                              : "bg-surface-container-high text-on-surface-variant/40 border-outline-variant/10 opacity-50"
+                          )}>
+                            Assinada
+                          </span>
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
+                            isBaixada 
+                              ? "bg-amber-500 text-white border-amber-600 font-bold" 
+                              : "bg-surface-container-high text-on-surface-variant/40 border-outline-variant/10 opacity-50"
+                          )}>
+                            Baixada
+                          </span>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between pt-2">
                   <span className={cn(
                     "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                    order.status === 'Processado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                    order.status === 'Processado' ? 'bg-emerald-500/10 text-emerald-500' : 
+                    order.status === 'Baixada' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20 animate-pulse' :
+                    'bg-amber-500/10 text-amber-500'
                   )}>
                     {order.status}
                   </span>
@@ -525,99 +634,129 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                     {order.items?.length || 0} Materiais
                   </span>
                 </div>
-              </div>
 
-              {/* Botão de Ação Inferior */}
-              <div className="mt-auto space-y-2">
-                {order.status === 'Processado' ? (
-                  <>
-                    <div className={cn(
-                      "w-full flex flex-col items-center gap-0.5 px-6 py-3 rounded-2xl border shadow-lg transition-all",
-                      order.conferred_by_name 
-                        ? "bg-emerald-500 text-white border-emerald-600 shadow-emerald-500/10" 
-                        : "bg-amber-500 text-white border-amber-600 shadow-amber-500/10"
-                    )}>
-                      <div className="flex items-center gap-2">
-                         <CheckCircle2 className="w-4 h-4 fill-white/20" />
-                         <span className="text-[11px] font-black uppercase tracking-[0.15em]">
-                           {order.conferred_by_name ? 'Conferido' : 'Separação Salva'}
-                         </span>
-                      </div>
-                      {order.conferred_by_name && (
-                        <span className="text-[10px] font-bold opacity-90 truncate w-full text-center">por {order.conferred_by_name}</span>
-                      )}
-                    </div>
-                    {isAdmin && (
-                      <div className="flex flex-col gap-2">
-                        {revertingId === order.id ? (
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRevertingId(null);
-                              }}
-                              className="flex-1 p-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-surface-container-high rounded-xl border border-outline-variant/20"
-                            >
-                              Cancelar
-                            </button>
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                revertOrder(order.id);
-                              }}
-                              disabled={isProcessing}
-                              className="flex-[2] p-3 text-[10px] font-black uppercase tracking-widest text-white bg-error rounded-xl shadow-lg shadow-error/20 flex items-center justify-center gap-2"
-                            >
-                              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertCircle className="w-3 h-3" />}
-                              Confirmar Reversão
-                            </button>
-                          </div>
-                        ) : (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setRevertingId(order.id);
-                            }}
-                            disabled={isProcessing}
-                            className="w-full flex items-center justify-center gap-2 p-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 hover:text-error transition-all hover:bg-error/5 rounded-xl border border-dashed border-outline-variant/20"
-                          >
-                            <ArrowLeft className="w-3 h-3" />
-                            Reverter para Pendente
-                          </button>
+                {/* Botão de Ação Inferior */}
+                <div className="mt-auto space-y-2">
+                  {order.status === 'Processado' || order.status === 'Baixada' ? (
+                    <>
+                      <div className={cn(
+                        "w-full flex flex-col items-center gap-0.5 px-6 py-3 rounded-2xl border shadow-lg transition-all",
+                        order.conferred_by_name 
+                          ? "bg-emerald-500 text-white border-emerald-600 shadow-emerald-500/10" 
+                          : "bg-amber-500 text-white border-amber-600 shadow-amber-500/10"
+                      )}>
+                        <div className="flex items-center gap-2">
+                           <CheckCircle2 className="w-4 h-4 fill-white/20" />
+                           <span className="text-[11px] font-black uppercase tracking-[0.15em]">
+                             {order.status === 'Baixada' ? 'OP BAIXADA' : order.conferred_by_name ? 'Conferido' : 'Separação Salva'}
+                           </span>
+                        </div>
+                        {order.conferred_by_name && (
+                          <span className="text-[10px] font-bold opacity-90 truncate w-full text-center">por {order.conferred_by_name}</span>
                         )}
                       </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="grid grid-cols-1 gap-2">
-                    <button 
-                      onClick={() => {
-                        setEditingOrder(order);
-                        setIsEditModalOpen(true);
-                      }}
-                      className="w-full bg-primary text-white p-4 rounded-2xl hover:opacity-90 transition-all flex items-center justify-center gap-2 font-bold shadow-lg shadow-primary/20"
-                      title="Realizar Separação"
-                    >
-                      <Edit3 className="w-5 h-5" />
-                      <span className="text-sm">Separar Materiais</span>
-                    </button>
-                    
-                    {isConferente && (
+
+                      <div className="grid grid-cols-1 gap-2">
+                        {/* Botão Assinar - Apenas se não estiver assinada */}
+                        {order.status === 'Processado' && !order.is_signed && (
+                          <button 
+                            onClick={() => {
+                              setEditingOrder(order);
+                              setModalMode('SIGN');
+                              setIsEditModalOpen(true);
+                            }}
+                            className="w-full bg-purple-600 text-white p-3 rounded-xl hover:bg-purple-700 transition-all flex items-center justify-center gap-2 font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-purple-500/20"
+                          >
+                            <Pen className="w-4 h-4" />
+                            Assinar OP
+                          </button>
+                        )}
+
+                        {/* Botão Baixar - Apenas para Admins após assinatura */}
+                        {isAdmin && order.status === 'Processado' && order.is_signed && (
+                          <button 
+                            onClick={() => baixarOrder(order.id)}
+                            className="w-full bg-amber-500 text-white p-3 rounded-xl hover:bg-amber-600 transition-all flex items-center justify-center gap-2 font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-amber-500/20"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            Baixar OP
+                          </button>
+                        )}
+
+                        {isAdmin && order.status !== 'Baixada' && (
+                          <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-outline-variant/10">
+                            {revertingId === order.id ? (
+                              <div className="flex gap-2">
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRevertingId(null);
+                                  }}
+                                  className="flex-1 p-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-surface-container-high rounded-xl border border-outline-variant/20"
+                                >
+                                  Cancelar
+                                </button>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    revertOrder(order.id);
+                                  }}
+                                  disabled={isProcessing}
+                                  className="flex-[2] p-3 text-[10px] font-black uppercase tracking-widest text-white bg-error rounded-xl shadow-lg shadow-error/20 flex items-center justify-center gap-2"
+                                >
+                                  {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertCircle className="w-3 h-3" />}
+                                  Confirmar Reversão
+                                </button>
+                              </div>
+                            ) : (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRevertingId(order.id);
+                                }}
+                                disabled={isProcessing}
+                                className="w-full flex items-center justify-center gap-2 p-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 hover:text-error transition-all hover:bg-error/5 rounded-xl border border-dashed border-outline-variant/20"
+                              >
+                                <ArrowLeft className="w-3 h-3" />
+                                Reverter para Pendente
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2">
                       <button 
                         onClick={() => {
                           setEditingOrder(order);
+                          setModalMode('EDIT');
                           setIsEditModalOpen(true);
                         }}
-                        className="w-full bg-surface-container-high text-on-surface-variant p-4 rounded-2xl hover:bg-emerald-500 hover:text-white border border-outline-variant/10 transition-all flex items-center justify-center gap-2 font-bold group/conf"
+                        className="w-full bg-primary text-white p-4 rounded-2xl hover:opacity-90 transition-all flex items-center justify-center gap-2 font-bold shadow-lg shadow-primary/20"
+                        title="Realizar Separação"
                       >
-                        <UserCheck className="w-5 h-5 group-hover/conf:scale-110 transition-transform" />
-                        <span className="text-sm">Conferir OP</span>
+                        <Edit3 className="w-5 h-5" />
+                        <span className="text-sm">Separar Materiais</span>
                       </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </motion.div>
+                      
+                      {isConferente && (
+                        <button 
+                          onClick={() => {
+                            setEditingOrder(order);
+                            setModalMode('EDIT');
+                            setIsEditModalOpen(true);
+                          }}
+                          className="w-full bg-surface-container-high text-on-surface-variant p-4 rounded-2xl hover:bg-emerald-500 hover:text-white border border-outline-variant/10 transition-all flex items-center justify-center gap-2 font-bold group/conf"
+                        >
+                          <UserCheck className="w-5 h-5 group-hover/conf:scale-110 transition-transform" />
+                          <span className="text-sm">Conferir OP</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
           ))}
         </div>
       )}
@@ -638,7 +777,9 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                     <ClipboardList className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-headline font-black text-on-surface">Lançar Separação</h3>
+                    <h3 className="text-2xl font-headline font-black text-on-surface">
+                      {modalMode === 'SIGN' ? 'Assinatura Eletrônica' : 'Lançar Separação'}
+                    </h3>
                     <p className="text-sm text-on-surface-variant">OP #{editingOrder.order_number}</p>
                   </div>
                 </div>
@@ -651,85 +792,91 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
               </div>
 
               <div className="flex-1 overflow-y-auto p-8">
-                <div className="bg-surface-container-high/30 overflow-hidden rounded-[32px] border border-outline-variant/10 shadow-inner">
-                  {/* Cabeçalho Desktop */}
-                  <div className="hidden md:grid grid-cols-[1fr,100px,100px,80px] bg-surface-container-high px-6 py-4">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Material / Código</div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Planejado</div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Separado</div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Dif.</div>
+                {modalMode === 'EDIT' && (
+                  <div className="bg-surface-container-high/30 overflow-hidden rounded-[32px] border border-outline-variant/10 shadow-inner">
+                    {/* Cabeçalho Desktop */}
+                    <div className="hidden md:grid grid-cols-[1fr,100px,100px,80px] bg-surface-container-high px-6 py-4">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Material / Código</div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Planejado</div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Separado</div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Dif.</div>
+                    </div>
+
+                    <div className="divide-y divide-outline-variant/10">
+                      {editingOrder.items?.map((item, idx) => (
+                        <div key={idx} className="p-4 md:px-6 md:py-3 hover:bg-surface-container-low/50 transition-colors grid grid-cols-1 md:grid-cols-[1fr,100px,100px,80px,50px] items-center gap-4 md:gap-0">
+                          {/* Material Info */}
+                          <div className="min-w-0">
+                            {/* Desktop: Descrição > Código */}
+                            <div className="hidden md:block">
+                              <p className="text-sm font-bold text-on-surface truncate pr-4">{item.description}</p>
+                              <p className="text-[10px] text-on-surface-variant font-bold uppercase opacity-60">{item.code || 'S/ COD'}</p>
+                            </div>
+                            {/* Mobile: Código (Ênfase) > Descrição */}
+                            <div className="md:hidden">
+                              <p className="text-lg font-black text-primary leading-tight mb-0.5">{item.code || 'SEM CÓDIGO'}</p>
+                              <p className="text-[11px] font-medium text-on-surface-variant line-clamp-2 leading-relaxed italic">{item.description}</p>
+                            </div>
+                          </div>
+
+                          {/* Colunas de Quantidade (Responsivas) */}
+                          <div className="grid grid-cols-3 md:contents items-center bg-surface-container-low md:bg-transparent p-3 md:p-0 rounded-2xl md:rounded-none border border-outline-variant/5 md:border-none">
+                            <div className="flex flex-col items-center md:items-center">
+                              <span className="md:hidden text-[9px] font-black uppercase text-on-surface-variant/40 mb-1">Plan.</span>
+                              <p className="font-bold text-on-surface text-sm md:text-base">{item.planned_quantity}</p>
+                            </div>
+                            
+                            <div className="flex flex-col items-center md:items-center">
+                              <span className="md:hidden text-[9px] font-black uppercase text-on-surface-variant/40 mb-1">Sep.</span>
+                              <input 
+                                type="number"
+                                disabled={editingOrder.status !== 'Pendente'}
+                                className="w-14 md:w-16 bg-surface-container-high md:bg-surface-container-low text-center font-black p-2 rounded-xl outline-none focus:ring-2 ring-primary/30 text-sm disabled:opacity-50"
+                                value={item.quantity}
+                                onChange={(e) => handleEditItemQuantity(idx, parseInt(e.target.value))}
+                              />
+                            </div>
+
+                            <div className="flex flex-col items-center md:items-center">
+                              <span className="md:hidden text-[9px] font-black uppercase text-on-surface-variant/40 mb-1">Dif.</span>
+                              <span className={cn(
+                                "text-sm md:text-xs font-black px-2 py-0.5 rounded-md",
+                                (item.planned_quantity - item.quantity) === 0 
+                                  ? "bg-emerald-500/10 text-emerald-500" 
+                                  : "bg-amber-500/10 text-amber-500"
+                              )}>
+                                {item.planned_quantity - item.quantity}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Conferido Check Column */}
+                          <div className="flex justify-center">
+                            <button 
+                              onClick={() => handleToggleItemConferred(idx)}
+                              disabled={!isConferente || editingOrder.status !== 'Pendente'}
+                              className={cn(
+                                "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+                                item.is_conferred 
+                                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
+                                  : "bg-surface-container-high text-on-surface-variant/30 hover:bg-emerald-500/10 hover:text-emerald-500 border border-outline-variant/10"
+                              )}
+                              title={isConferente ? "Alternar Conferência" : "Apenas conferentes"}
+                            >
+                              <UserCheck className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-
-                  <div className="divide-y divide-outline-variant/10">
-                    {editingOrder.items?.map((item, idx) => (
-                      <div key={idx} className="p-4 md:px-6 md:py-3 hover:bg-surface-container-low/50 transition-colors grid grid-cols-1 md:grid-cols-[1fr,100px,100px,80px,50px] items-center gap-4 md:gap-0">
-                        {/* Material Info */}
-                        <div className="min-w-0">
-                          {/* Desktop: Descrição > Código */}
-                          <div className="hidden md:block">
-                            <p className="text-sm font-bold text-on-surface truncate pr-4">{item.description}</p>
-                            <p className="text-[10px] text-on-surface-variant font-bold uppercase opacity-60">{item.code || 'S/ COD'}</p>
-                          </div>
-                          {/* Mobile: Código (Ênfase) > Descrição */}
-                          <div className="md:hidden">
-                            <p className="text-lg font-black text-primary leading-tight mb-0.5">{item.code || 'SEM CÓDIGO'}</p>
-                            <p className="text-[11px] font-medium text-on-surface-variant line-clamp-2 leading-relaxed italic">{item.description}</p>
-                          </div>
-                        </div>
-
-                        {/* Colunas de Quantidade (Responsivas) */}
-                        <div className="grid grid-cols-3 md:contents items-center bg-surface-container-low md:bg-transparent p-3 md:p-0 rounded-2xl md:rounded-none border border-outline-variant/5 md:border-none">
-                          <div className="flex flex-col items-center md:items-center">
-                            <span className="md:hidden text-[9px] font-black uppercase text-on-surface-variant/40 mb-1">Plan.</span>
-                            <p className="font-bold text-on-surface text-sm md:text-base">{item.planned_quantity}</p>
-                          </div>
-                          
-                          <div className="flex flex-col items-center md:items-center">
-                            <span className="md:hidden text-[9px] font-black uppercase text-on-surface-variant/40 mb-1">Sep.</span>
-                            <input 
-                              type="number"
-                              className="w-14 md:w-16 bg-surface-container-high md:bg-surface-container-low text-center font-black p-2 rounded-xl outline-none focus:ring-2 ring-primary/30 text-sm"
-                              value={item.quantity}
-                              onChange={(e) => handleEditItemQuantity(idx, parseInt(e.target.value))}
-                            />
-                          </div>
-
-                          <div className="flex flex-col items-center md:items-center">
-                            <span className="md:hidden text-[9px] font-black uppercase text-on-surface-variant/40 mb-1">Dif.</span>
-                            <span className={cn(
-                              "text-sm md:text-xs font-black px-2 py-0.5 rounded-md",
-                              (item.planned_quantity - item.quantity) === 0 
-                                ? "bg-emerald-500/10 text-emerald-500" 
-                                : "bg-amber-500/10 text-amber-500"
-                            )}>
-                              {item.planned_quantity - item.quantity}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Conferido Check Column */}
-                        <div className="flex justify-center">
-                          <button 
-                            onClick={() => handleToggleItemConferred(idx)}
-                            disabled={!isConferente}
-                            className={cn(
-                              "w-8 h-8 rounded-full flex items-center justify-center transition-all",
-                              item.is_conferred 
-                                ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
-                                : "bg-surface-container-high text-on-surface-variant/30 hover:bg-emerald-500/10 hover:text-emerald-500 border border-outline-variant/10"
-                            )}
-                            title={isConferente ? "Alternar Conferência" : "Apenas conferentes"}
-                          >
-                            <UserCheck className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                )}
 
                 {/* Área de Assinatura Eletrônica Manuscrita */}
-                <div className="mt-8 pt-6 border-t border-outline-variant/10">
+                <div className={cn(
+                  "pt-6 border-t border-outline-variant/10",
+                  modalMode === 'EDIT' ? "mt-8" : "mt-0"
+                )}>
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
@@ -738,7 +885,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                       </div>
                       <p className="text-[10px] text-on-surface-variant opacity-60 font-medium">Validado eletronicamente conforme diretrizes de conferência.</p>
                     </div>
-                    {isConferente && !editingOrder.signature_url && (
+                    {modalMode === 'SIGN' && !editingOrder.is_signed && (
                       <button 
                         type="button"
                         onClick={() => sigCanvas.current?.clear()}
@@ -751,7 +898,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                   </div>
 
                   <div className="bg-surface-container-high rounded-[40px] border border-outline-variant/20 p-6 shadow-inner overflow-hidden">
-                    {editingOrder.signature_url ? (
+                    {editingOrder.is_signed ? (
                       <div className="w-full flex flex-col items-center justify-center py-6 bg-white/40 rounded-3xl relative group border border-outline-variant/5">
                         <img 
                           src={editingOrder.signature_url} 
@@ -763,10 +910,15 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                              <CheckCircle2 className="w-4 h-4" />
                              <span className="text-[11px] font-black uppercase tracking-widest">Documento Assinado</span>
                            </div>
-                           <p className="text-[9px] text-on-surface-variant font-mono opacity-50 uppercase tracking-tighter">HASH: {editingOrder.id.substring(0, 12).toUpperCase()} / DT: {editingOrder.conferred_at ? new Date(editingOrder.conferred_at).toLocaleString() : new Date().toLocaleString()}</p>
+                           <p className="text-[12px] text-on-surface font-bold uppercase tracking-widest mb-1 text-center italic">
+                             Assinado por: {editingOrder.signed_by_name}
+                           </p>
+                           <p className="text-[9px] text-on-surface-variant font-mono opacity-50 uppercase tracking-tighter">
+                             HASH: {editingOrder.id.substring(0, 12).toUpperCase()} / DT: {editingOrder.signed_at ? new Date(editingOrder.signed_at).toLocaleString() : new Date().toLocaleString()}
+                           </p>
                         </div>
                       </div>
-                    ) : isConferente ? (
+                    ) : modalMode === 'SIGN' ? (
                       <div className="w-full bg-white rounded-3xl border-2 border-dashed border-outline-variant/30 overflow-hidden touch-none relative">
                         <SignatureCanvas 
                           ref={sigCanvas}
@@ -784,9 +936,12 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                         </div>
                       </div>
                     ) : (
-                      <div className="w-full flex flex-col items-center justify-center py-12 bg-surface-container-low/50 rounded-3xl border-2 border-dashed border-outline-variant/10 opacity-40">
+                      <div className="w-full flex flex-col items-center justify-center py-12 bg-surface-container-low/50 rounded-3xl border-2 border-dashed border-outline-variant/10 opacity-40 text-center px-6">
                         <Pen className="w-8 h-8 mb-2" />
-                        <p className="text-[10px] font-black uppercase tracking-widest text-center">Aguardando assinatura do conferente</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest">Aguardando assinatura do conferente</p>
+                        <p className="text-[9px] font-bold text-on-surface-variant mt-1 italic">
+                          O campo de assinatura será habilitado após a OP ser marcada como conferida.
+                        </p>
                       </div>
                     )}
                   </div>
@@ -801,78 +956,95 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
 
               <div className="p-8 border-t border-outline-variant/10 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-4">
-                  {editingOrder.conferred_by_name ? (
-                    <div className="flex items-center gap-2 text-emerald-500 bg-emerald-500/10 px-4 py-2 rounded-2xl border border-emerald-500/20 animate-in fade-in zoom-in duration-300">
-                      <UserCheck className="w-5 h-5" />
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-widest leading-none mb-1">Conferido por</p>
-                        <p className="text-sm font-bold">{editingOrder.conferred_by_name}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    isConferente && (() => {
-                      const { separation } = calculatePercentages(editingOrder.items);
-                      const canConfer = separation === 100;
-                      
-                      return (
-                        <div className="flex flex-col gap-1">
-                          {isConferConfirming ? (
-                            <div className="flex gap-2">
-                              <button 
-                                onClick={() => setIsConferConfirming(false)}
-                                className="px-4 py-3 rounded-2xl font-bold text-on-surface-variant bg-surface-container-high hover:bg-surface-container-highest transition-colors"
-                              >
-                                Voltar
-                              </button>
-                              <button 
-                                onClick={conferOrder}
-                                disabled={isProcessing}
-                                className="px-6 py-3 rounded-2xl font-bold bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 flex items-center gap-2 hover:bg-emerald-700 transition-colors"
-                              >
-                                {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                                Confirmar Conferência
-                              </button>
-                            </div>
-                          ) : (
-                            <button 
-                              onClick={() => setIsConferConfirming(true)}
-                              disabled={isProcessing || !canConfer}
-                              className={cn(
-                                "px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-lg",
-                                canConfer 
-                                  ? "bg-emerald-500 text-white shadow-emerald-500/20 hover:opacity-90" 
-                                  : "bg-surface-container-high text-on-surface-variant/40 shadow-none grayscale cursor-not-allowed"
-                              )}
-                            >
-                              {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserCheck className="w-5 h-5" />}
-                              Marcar como Conferido
-                            </button>
-                          )}
-                          {!canConfer && (
-                            <p className="text-[9px] font-bold text-amber-600 uppercase tracking-widest animate-pulse pl-1">
-                              * Separação incompleta ({separation}%)
-                            </p>
-                          )}
+                  {modalMode === 'EDIT' && (
+                    editingOrder.conferred_by_name ? (
+                      <div className="flex items-center gap-2 text-emerald-500 bg-emerald-500/10 px-4 py-2 rounded-2xl border border-emerald-500/20 animate-in fade-in zoom-in duration-300">
+                        <UserCheck className="w-5 h-5" />
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-widest leading-none mb-1">Conferido por</p>
+                          <p className="text-sm font-bold">{editingOrder.conferred_by_name}</p>
                         </div>
-                      );
-                    })()
+                      </div>
+                    ) : (
+                      isConferente && (() => {
+                        const { separation, conference } = calculatePercentages(editingOrder.items);
+                        const canConfer = separation === 100 && conference === 100;
+                        
+                        return (
+                          <div className="flex flex-col gap-1">
+                            {isConferente && editingOrder.status === 'Pendente' && (
+                              isConferConfirming ? (
+                                <div className="flex gap-2">
+                                  <button 
+                                    onClick={() => setIsConferConfirming(false)}
+                                    className="px-4 py-3 rounded-2xl font-bold text-on-surface-variant bg-surface-container-high hover:bg-surface-container-highest transition-colors"
+                                  >
+                                    Voltar
+                                  </button>
+                                  <button 
+                                    onClick={conferOrder}
+                                    disabled={isProcessing}
+                                    className="px-6 py-3 rounded-2xl font-bold bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 flex items-center gap-2 hover:bg-emerald-700 transition-colors"
+                                  >
+                                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                                    Confirmar Conferência
+                                  </button>
+                                </div>
+                              ) : (
+                                <button 
+                                  onClick={() => setIsConferConfirming(true)}
+                                  disabled={isProcessing || !canConfer}
+                                  className={cn(
+                                    "px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-lg",
+                                    canConfer 
+                                      ? "bg-emerald-500 text-white shadow-emerald-500/20 hover:opacity-90" 
+                                      : "bg-surface-container-high text-on-surface-variant/40 shadow-none grayscale cursor-not-allowed"
+                                  )}
+                                >
+                                  {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserCheck className="w-5 h-5" />}
+                                  Marcar como Conferido
+                                </button>
+                              )
+                            )}
+                            {!canConfer && editingOrder.status === 'Pendente' && (
+                              <p className="text-[9px] font-bold text-amber-600 uppercase tracking-widest animate-pulse pl-1 text-center">
+                                * Separação e Conferência devem estar 100%
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()
+                    )
+                  )}
+
+                  {modalMode === 'SIGN' && !editingOrder.is_signed && (
+                    <button 
+                      onClick={signOrder}
+                      disabled={isProcessing}
+                      className="px-8 py-3 bg-purple-600 text-white rounded-2xl font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-purple-500/20"
+                    >
+                      {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Pen className="w-5 h-5" />}
+                      Salvar Assinatura
+                    </button>
                   )}
                 </div>
 
                 <div className="flex gap-3">
+                  {modalMode === 'EDIT' && editingOrder.status === 'Pendente' && (
+                    <button 
+                      onClick={updateOrder}
+                      disabled={isProcessing}
+                      className="px-8 py-3 bg-primary text-white rounded-2xl font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+                    >
+                      {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Package className="w-5 h-5" />}
+                      Salvar Separação
+                    </button>
+                  )}
                   <button 
                     onClick={() => setIsEditModalOpen(false)}
                     className="px-6 py-3 rounded-2xl font-bold text-on-surface-variant hover:bg-surface-container-high"
                   >
-                    Cancelar
-                  </button>
-                  <button 
-                    onClick={updateOrder}
-                    disabled={isProcessing}
-                    className="bg-primary text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-primary/20 flex items-center gap-2"
-                  >
-                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                    Salvar Separação
+                    Fechar
                   </button>
                 </div>
               </div>
