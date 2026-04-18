@@ -94,9 +94,15 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
     setError(null);
 
     try {
+      // Diagnóstico: Verifica se o ambiente está carregando variáveis NEXT_PUBLIC
+      console.log('Ambiente detectado:', {
+        hasKey: !!process.env.NEXT_PUBLIC_GEMINI_API_KEY,
+        envKeys: Object.keys(process.env).filter(k => k.startsWith('NEXT_PUBLIC'))
+      });
+
       const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error('Chave API Gemini (NEXT_PUBLIC_GEMINI_API_KEY) não configurada. Se você está rodando o app fora do AI Studio, adicione essa variável de ambiente.');
+        throw new Error('Chave API Gemini (NEXT_PUBLIC_GEMINI_API_KEY) não localizada no sistema. Verifique as configurações de ambiente da Vercel.');
       }
 
       const base64 = await fileToBase64(file);
