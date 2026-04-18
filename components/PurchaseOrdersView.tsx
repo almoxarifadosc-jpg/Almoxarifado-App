@@ -111,7 +111,7 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
       const ai = new GoogleGenAI({ apiKey });
       
       const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash-latest",
+        model: "gemini-flash-latest",
         contents: {
           parts: [
             {
@@ -423,7 +423,14 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
       )}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight">Importação de OPs por PDF</h2>
+          <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight flex items-center gap-3">
+            Importação de OPs por PDF
+            {process.env.NEXT_PUBLIC_GEMINI_API_KEY ? (
+              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-bold animate-pulse">IA Conectada</span>
+            ) : (
+              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full font-bold">IA Offline</span>
+            )}
+          </h2>
           <p className="text-on-surface-variant font-medium">Importação de PDFs com processamento inteligente.</p>
         </div>
         <button 
