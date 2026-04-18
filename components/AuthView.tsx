@@ -104,6 +104,25 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
       setError('Configuração do Supabase ausente.');
       return;
     }
+
+    // 1. Validar Nome Obrigatório
+    if (!formData.name.trim()) {
+      setError('O nome completo é obrigatório.');
+      return;
+    }
+
+    // 2. Validar Senha Forte
+    // Requisitos: Letras maiúsculas, minúsculas, números e um caractere especial
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/;
+    if (formData.password.length < 8) {
+      setError('A senha deve ter pelo menos 8 caracteres.');
+      return;
+    }
+    if (!passwordRegex.test(formData.password)) {
+      setError('A senha deve conter letras maiúsculas, minúsculas, números e pelo menos um caractere especial.');
+      return;
+    }
+
     setError('');
     setSuccess('');
     setLoading(true);
@@ -312,6 +331,11 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
               />
               <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
             </div>
+            {mode === 'REGISTER' && (
+              <p className="text-[9px] text-on-surface-variant/50 px-1 leading-tight">
+                Mínimo 8 caracteres, com maiúsculas, minúsculas, números e símbolos (!@#$...).
+              </p>
+            )}
           </div>
 
           <button 

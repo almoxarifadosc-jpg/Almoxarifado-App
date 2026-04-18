@@ -575,10 +575,10 @@ export default function Page() {
             {currentView === 'SUPPLIERS' && !currentUser?.is_viewer && (
               <SuppliersView key="suppliers" />
             )}
-            {currentView === 'ORDERS' && !currentUser?.is_viewer && (
+            {currentView === 'ORDERS' && currentUser?.is_admin && (
               <PurchaseOrdersView key="orders" isAdmin={currentUser?.is_admin} />
             )}
-            {currentView === 'SORTING' && !currentUser?.is_viewer && (
+            {currentView === 'SORTING' && currentUser?.is_admin && (
               <SortingView 
                 key="sorting" 
                 isAdmin={currentUser?.is_admin} 
@@ -587,7 +587,7 @@ export default function Page() {
                 currentUserName={currentUser?.name}
               />
             )}
-            {currentView === 'PERFORMANCE' && (
+            {currentView === 'PERFORMANCE' && currentUser?.is_admin && (
               <PerformanceView key="performance" />
             )}
             {currentView === 'ADMIN_PANEL' && (

@@ -40,15 +40,11 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
       items: [
         { id: 'OPERATIONS' as View, label: 'Ordens de Prod.', icon: Network },
         { id: 'ANALYTICS' as View, label: 'Painel de Ops', icon: BarChart3 },
-        { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
-        { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 },
         { id: 'DASHBOARD' as View, label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'ORDERS' as View, label: 'Importar PDF', icon: FileText },
         { id: 'LAUNCH' as View, label: 'Portal', icon: Rocket },
       ].filter(item => {
         if (category === 'Bemplas') return false;
-        if (item.id === 'ORDERS' && !isAdmin) return false;
-        if (isViewer && (item.id === 'OPERATIONS' || item.id === 'LAUNCH' || item.id === 'SORTING')) return false;
+        if (isViewer && (item.id === 'OPERATIONS' || item.id === 'LAUNCH')) return false;
         return true;
       })
     },
@@ -59,6 +55,14 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
         { id: 'RECEIPTS_DASHBOARD' as View, label: 'Dash Rec.', icon: LayoutDashboard },
         { id: 'SUPPLIERS' as View, label: 'Fornecedores', icon: Users },
       ].filter(() => !isViewer)
+    },
+    {
+      title: 'Em desenvolvimento',
+      items: isAdmin ? [
+        { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText },
+        { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
+        { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 },
+      ] : []
     },
     {
       title: 'Admin',

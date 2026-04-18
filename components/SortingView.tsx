@@ -161,7 +161,8 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
 
       // 1. Upload Signature if drawn
       if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
-        const signatureDataUrl = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
+        const canvas = sigCanvas.current.getCanvas();
+        const signatureDataUrl = canvas.toDataURL('image/png');
         const blob = await (await fetch(signatureDataUrl)).blob();
         const fileName = `signature_${editingOrder.id}_${Date.now()}.png`;
 
@@ -202,11 +203,16 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
   };
 
   const conferOrder = async () => {
-    if (!editingOrder?.id || !currentUserId || !currentUserName) return;
+    if (!editingOrder?.id) return;
+    if (!currentUserId || !currentUserName) {
+      setError("Erro de autenticação: usuário não identificado.");
+      return;
+    }
     
     setIsProcessing(true);
     setError(null);
     try {
+      console.log('Iniciando conferência para OP:', editingOrder.order_number);
       // 2. Update Database - Just mark as conferred
       const { error: dbError } = await supabase
         .from('purchase_orders')
@@ -234,9 +240,22 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
   };
 
   const signOrder = async () => {
-    if (!editingOrder?.id || !currentUserName) return;
+    console.log('Iniciando processo de assinatura...');
+    const currentUserProfile = profiles.find(p => p.id === currentUserId);
+    const effectiveUserName = currentUserName || currentUserProfile?.name || currentUserProfile?.email;
+
+    if (!editingOrder?.id) {
+      console.error('ID da ordem de edição não encontrado');
+      return;
+    }
+    if (!effectiveUserName) {
+      console.error('Nome do usuário atual não encontrado (prop e fallback)');
+      setError("Erro: Usuário não identificado. Por favor, recarregue a página.");
+      return;
+    }
     
     if (!sigCanvas.current || sigCanvas.current.isEmpty()) {
+      console.warn('Canvas de assinatura está vazio');
       setError("Por favor, realize a assinatura antes de salvar.");
       return;
     }
@@ -244,41 +263,55 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
     setIsProcessing(true);
     setError(null);
     try {
-      // 1. Upload Signature
-      const signatureDataUrl = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
+      console.log('Capturando dados do canvas...');
+      const canvas = sigCanvas.current.getCanvas();
+      const signatureDataUrl = canvas.toDataURL('image/png');
       const blob = await (await fetch(signatureDataUrl)).blob();
       const fileName = `signature_${editingOrder.id}_${Date.now()}.png`;
 
+      console.log('Fazendo upload para o Supabase Storage (bucket: orders)...');
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('orders')
         .upload(fileName, blob, { contentType: 'image/png' });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Erro no upload da assinatura:', uploadError);
+        throw uploadError;
+      }
 
+      console.log('Obtendo URL pública...');
       const { data: { publicUrl } } = supabase.storage
         .from('orders')
         .getPublicUrl(fileName);
       
       const signatureUrl = publicUrl;
+      console.log('URL da assinatura obtida:', signatureUrl);
 
       // 2. Update Database
+      console.log('Atualizando registro da OP no banco de dados...');
       const { error: dbError } = await supabase
         .from('purchase_orders')
         .update({
           signature_url: signatureUrl,
           is_signed: true,
           signed_at: new Date().toISOString(),
-          signed_by_name: currentUserName
+          signed_by_name: effectiveUserName
         })
         .eq('id', editingOrder.id);
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error('Erro ao atualizar banco de dados:', dbError);
+        throw dbError;
+      }
+      
+      console.log('Assinatura salva com sucesso. Atualizando lista...');
       await fetchOrders();
       setIsEditModalOpen(false);
       setEditingOrder(null);
       setSuccess('Assinatura salva com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
+      console.error('Erro crítico em signOrder:', err);
       setError(`Erro ao salvar assinatura: ${err.message}`);
     } finally {
       setIsProcessing(false);
