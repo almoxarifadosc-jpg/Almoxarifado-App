@@ -167,7 +167,7 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
       setExtractedData(result);
     } catch (err: any) {
       console.error('Erro no processamento AI:', err);
-      setError('Erro ao processar o PDF com IA. Verifique sua conexão ou se o PDF é legível.');
+      setError(err.message || 'Erro inesperado ao processar o PDF.');
     } finally {
       setIsProcessing(false);
     }
