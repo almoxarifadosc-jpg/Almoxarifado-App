@@ -19,7 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
-export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS' | 'ORDERS' | 'SORTING';
+export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS' | 'ORDERS' | 'SORTING' | 'PERFORMANCE';
 
 interface SidebarProps {
   currentView: View;
@@ -41,6 +41,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
         { id: 'OPERATIONS' as View, label: 'Ordens de Prod.', icon: Network },
         { id: 'ANALYTICS' as View, label: 'Painel de Ops', icon: BarChart3 },
         { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
+        { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 },
         { id: 'DASHBOARD' as View, label: 'Dashboard', icon: LayoutDashboard },
         { id: 'ORDERS' as View, label: 'Importar PDF', icon: FileText },
         { id: 'LAUNCH' as View, label: 'Portal', icon: Rocket },

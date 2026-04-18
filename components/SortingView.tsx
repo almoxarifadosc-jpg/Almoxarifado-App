@@ -80,6 +80,9 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
   const [assigningOrder, setAssigningOrder] = useState<PurchaseOrder | null>(null);
   const sigCanvas = React.useRef<SignatureCanvas>(null);
 
+  const [revertingId, setRevertingId] = useState<string | null>(null);
+  const [isConferConfirming, setIsConferConfirming] = useState(false);
+
   const fetchOrders = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -176,7 +179,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
         .from('purchase_orders')
         .update({
           items: editingOrder.items,
-          status: 'Processado',
+          status: 'Pendente',
           signature_url: signatureUrl
         })
         .eq('id', editingOrder.id);
@@ -196,6 +199,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
 
   const conferOrder = async () => {
     if (!editingOrder?.id || !currentUserId || !currentUserName) return;
+    
     setIsProcessing(true);
     setError(null);
     try {
@@ -237,6 +241,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
       await fetchOrders();
       setIsEditModalOpen(false);
       setEditingOrder(null);
+      setIsConferConfirming(false);
       setSuccess('Conferência com Assinatura registrada!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
@@ -263,6 +268,69 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       setError(`Erro ao atribuir usuários: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const revertOrder = async (orderId: string) => {
+    console.log('--- Iniciando Processo de Reversão ---');
+    console.log('ID da OP:', orderId);
+    console.log('Status isAdmin:', isAdmin);
+
+    if (!isAdmin) {
+      console.warn('Falha: Usuário sem privilégios de administrador.');
+      setError('Apenas administradores podem reverter OPs.');
+      return;
+    }
+    
+    setIsProcessing(true);
+    setError(null);
+    
+    try {
+      const orderToRevert = orders.find(o => o.id === orderId);
+      if (!orderToRevert) {
+        throw new Error('OP não encontrada no estado local.');
+      }
+
+      console.log('Resetando itens da OP...');
+      const resetItems = (orderToRevert.items || []).map(item => ({
+        ...item,
+        is_conferred: false
+      }));
+
+      console.log('Enviando atualização para o Supabase...');
+      const { data, error: dbError } = await supabase
+        .from('purchase_orders')
+        .update({ 
+          status: 'Pendente',
+          items: resetItems,
+          conferred_by_id: null,
+          conferred_by_name: null,
+          conferred_at: null,
+          signature_url: null
+        })
+        .eq('id', orderId)
+        .select();
+
+      if (dbError) {
+        console.error('Erro de Banco de Dados:', dbError);
+        throw dbError;
+      }
+      
+      if (!data || data.length === 0) {
+        console.warn('Aviso: Nenhuma linha alterada no banco de dados.');
+        throw new Error('O registro não pôde ser atualizado. Verifique as permissões de banco.');
+      }
+
+      console.log('Reversão concluída com sucesso no banco.');
+      await fetchOrders();
+      setSuccess('OP retornada para Pendente com sucesso!');
+      setRevertingId(null);
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      console.error('ERRO CRÍTICO NA REVERSÃO:', err);
+      setError(`Erro na reversão: ${err.message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -327,101 +395,30 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
           <p className="text-on-surface-variant mt-2 text-sm">Importe arquivos via PDF na tela de importação para vê-los aqui.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredOrders.map((order) => (
             <motion.div 
               key={order.id}
               layout
-              className="bg-surface-container-lowest p-4 md:p-6 rounded-[32px] border border-outline-variant/10 shadow-sm hover:shadow-md transition-all flex flex-col lg:flex-row items-center gap-6 lg:gap-10 group"
+              className="bg-surface-container-lowest p-6 rounded-[32px] border border-outline-variant/10 shadow-sm hover:shadow-md transition-all flex flex-col gap-6 group"
             >
-              {/* OP / Info Principal */}
-              <div className="flex items-center gap-6 min-w-[200px]">
-                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
-                  <Package className="w-7 h-7" />
-                </div>
-                <div>
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50">OP</h4>
-                  <p className="text-xl font-headline font-black text-on-surface leading-none">#{order.order_number}</p>
-                  {order.product_location && (
-                    <p className="text-[11px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded-md mt-1 inline-block">
-                      {order.product_location}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Detalhes Médios */}
-              <div className="flex-1 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-8 w-full">
-                <div>
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Localização</h4>
-                  <p className="text-sm font-bold text-on-surface truncate">{order.product_location || '-'}</p>
-                </div>
-                <div>
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Items</h4>
-                  <p className="text-sm font-bold text-on-surface">{order.items?.length || 0}</p>
-                </div>
-                <div>
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Data</h4>
-                  <p className="text-sm font-bold text-on-surface">{new Date(order.date).toLocaleDateString('pt-BR')}</p>
-                </div>
-
-                {/* Porcentagens */}
-                <div className="col-span-2 flex flex-col sm:flex-row items-center gap-4 md:gap-6 md:border-l border-outline-variant/10 md:pl-6">
-                  {(() => {
-                    const { separation, conference } = calculatePercentages(order.items);
-                    return (
-                      <>
-                        <div className="flex flex-col gap-1.5 flex-1 w-full min-w-[80px]">
-                          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                            <span className="text-secondary">Separação</span>
-                            <span className="text-on-surface">{separation}%</span>
-                          </div>
-                          <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
-                            <motion.div 
-                              initial={{ width: 0 }}
-                              animate={{ width: `${separation}%` }}
-                              className="h-full bg-secondary rounded-full"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-1.5 flex-1 w-full min-w-[80px]">
-                          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                            <span className="text-emerald-500">Conferência</span>
-                            <span className="text-on-surface">{conference}%</span>
-                          </div>
-                          <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
-                            <motion.div 
-                              initial={{ width: 0 }}
-                              animate={{ width: `${conference}%` }}
-                              className="h-full bg-emerald-500 rounded-full"
-                            />
-                          </div>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-
-                <div>
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Status</h4>
-                  <div className="flex flex-col gap-1">
-                    <span className={cn(
-                      "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-center",
-                      order.status === 'Processado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
-                    )}>
-                      {order.status}
-                    </span>
+              {/* Cabeçalho do Card */}
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                    <Package className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50">OP</h4>
+                    <p className="text-xl font-headline font-black text-on-surface leading-none">#{order.order_number}</p>
                   </div>
                 </div>
-              </div>
 
-              {/* Responsáveis */}
-              <div className="min-w-[150px] flex flex-col items-center md:items-start">
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-2">Responsáveis</h4>
+                {/* Responsáveis Topo Direito */}
                 <div className="flex -space-x-2">
                   {order.assigned_users && order.assigned_users.length > 0 ? (
                     <>
-                      {order.assigned_users.map(uid => {
+                      {order.assigned_users.slice(0, 3).map(uid => {
                         const user = profiles.find(p => p.id === uid);
                         return (
                           <div key={uid} className="w-8 h-8 rounded-full border-2 border-surface bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary" title={user?.name}>
@@ -429,6 +426,11 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                           </div>
                         );
                       })}
+                      {order.assigned_users.length > 3 && (
+                        <div className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high flex items-center justify-center text-[10px] font-bold text-on-surface-variant">
+                          +{order.assigned_users.length - 3}
+                        </div>
+                      )}
                       {isAdmin && (
                         <button 
                           onClick={() => {
@@ -437,12 +439,12 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                           }}
                           className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors z-10"
                         >
-                          <Plus className="w-4 h-4" />
+                          <Plus className="w-3 h-3" />
                         </button>
                       )}
                     </>
                   ) : (
-                    isAdmin ? (
+                    isAdmin && (
                       <button 
                         onClick={() => {
                           setAssigningOrder(order);
@@ -451,50 +453,168 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                         className="w-8 h-8 rounded-full border-2 border-dashed border-outline-variant flex items-center justify-center text-on-surface-variant/40 hover:text-primary hover:border-primary transition-colors"
                         title="Atribuir Responsáveis"
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-3 h-3" />
                       </button>
-                    ) : (
-                      <p className="text-[10px] font-bold text-on-surface-variant italic opacity-40">Ninguém atribuído</p>
                     )
                   )}
                 </div>
               </div>
 
-              {/* Ações */}
-              <div className="flex flex-col xl:flex-row items-center gap-3 ml-auto">
-                <button 
-                  onClick={() => {
-                    setEditingOrder(order);
-                    setIsEditModalOpen(true);
-                  }}
-                  className="w-full xl:w-auto bg-primary/10 text-primary p-4 rounded-2xl hover:bg-primary/20 transition-all flex items-center justify-center gap-2 font-bold"
-                  title="Realizar Separação"
-                >
-                  <Edit3 className="w-5 h-5" />
-                  <span className="text-sm">Separar</span>
-                </button>
-
-                {order.conferred_by_name ? (
-                  <div className="w-full xl:w-auto flex flex-col items-center xl:items-end gap-0.5 px-6 py-3 bg-emerald-500 text-white rounded-2xl border border-emerald-600 shadow-lg shadow-emerald-500/10 min-w-[180px] animate-in fade-in zoom-in duration-300">
-                    <div className="flex items-center gap-2">
-                       <CheckCircle2 className="w-4 h-4 fill-white/20" />
-                       <span className="text-[11px] font-black uppercase tracking-[0.15em]">Conferido</span>
-                    </div>
-                    <span className="text-[10px] font-bold opacity-90 truncate max-w-[150px]">por {order.conferred_by_name}</span>
+              {/* Informações Secundárias */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Localização</h4>
+                    <p className="text-sm font-bold text-on-surface truncate">{order.product_location || '-'}</p>
                   </div>
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Data</h4>
+                    <p className="text-sm font-bold text-on-surface">{new Date(order.date).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                </div>
+
+                {/* Barras de Progresso */}
+                <div className="space-y-3 bg-surface-container-low/50 p-4 rounded-2xl border border-outline-variant/10">
+                  {(() => {
+                    const { separation, conference } = calculatePercentages(order.items);
+                    return (
+                      <>
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-primary truncate mr-1">Separação</span>
+                            <span className="text-on-surface">{separation}%</span>
+                          </div>
+                          <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden border border-outline-variant/5">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${separation}%` }}
+                              transition={{ duration: 1, ease: 'easeOut' }}
+                              className="h-full bg-primary rounded-full shadow-[0_0_10px_rgba(var(--primary-rgb),0.3)]"
+                              style={{ minWidth: separation > 0 ? '4px' : '0' }}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-blue-400 truncate mr-1">Conferência</span>
+                            <span className="text-on-surface">{conference}%</span>
+                          </div>
+                          <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden border border-outline-variant/5">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${conference}%` }}
+                              transition={{ duration: 1, ease: 'easeOut', delay: 0.2 }}
+                              className="h-full bg-blue-400 rounded-full shadow-[0_0_10px_rgba(96,165,250,0.3)]"
+                              style={{ minWidth: conference > 0 ? '4px' : '0' }}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <span className={cn(
+                    "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                    order.status === 'Processado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                  )}>
+                    {order.status}
+                  </span>
+                  <span className="text-[10px] font-bold text-on-surface-variant opacity-40">
+                    {order.items?.length || 0} Materiais
+                  </span>
+                </div>
+              </div>
+
+              {/* Botão de Ação Inferior */}
+              <div className="mt-auto space-y-2">
+                {order.status === 'Processado' ? (
+                  <>
+                    <div className={cn(
+                      "w-full flex flex-col items-center gap-0.5 px-6 py-3 rounded-2xl border shadow-lg transition-all",
+                      order.conferred_by_name 
+                        ? "bg-emerald-500 text-white border-emerald-600 shadow-emerald-500/10" 
+                        : "bg-amber-500 text-white border-amber-600 shadow-amber-500/10"
+                    )}>
+                      <div className="flex items-center gap-2">
+                         <CheckCircle2 className="w-4 h-4 fill-white/20" />
+                         <span className="text-[11px] font-black uppercase tracking-[0.15em]">
+                           {order.conferred_by_name ? 'Conferido' : 'Separação Salva'}
+                         </span>
+                      </div>
+                      {order.conferred_by_name && (
+                        <span className="text-[10px] font-bold opacity-90 truncate w-full text-center">por {order.conferred_by_name}</span>
+                      )}
+                    </div>
+                    {isAdmin && (
+                      <div className="flex flex-col gap-2">
+                        {revertingId === order.id ? (
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRevertingId(null);
+                              }}
+                              className="flex-1 p-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-surface-container-high rounded-xl border border-outline-variant/20"
+                            >
+                              Cancelar
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                revertOrder(order.id);
+                              }}
+                              disabled={isProcessing}
+                              className="flex-[2] p-3 text-[10px] font-black uppercase tracking-widest text-white bg-error rounded-xl shadow-lg shadow-error/20 flex items-center justify-center gap-2"
+                            >
+                              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertCircle className="w-3 h-3" />}
+                              Confirmar Reversão
+                            </button>
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRevertingId(order.id);
+                            }}
+                            disabled={isProcessing}
+                            className="w-full flex items-center justify-center gap-2 p-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 hover:text-error transition-all hover:bg-error/5 rounded-xl border border-dashed border-outline-variant/20"
+                          >
+                            <ArrowLeft className="w-3 h-3" />
+                            Reverter para Pendente
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
                 ) : (
-                  isConferente && (
+                  <div className="grid grid-cols-1 gap-2">
                     <button 
                       onClick={() => {
                         setEditingOrder(order);
                         setIsEditModalOpen(true);
                       }}
-                      className="w-full xl:w-auto bg-surface-container-high text-on-surface-variant p-4 rounded-2xl hover:bg-emerald-500 hover:text-white hover:border-emerald-400 border border-outline-variant/10 shadow-sm transition-all flex items-center justify-center gap-2 font-bold group/conf shadow-emerald-500/0 hover:shadow-emerald-500/20"
+                      className="w-full bg-primary text-white p-4 rounded-2xl hover:opacity-90 transition-all flex items-center justify-center gap-2 font-bold shadow-lg shadow-primary/20"
+                      title="Realizar Separação"
                     >
-                      <UserCheck className="w-5 h-5 group-hover/conf:scale-110 transition-transform" />
-                      <span className="text-sm">Conferir</span>
+                      <Edit3 className="w-5 h-5" />
+                      <span className="text-sm">Separar Materiais</span>
                     </button>
-                  )
+                    
+                    {isConferente && (
+                      <button 
+                        onClick={() => {
+                          setEditingOrder(order);
+                          setIsEditModalOpen(true);
+                        }}
+                        className="w-full bg-surface-container-high text-on-surface-variant p-4 rounded-2xl hover:bg-emerald-500 hover:text-white border border-outline-variant/10 transition-all flex items-center justify-center gap-2 font-bold group/conf"
+                      >
+                        <UserCheck className="w-5 h-5 group-hover/conf:scale-110 transition-transform" />
+                        <span className="text-sm">Conferir OP</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </motion.div>
@@ -690,16 +810,52 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                       </div>
                     </div>
                   ) : (
-                    isConferente && (
-                      <button 
-                        onClick={conferOrder}
-                        disabled={isProcessing}
-                        className="bg-emerald-500 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-emerald-500/20 flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
-                      >
-                        {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserCheck className="w-5 h-5" />}
-                        Marcar como Conferido
-                      </button>
-                    )
+                    isConferente && (() => {
+                      const { separation } = calculatePercentages(editingOrder.items);
+                      const canConfer = separation === 100;
+                      
+                      return (
+                        <div className="flex flex-col gap-1">
+                          {isConferConfirming ? (
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => setIsConferConfirming(false)}
+                                className="px-4 py-3 rounded-2xl font-bold text-on-surface-variant bg-surface-container-high hover:bg-surface-container-highest transition-colors"
+                              >
+                                Voltar
+                              </button>
+                              <button 
+                                onClick={conferOrder}
+                                disabled={isProcessing}
+                                className="px-6 py-3 rounded-2xl font-bold bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 flex items-center gap-2 hover:bg-emerald-700 transition-colors"
+                              >
+                                {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                                Confirmar Conferência
+                              </button>
+                            </div>
+                          ) : (
+                            <button 
+                              onClick={() => setIsConferConfirming(true)}
+                              disabled={isProcessing || !canConfer}
+                              className={cn(
+                                "px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-lg",
+                                canConfer 
+                                  ? "bg-emerald-500 text-white shadow-emerald-500/20 hover:opacity-90" 
+                                  : "bg-surface-container-high text-on-surface-variant/40 shadow-none grayscale cursor-not-allowed"
+                              )}
+                            >
+                              {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserCheck className="w-5 h-5" />}
+                              Marcar como Conferido
+                            </button>
+                          )}
+                          {!canConfer && (
+                            <p className="text-[9px] font-bold text-amber-600 uppercase tracking-widest animate-pulse pl-1">
+                              * Separação incompleta ({separation}%)
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()
                   )}
                 </div>
 

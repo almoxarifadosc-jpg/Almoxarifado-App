@@ -15,6 +15,7 @@ import { AdminView } from '@/components/AdminView';
 import { SuppliersView } from '@/components/SuppliersView';
 import { PurchaseOrdersView } from '@/components/PurchaseOrdersView';
 import { SortingView } from '@/components/SortingView';
+import PerformanceView from '@/components/PerformanceView';
 import { SupabaseSetupView } from '@/components/SupabaseSetupView';
 import { Factory, Settings, CheckCircle2, Loader2 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -585,6 +586,9 @@ export default function Page() {
                 isConferente={currentUser?.is_conferente}
                 currentUserName={currentUser?.name}
               />
+            )}
+            {currentView === 'PERFORMANCE' && (
+              <PerformanceView key="performance" />
             )}
             {currentView === 'ADMIN_PANEL' && (
               <AdminView key="admin" />
