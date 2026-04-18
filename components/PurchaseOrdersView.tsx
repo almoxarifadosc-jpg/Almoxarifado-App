@@ -94,10 +94,15 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
     setError(null);
 
     try {
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('Chave API Gemini (NEXT_PUBLIC_GEMINI_API_KEY) não configurada. Se você está rodando o app fora do AI Studio, adicione essa variável de ambiente.');
+      }
+
       const base64 = await fileToBase64(file);
       const base64Data = base64.split(',')[1];
 
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",

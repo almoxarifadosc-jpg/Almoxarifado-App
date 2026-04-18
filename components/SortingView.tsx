@@ -282,7 +282,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
   });
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto">
+    <div className="p-4 md:p-8 max-w-[1600px] mx-auto">
       <AnimatePresence>
         {success && (
           <motion.div 
@@ -332,7 +332,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
             <motion.div 
               key={order.id}
               layout
-              className="bg-surface-container-lowest p-6 rounded-[32px] border border-outline-variant/10 shadow-sm hover:shadow-md transition-all flex flex-col lg:flex-row items-center gap-10 group"
+              className="bg-surface-container-lowest p-4 md:p-6 rounded-[32px] border border-outline-variant/10 shadow-sm hover:shadow-md transition-all flex flex-col lg:flex-row items-center gap-6 lg:gap-10 group"
             >
               {/* OP / Info Principal */}
               <div className="flex items-center gap-6 min-w-[200px]">
