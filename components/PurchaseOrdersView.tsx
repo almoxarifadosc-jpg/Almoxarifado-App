@@ -94,15 +94,9 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
     setError(null);
 
     try {
-      // Diagnóstico: Verifica se o ambiente está carregando variáveis NEXT_PUBLIC
-      console.log('Ambiente detectado:', {
-        hasKey: !!process.env.NEXT_PUBLIC_GEMINI_API_KEY,
-        envKeys: Object.keys(process.env).filter(k => k.startsWith('NEXT_PUBLIC'))
-      });
-
       const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error('A variável NEXT_PUBLIC_GEMINI_API_KEY não foi encontrada pela Vercel no momento do build. Verifique as variáveis de ambiente e faça um redeploy sem cache.');
+        throw new Error('Chave API Gemini não configurada nas variáveis de ambiente da Vercel.');
       }
 
       const base64 = await fileToBase64(file);
@@ -423,14 +417,7 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
       )}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight flex items-center gap-3">
-            Importação de OPs por PDF
-            {process.env.NEXT_PUBLIC_GEMINI_API_KEY ? (
-              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-bold animate-pulse">IA Conectada</span>
-            ) : (
-              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full font-bold">IA Offline</span>
-            )}
-          </h2>
+          <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight">Importação de OPs por PDF</h2>
           <p className="text-on-surface-variant font-medium">Importação de PDFs com processamento inteligente.</p>
         </div>
         <button 
