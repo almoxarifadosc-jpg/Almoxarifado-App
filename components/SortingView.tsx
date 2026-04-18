@@ -282,7 +282,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
   });
 
   return (
-    <div className="p-4 md:p-8 max-w-[1600px] mx-auto">
+    <div className="px-2 py-6 md:p-8 max-w-[1600px] mx-auto">
       <AnimatePresence>
         {success && (
           <motion.div 
@@ -351,7 +351,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
               </div>
 
               {/* Detalhes Médios */}
-              <div className="flex-1 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8 w-full">
+              <div className="flex-1 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-8 w-full">
                 <div>
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Localização</h4>
                   <p className="text-sm font-bold text-on-surface truncate">{order.product_location || '-'}</p>
@@ -366,17 +366,17 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                 </div>
 
                 {/* Porcentagens */}
-                <div className="col-span-2 flex items-center gap-6 border-l border-outline-variant/10 pl-6">
+                <div className="col-span-2 flex flex-col sm:flex-row items-center gap-4 md:gap-6 md:border-l border-outline-variant/10 md:pl-6">
                   {(() => {
                     const { separation, conference } = calculatePercentages(order.items);
                     return (
                       <>
-                        <div className="flex flex-col gap-1.5 flex-1 min-w-[80px]">
+                        <div className="flex flex-col gap-1.5 flex-1 w-full min-w-[80px]">
                           <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
                             <span className="text-secondary">Separação</span>
                             <span className="text-on-surface">{separation}%</span>
                           </div>
-                          <div className="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+                          <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
                             <motion.div 
                               initial={{ width: 0 }}
                               animate={{ width: `${separation}%` }}
@@ -384,12 +384,12 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                             />
                           </div>
                         </div>
-                        <div className="flex flex-col gap-1.5 flex-1 min-w-[80px]">
+                        <div className="flex flex-col gap-1.5 flex-1 w-full min-w-[80px]">
                           <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
                             <span className="text-emerald-500">Conferência</span>
                             <span className="text-on-surface">{conference}%</span>
                           </div>
-                          <div className="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+                          <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
                             <motion.div 
                               initial={{ width: 0 }}
                               animate={{ width: `${conference}%` }}
