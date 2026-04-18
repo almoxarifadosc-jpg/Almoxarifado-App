@@ -102,7 +102,7 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
 
       const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error('Chave API Gemini (NEXT_PUBLIC_GEMINI_API_KEY) não localizada no sistema. Verifique as configurações de ambiente da Vercel.');
+        throw new Error('A variável NEXT_PUBLIC_GEMINI_API_KEY não foi encontrada pela Vercel no momento do build. Verifique as variáveis de ambiente e faça um redeploy sem cache.');
       }
 
       const base64 = await fileToBase64(file);
