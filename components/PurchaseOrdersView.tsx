@@ -104,57 +104,86 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
 
       const ai = new GoogleGenAI({ apiKey });
       
-      const response = await ai.models.generateContent({
-        model: "gemini-flash-latest",
-        contents: {
-          parts: [
-            {
-              inlineData: {
-                mimeType: "application/pdf",
-                data: base64Data
-              }
-            },
-            {
-              text: "Extraia os dados deste documento (Pedido de Compra ou Separação de OP). Se for Separação de OP, use o número da OP como order_number. O layout tem colunas: 'Cód.', 'Produto', 'Nome Coletor', 'Quantidade' e 'Separad'. Extraia: order_number (string), date (string YYYY-MM-DD), supplier_name (string - coloque aqui o nome do PRODUTO principal da primeira tabela), product_location (string - localize a informação 'Local' na primeira tabela), total_amount (number - a quantidade total da primeira tabela), e items (array de objetos). REGRAS IMPORTANTES PARA ITENS: 1. Mapeie o valor da coluna 'Quantidade' fisicamente presente no PDF para o campo 'planned_quantity'. 2. O campo 'quantity' deve ser SEMPRE 0 (ele será preenchido pelo usuário depois). 3. Extraia o 'code', 'description' e 'collector_name' normalmente. Retorne APENAS o JSON."
-            }
-          ]
-        },
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              order_number: { type: Type.STRING },
-              date: { type: Type.STRING },
-              supplier_name: { type: Type.STRING, description: "Nome do produto principal" },
-              product_location: { type: Type.STRING, description: "Local informado na primeira tabela" },
-              total_amount: { type: Type.NUMBER, description: "Quantidade total somada ou informada no cabeçalho" },
-              type: { type: Type.STRING, description: "Tipo do documento: Pedido ou Separação" },
-              items: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    code: { type: Type.STRING },
-                    description: { type: Type.STRING },
-                    planned_quantity: { type: Type.NUMBER, description: "Valor da coluna 'Quantidade'" },
-                    quantity: { type: Type.NUMBER, description: "Valor da coluna 'Separad'" },
-                    collector_name: { type: Type.STRING },
-                    unitPrice: { type: Type.NUMBER },
-                    totalPrice: { type: Type.NUMBER }
-                  },
-                  required: ["description", "planned_quantity"]
+      // Lógica de tentativa automática para lidar com 503 (Serviço Indisponível)
+      const maxRetries = 2;
+      let lastError: any = null;
+      let result: any = null;
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          if (attempt > 0) {
+            console.log(`Tentativa ${attempt + 1} de extração...`);
+            // Pequena pausa antes de tentar novamente (1.5s, 3s)
+            await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+          }
+
+          const response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: "application/pdf",
+                    data: base64Data
+                  }
+                },
+                {
+                  text: "Extraia os dados deste documento (Pedido de Compra ou Separação de OP). Se for Separação de OP, use o número da OP como order_number. O layout tem colunas: 'Cód.', 'Produto', 'Nome Coletor', 'Quantidade' e 'Separad'. Extraia: order_number (string), date (string YYYY-MM-DD), supplier_name (string - coloque aqui o nome do PRODUTO principal da primeira tabela), product_location (string - localize a informação 'Local' na primeira tabela), total_amount (number - a quantidade total da primeira tabela), e items (array de objetos). REGRAS IMPORTANTES PARA ITENS: 1. Mapeie o valor da coluna 'Quantidade' fisicamente presente no PDF para o campo 'planned_quantity'. 2. O campo 'quantity' deve ser SEMPRE 0 (ele será preenchido pelo usuário depois). 3. Extraia o 'code', 'description' e 'collector_name' normalmente. Retorne APENAS o JSON."
                 }
-              }
+              ]
             },
-            required: ["order_number", "date", "supplier_name", "items"]
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  order_number: { type: Type.STRING },
+                  date: { type: Type.STRING },
+                  supplier_name: { type: Type.STRING, description: "Nome do produto principal" },
+                  product_location: { type: Type.STRING, description: "Local informado na primeira tabela" },
+                  total_amount: { type: Type.NUMBER, description: "Quantidade total somada ou informada no cabeçalho" },
+                  type: { type: Type.STRING, description: "Tipo do documento: Pedido ou Separação" },
+                  items: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        code: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                        planned_quantity: { type: Type.NUMBER, description: "Valor da coluna 'Quantidade'" },
+                        quantity: { type: Type.NUMBER, description: "Valor da coluna 'Separad'" },
+                        collector_name: { type: Type.STRING },
+                        unitPrice: { type: Type.NUMBER },
+                        totalPrice: { type: Type.NUMBER }
+                      },
+                      required: ["description", "planned_quantity"]
+                    }
+                  }
+                },
+                required: ["order_number", "date", "supplier_name", "items"]
+              }
+            }
+          });
+
+          const text = response.text;
+          if (!text) throw new Error("A IA não retornou conteúdo.");
+          result = JSON.parse(text);
+          break; // Sucesso, sai do loop de retries
+        } catch (err: any) {
+          lastError = err;
+          // Se não for um erro de sobrecarga (503/429), não vale a pena tentar novamente
+          if (!err.message?.includes('503') && !err.message?.includes('demand') && !err.message?.includes('429')) {
+            break;
           }
         }
-      });
+      }
 
-      const text = response.text;
-      if (!text) throw new Error("A IA não retornou conteúdo.");
-      const result = JSON.parse(text);
+      if (!result) {
+        if (lastError?.message?.includes('503') || lastError?.message?.includes('demand')) {
+          throw new Error('O serviço de IA está temporariamente sobrecarregado. Por favor, aguarde alguns segundos e tente importar novamente.');
+        }
+        throw lastError || new Error("Falha ao processar PDF.");
+      }
       
       // Garantir que 'quantity' (Separad) comece zerado para conferência
       if (result.items) {
