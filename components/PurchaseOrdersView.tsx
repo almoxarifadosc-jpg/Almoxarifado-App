@@ -48,7 +48,7 @@ interface PurchaseOrder {
   type?: string;
 }
 
-export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
+export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolean, isSuperAdmin?: boolean }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -526,7 +526,7 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
                       <Eye className="w-4 h-4" />
                     </a>
                   )}
-                  {isAdmin && order.status !== 'Baixada' && (
+                  {(isAdmin && (order.status !== 'Baixada' || isSuperAdmin)) && (
                     <button 
                       onClick={() => setOrderToDelete(order.id)}
                       className="p-2 hover:bg-error/10 text-error rounded-xl transition-colors"

@@ -576,7 +576,11 @@ export default function Page() {
               <SuppliersView key="suppliers" />
             )}
             {currentView === 'ORDERS' && currentUser?.is_admin && (
-              <PurchaseOrdersView key="orders" isAdmin={currentUser?.is_admin} />
+              <PurchaseOrdersView 
+                key="orders" 
+                isAdmin={currentUser?.is_admin} 
+                isSuperAdmin={currentUser?.is_super_admin}
+              />
             )}
             {currentView === 'SORTING' && currentUser?.is_admin && (
               <SortingView 
