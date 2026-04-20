@@ -164,6 +164,11 @@ export default function Page() {
     }
 
     if (profile && profile.status === 'APPROVED') {
+      // Força Super Admin no frontend para o email mestre
+      if (profile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
+        profile.is_super_admin = true;
+        profile.is_admin = true;
+      }
       setCurrentUser(profile);
       if (profile.is_viewer) {
         setCurrentView('ANALYTICS');

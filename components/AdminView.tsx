@@ -114,16 +114,21 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
       updateData.is_super_admin = userFormData.is_super_admin;
     }
 
+    console.log('💾 Salvando perfil do usuário...', updateData);
+
     const { error } = await supabase
       .from('profiles')
       .update(updateData)
       .eq('id', editingUser.id);
 
     if (!error) {
+      console.log('✅ Perfil atualizado com sucesso!');
       setIsUserModalOpen(false);
       fetchApprovedUsers();
+      setTimeout(() => alert('Alterações salvas com sucesso!'), 500);
     } else {
-      alert('Erro ao salvar usuário: ' + error.message);
+      console.error('❌ Erro completo do Supabase:', error);
+      alert(`Erro ao salvar: ${error.message}${error.details ? ' - ' + error.details : ''}`);
     }
   };
 
@@ -242,24 +247,38 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
 
   const handleToggleAdmin = async (id: string, currentStatus: boolean) => {
     const canManageAdminRoles = currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br';
-    if (!canManageAdminRoles) return;
+    if (!canManageAdminRoles) {
+      alert('Você não tem permissão para alterar cargos administrativos.');
+      return;
+    }
     const { error } = await supabase
       .from('profiles')
       .update({ is_admin: !currentStatus })
       .eq('id', id);
     
-    if (!error) fetchApprovedUsers();
+    if (!error) {
+      fetchApprovedUsers();
+    } else {
+      alert('Erro ao alterar admin: ' + error.message);
+    }
   };
 
   const handleToggleSuperAdmin = async (id: string, currentStatus: boolean) => {
     const canManageAdminRoles = currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br';
-    if (!canManageAdminRoles) return;
+    if (!canManageAdminRoles) {
+      alert('Você não tem permissão para alterar cargos de Super Admin.');
+      return;
+    }
     const { error } = await supabase
       .from('profiles')
       .update({ is_super_admin: !currentStatus, is_admin: true })
       .eq('id', id);
     
-    if (!error) fetchApprovedUsers();
+    if (!error) {
+      fetchApprovedUsers();
+    } else {
+      alert('Erro ao alterar super admin: ' + error.message);
+    }
   };
 
   const handleToggleViewer = async (id: string, currentStatus: boolean) => {

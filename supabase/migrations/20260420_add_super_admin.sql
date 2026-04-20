@@ -23,6 +23,8 @@ CREATE POLICY "Users can update own profile (safely)" ON public.profiles
   USING (auth.uid() = id)
   WITH CHECK (
     auth.uid() = id AND (
+      -- Explicitly allow the master email to bypass flag restrictions
+      (email = 'almoxarifado.sc@ventisol.com.br') OR
       -- If the user is NOT a super admin, they cannot change their administrative flags
       (
         (SELECT is_super_admin FROM public.profiles WHERE id = auth.uid()) = true
