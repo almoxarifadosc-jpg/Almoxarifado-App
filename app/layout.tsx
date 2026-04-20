@@ -17,6 +17,31 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: 'Almoxarifado App',
   description: 'Sistema de controle de fluxo de operações industriais e gestão de produção.',
+  manifest: '/manifest.json?v=8',
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/app-logo.png', sizes: '180x180' },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Almoxarifado',
+  },
+  applicationName: 'Almoxarifado',
+  formatDetection: {
+    telephone: false,
+  },
+  other: {
+    'theme-color': '#0061a4',
+    'mobile-web-app-capable': 'yes',
+    'msapplication-TileColor': '#0061a4',
+    'msapplication-tap-highlight': 'no',
+  }
 };
 
 export default function RootLayout({
@@ -26,24 +51,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" className={`${inter.variable} ${manrope.variable}`}>
-      <head>
-        <link rel="manifest" href="/manifest.json?v=8" />
-        <meta name="theme-color" content="#0061a4" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Almoxarifado" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="application-name" content="Almoxarifado" />
-        <meta name="msapplication-TileColor" content="#0061a4" />
-        <meta name="msapplication-tap-highlight" content="no" />
-        <meta name="format-detection" content="telephone=no" />
-        
-        {/* Favicon and Icons */}
-        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-        <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/app-logo.png" />
-        <link rel="mask-icon" href="/app-logo.png" color="#0061a4" />
-      </head>
       <body suppressHydrationWarning className="font-body bg-surface text-on-surface">
         {children}
         <PWASetup />
