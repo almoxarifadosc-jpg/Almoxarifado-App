@@ -42,7 +42,7 @@ interface PurchaseOrder {
   date: string;
   total_amount: number;
   items: OrderItem[];
-  status: 'Pendente' | 'Processado' | 'Recusado';
+  status: 'Pendente' | 'Processado' | 'Recusado' | 'Baixada';
   pdf_url?: string;
   created_at: string;
   type?: string;
@@ -490,7 +490,10 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
             <motion.div 
               key={order.id}
               layout
-              className="bg-surface-container-lowest p-6 rounded-[32px] border border-outline-variant/10 shadow-sm hover:shadow-md transition-all group cursor-pointer"
+              className={cn(
+                "bg-surface-container-lowest p-6 rounded-[32px] border border-outline-variant/10 shadow-sm hover:shadow-md transition-all group cursor-pointer flex flex-col relative",
+                order.status === 'Baixada' ? 'opacity-80' : ''
+              )}
               onClick={() => {
                 setEditingOrder(order);
                 setIsEditModalOpen(true);
@@ -501,16 +504,18 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
                   <FileText className="w-6 h-6" />
                 </div>
                 <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                  <button 
-                    onClick={() => {
-                      setEditingOrder(order);
-                      setIsEditModalOpen(true);
-                    }}
-                    className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-colors"
-                    title="Editar Quantidades"
-                  >
-                    <Plus className="w-4 h-4 rotate-45" />
-                  </button>
+                  {order.status !== 'Baixada' && (
+                    <button 
+                      onClick={() => {
+                        setEditingOrder(order);
+                        setIsEditModalOpen(true);
+                      }}
+                      className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-colors"
+                      title="Editar Quantidades"
+                    >
+                      <Plus className="w-4 h-4 rotate-45" />
+                    </button>
+                  )}
                   {order.pdf_url && (
                     <a 
                       href={order.pdf_url} 
@@ -521,7 +526,7 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
                       <Eye className="w-4 h-4" />
                     </a>
                   )}
-                  {isAdmin && (
+                  {isAdmin && order.status !== 'Baixada' && (
                     <button 
                       onClick={() => setOrderToDelete(order.id)}
                       className="p-2 hover:bg-error/10 text-error rounded-xl transition-colors"
@@ -571,9 +576,11 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
                 <div className="pt-4 border-t border-outline-variant/10 flex items-center justify-between">
                   <span className={cn(
                     "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                    order.status === 'Processado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                    order.status === 'Processado' ? 'bg-emerald-500/10 text-emerald-500' : 
+                    order.status === 'Baixada' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' :
+                    'bg-amber-500/10 text-amber-500'
                   )}>
-                    {order.status}
+                    {order.status === 'Baixada' ? 'OP Baixada' : order.status}
                   </span>
                   <span className="text-[9px] font-bold text-on-surface-variant opacity-40 italic">
                     {order.items.length} itens extraídos
@@ -847,8 +854,9 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
                               <input 
                                 type="number"
                                 value={item.quantity || 0}
+                                disabled={editingOrder.status === 'Baixada'}
                                 onChange={(e) => handleEditItemQuantity(idx, Number(e.target.value))}
-                                className="w-20 h-10 bg-surface-container-high rounded-xl text-on-surface text-center font-black outline-none focus:ring-2 focus:ring-primary/20 border-none mx-auto ring-1 ring-outline-variant/10"
+                                className="w-20 h-10 bg-surface-container-high rounded-xl text-on-surface text-center font-black outline-none focus:ring-2 focus:ring-primary/20 border-none mx-auto ring-1 ring-outline-variant/10 disabled:opacity-50"
                               />
                             </td>
                             <td className="px-6 py-4 text-center">
@@ -880,14 +888,20 @@ export function PurchaseOrdersView({ isAdmin }: { isAdmin?: boolean }) {
                     </div>
                   )}
                   
-                  <button 
-                    onClick={updateOrder}
-                    disabled={isProcessing}
-                    className="w-full md:w-auto px-12 bg-primary text-white font-bold py-4 rounded-2xl shadow-xl shadow-primary/20 hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2"
-                  >
-                    {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle2 className="w-6 h-6" />}
-                    Salvar Alterações
-                  </button>
+                  {editingOrder.status !== 'Baixada' ? (
+                    <button 
+                      onClick={updateOrder}
+                      disabled={isProcessing}
+                      className="w-full md:w-auto px-12 bg-primary text-white font-bold py-4 rounded-2xl shadow-xl shadow-primary/20 hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                      {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle2 className="w-6 h-6" />}
+                      Salvar Alterações
+                    </button>
+                  ) : (
+                    <div className="bg-amber-100 text-amber-700 px-6 py-3 rounded-xl font-bold border border-amber-200">
+                      Esta OP já foi baixada e não permite edições.
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>

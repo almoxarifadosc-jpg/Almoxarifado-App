@@ -577,9 +577,10 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                           +{order.assigned_users.length - 3}
                         </div>
                       )}
-                      {isAdmin && (
+                      {isAdmin && order.status !== 'Baixada' && (
                         <button 
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setAssigningOrder(order);
                             setIsAssignModalOpen(true);
                           }}
@@ -590,9 +591,10 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                       )}
                     </>
                   ) : (
-                    isAdmin && (
+                    isAdmin && order.status !== 'Baixada' && (
                       <button 
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setAssigningOrder(order);
                           setIsAssignModalOpen(true);
                         }}
@@ -776,9 +778,15 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                           </button>
                         )}
 
-                        {isAdmin && order.status !== 'Baixada' && (
+                        {isAdmin && (
                           <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-outline-variant/10">
-                            {revertingId === order.id ? (
+                            {order.status === 'Baixada' ? (
+                              <div className="w-full flex items-center justify-center gap-2 p-3 text-[10px] font-black uppercase tracking-widest text-white bg-amber-500 rounded-xl shadow-lg shadow-amber-500/20">
+                                <CheckCircle2 className="w-3 h-3" />
+                                OP Baixada
+                              </div>
+                            ) : (
+                              revertingId === order.id ? (
                               <div className="flex gap-2">
                                 <button 
                                   onClick={(e) => {
@@ -813,9 +821,10 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                                 <ArrowLeft className="w-3 h-3" />
                                 Reverter para Pendente
                               </button>
-                            )}
-                          </div>
-                        )}
+                            )
+                          )}
+                        </div>
+                      )}
 
                         {/* Visualizar Assinatura - Sempre o último da ordem (se existir assinatura) */}
                         {order.is_signed && (
@@ -1268,6 +1277,12 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                       {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Package className="w-5 h-5" />}
                       Salvar Separação
                     </button>
+                  )}
+                  {editingOrder.status === 'Baixada' && (
+                    <div className="bg-amber-100 text-amber-700 px-6 py-3 rounded-xl font-bold border border-amber-200 text-sm flex items-center gap-2">
+                       <CheckCircle2 className="w-5 h-5" />
+                       Esta OP está baixada e não permite alterações.
+                    </div>
                   )}
                   <button 
                     onClick={() => setIsEditModalOpen(false)}
