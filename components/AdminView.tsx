@@ -12,6 +12,7 @@ interface Profile {
   name: string;
   status: 'PENDING' | 'APPROVED';
   is_admin: boolean;
+  is_super_admin: boolean;
   is_viewer: boolean;
   is_conferente: boolean;
   category?: string;
@@ -23,7 +24,7 @@ interface ProductionLine {
   name: string;
 }
 
-export function AdminView() {
+export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIsSuperAdmin?: boolean, currentUserEmail?: string }) {
   const [pendingUsers, setPendingUsers] = useState<Profile[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<Profile[]>([]);
   const [productionLines, setProductionLines] = useState<ProductionLine[]>([]);
@@ -37,6 +38,7 @@ export function AdminView() {
   const [userFormData, setUserFormData] = useState({ 
     name: '', 
     is_admin: false, 
+    is_super_admin: false,
     is_viewer: false, 
     is_conferente: false,
     category: 'Ventisol',
@@ -80,6 +82,7 @@ export function AdminView() {
     setUserFormData({
       name: user.name,
       is_admin: user.is_admin,
+      is_super_admin: user.is_super_admin,
       is_viewer: user.is_viewer,
       is_conferente: user.is_conferente,
       category: user.category || 'Ventisol',
@@ -94,16 +97,26 @@ export function AdminView() {
 
     const groupsArray = userFormData.allowed_groups.split(',').map(g => g.trim().toUpperCase()).filter(g => g);
     
+    const updateData: any = {
+      name: userFormData.name,
+      is_viewer: userFormData.is_viewer,
+      is_conferente: userFormData.is_conferente,
+      category: userFormData.category,
+      allowed_groups: groupsArray
+    };
+
+    // Only super admin can change admin flags
+    // Per request: "somente esse email [almoxarifado.sc@ventisol.com.br] poderá transformar outros emails em super admin"
+    const canManageAdminRoles = currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br';
+
+    if (canManageAdminRoles) {
+      updateData.is_admin = userFormData.is_admin;
+      updateData.is_super_admin = userFormData.is_super_admin;
+    }
+
     const { error } = await supabase
       .from('profiles')
-      .update({
-        name: userFormData.name,
-        is_admin: userFormData.is_admin,
-        is_viewer: userFormData.is_viewer,
-        is_conferente: userFormData.is_conferente,
-        category: userFormData.category,
-        allowed_groups: groupsArray
-      })
+      .update(updateData)
       .eq('id', editingUser.id);
 
     if (!error) {
@@ -228,9 +241,22 @@ export function AdminView() {
   };
 
   const handleToggleAdmin = async (id: string, currentStatus: boolean) => {
+    const canManageAdminRoles = currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br';
+    if (!canManageAdminRoles) return;
     const { error } = await supabase
       .from('profiles')
       .update({ is_admin: !currentStatus })
+      .eq('id', id);
+    
+    if (!error) fetchApprovedUsers();
+  };
+
+  const handleToggleSuperAdmin = async (id: string, currentStatus: boolean) => {
+    const canManageAdminRoles = currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br';
+    if (!canManageAdminRoles) return;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_super_admin: !currentStatus, is_admin: true })
       .eq('id', id);
     
     if (!error) fetchApprovedUsers();
@@ -449,6 +475,9 @@ export function AdminView() {
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="font-bold text-on-surface">{user.name}</p>
+                        {user.is_super_admin && (
+                          <span className="text-[10px] bg-purple-500/10 text-purple-600 px-2 py-0.5 rounded-full font-bold">Super Admin</span>
+                        )}
                         {user.is_admin && (
                           <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Admin</span>
                         )}
@@ -625,15 +654,31 @@ export function AdminView() {
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 pt-2">
+                <div className="grid grid-cols-2 gap-2 pt-2">
                   <button
                     type="button"
+                    disabled={!(currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br')}
+                    onClick={() => setUserFormData({ ...userFormData, is_super_admin: !userFormData.is_super_admin, is_admin: true })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[8px] uppercase tracking-widest leading-none",
+                      userFormData.is_super_admin 
+                        ? "bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-500/20" 
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-purple-300",
+                      !(currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br') && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    Super Admin
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!(currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br')}
                     onClick={() => setUserFormData({ ...userFormData, is_admin: !userFormData.is_admin })}
                     className={cn(
                       "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[8px] uppercase tracking-widest leading-none",
                       userFormData.is_admin 
                         ? "bg-primary border-primary text-white shadow-lg shadow-primary/20" 
-                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-primary/30"
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-primary/30",
+                      !(currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br') && "opacity-50 cursor-not-allowed"
                     )}
                   >
                     Administrador

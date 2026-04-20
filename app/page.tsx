@@ -591,7 +591,11 @@ export default function Page() {
               <PerformanceView key="performance" />
             )}
             {currentView === 'ADMIN_PANEL' && (
-              <AdminView key="admin" />
+              <AdminView 
+                key="admin" 
+                currentIsSuperAdmin={currentUser?.is_super_admin} 
+                currentUserEmail={currentUser?.email}
+              />
             )}
           </AnimatePresence>
         </div>

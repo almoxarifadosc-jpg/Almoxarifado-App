@@ -57,6 +57,7 @@ interface Profile {
   id: string;
   name: string;
   email: string;
+  is_super_admin?: boolean;
 }
 
 export default function PerformanceView() {

@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import SignatureCanvas from 'react-signature-canvas';
+import { sendGoogleChatNotification } from '@/lib/notifications';
 
 interface OrderItem {
   code?: string;
@@ -62,6 +63,7 @@ interface Profile {
   id: string;
   name: string;
   email: string;
+  is_super_admin?: boolean;
 }
 
 export function SortingView({ isAdmin, currentUserId, isConferente, currentUserName }: { 
@@ -344,6 +346,8 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
     
     setIsProcessing(true);
     try {
+      const orderToClose = orders.find(o => o.id === orderId);
+
       const { error } = await supabase
         .from('purchase_orders')
         .update({ status: 'Baixada' })
@@ -357,6 +361,17 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
         });
         throw error;
       }
+
+      // Enviar notificação para o Google Chat
+      if (orderToClose) {
+        const message = `🚀 *OP Baixada (Concluída)*\n\n` +
+          `*Número:* #${orderToClose.order_number}\n` +
+          `*Fornecedor:* ${orderToClose.supplier_name}\n` +
+          `*Executor:* ${currentUserName || 'Sistema'}\n` +
+          `*Data:* ${new Date().toLocaleString('pt-BR')}`;
+        await sendGoogleChatNotification(message);
+      }
+
       await fetchOrders();
       setIsEditModalOpen(false);
       setEditingOrder(null);

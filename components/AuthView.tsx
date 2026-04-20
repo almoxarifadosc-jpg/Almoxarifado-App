@@ -15,6 +15,7 @@ interface Profile {
   name: string;
   status: 'PENDING' | 'APPROVED';
   is_admin: boolean;
+  is_super_admin?: boolean;
 }
 
 interface AuthViewProps {
