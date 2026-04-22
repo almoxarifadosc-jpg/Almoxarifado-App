@@ -578,6 +578,7 @@ export default function Page() {
                 key="receipts" 
                 isAdmin={currentUser?.is_admin} 
                 isSuperAdmin={currentUser?.is_super_admin}
+                currentUserId={currentUser?.id}
                 userName={currentUser?.name} 
               />
             )}

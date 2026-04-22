@@ -37,6 +37,7 @@ interface Receipt {
   status: 'Pendente' | 'Enviado' | 'Recebido';
   observation?: string;
   image_url?: string;
+  author_id?: string;
   created_at: string;
   updated_by_name?: string;
 }
@@ -57,6 +58,7 @@ interface Supplier {
 interface ReceiptsViewProps {
   isAdmin?: boolean;
   isSuperAdmin?: boolean;
+  currentUserId?: string;
   userName?: string;
 }
 
@@ -68,7 +70,7 @@ const SUPPLIER_EXAMPLES = [
 
 const STATUS_OPTIONS = ['Pendente', 'Enviado', 'Recebido'] as const;
 
-export function ReceiptsView({ isAdmin, isSuperAdmin, userName }: ReceiptsViewProps) {
+export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }: ReceiptsViewProps) {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [dbSuppliers, setDbSuppliers] = useState<Supplier[]>([]);
   const [loadTypes, setLoadTypes] = useState<LoadType[]>([]);
@@ -290,6 +292,7 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, userName }: ReceiptsViewPr
             load_id,
             invoice_count: formData.invoices.length,
             status: 'Pendente', 
+            author_id: currentUserId,
             updated_by_name: userName 
           }
         ]);
@@ -347,6 +350,17 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, userName }: ReceiptsViewPr
     } else {
       console.error('Erro ao excluir:', error.message);
     }
+  };
+
+  const canEditReceipt = (receipt: Receipt) => {
+    // Super admin pode tudo
+    if (isSuperAdmin) return true;
+    
+    // Status Enviado ou Recebido não podem ser editados por usuários comuns
+    if (receipt.status === 'Enviado' || receipt.status === 'Recebido') return false;
+    
+    // Status Pendente só pode ser alterado por quem criou
+    return receipt.author_id === currentUserId;
   };
 
   const filteredReceipts = receipts.filter(r => {
@@ -641,27 +655,37 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, userName }: ReceiptsViewPr
                         <ImageIcon className="w-5 h-5" />
                       </a>
                     )}
-                    {STATUS_OPTIONS.map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => updateStatus(receipt.id, status)}
-                        className={cn(
-                          "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all",
-                          receipt.status === status 
-                            ? cn(getStatusBg(status), "text-white shadow-md shadow-on-surface/10") 
-                            : "bg-surface-container-high text-on-surface-variant hover:bg-primary/10 hover:text-primary"
-                        )}
+                    {STATUS_OPTIONS.map((status) => {
+                      const isDisabled = !isSuperAdmin && (
+                        (receipt.status === 'Enviado' || receipt.status === 'Recebido') ||
+                        (receipt.status === 'Pendente' && receipt.author_id !== currentUserId)
+                      );
+                      
+                      return (
+                        <button
+                          key={status}
+                          disabled={isDisabled}
+                          onClick={() => updateStatus(receipt.id, status)}
+                          className={cn(
+                            "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed",
+                            receipt.status === status 
+                              ? cn(getStatusBg(status), "text-white shadow-md shadow-on-surface/10") 
+                              : "bg-surface-container-high text-on-surface-variant hover:bg-primary/10 hover:text-primary"
+                          )}
+                        >
+                          {status}
+                        </button>
+                      );
+                    })}
+                    {canEditReceipt(receipt) && (
+                      <button 
+                        onClick={() => handleOpenModal(receipt)}
+                        className="p-2 hover:bg-surface-container-high text-primary rounded-xl transition-colors ml-2"
+                        title="Editar Carga"
                       >
-                        {status}
+                        <Edit2 className="w-5 h-5" />
                       </button>
-                    ))}
-                    <button 
-                      onClick={() => handleOpenModal(receipt)}
-                      className="p-2 hover:bg-surface-container-high text-primary rounded-xl transition-colors ml-2"
-                      title="Editar Carga"
-                    >
-                      <Edit2 className="w-5 h-5" />
-                    </button>
+                    )}
                     {isAdmin && (
                       <button 
                         onClick={() => setDeleteModal({ isOpen: true, id: receipt.id })}

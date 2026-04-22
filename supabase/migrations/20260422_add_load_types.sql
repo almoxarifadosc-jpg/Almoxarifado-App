@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS public.load_types (
 -- 2. Add load_type column to receipts
 ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS load_type TEXT;
 ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS load_type_color TEXT;
+ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS author_id UUID REFERENCES auth.users(id);
 
 -- 3. Enable RLS on load_types
 ALTER TABLE public.load_types ENABLE ROW LEVEL SECURITY;
