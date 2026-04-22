@@ -97,7 +97,7 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [typeFilter, setTypeFilter] = useState<'All' | 'Intercompany' | 'Externo'>('All');
+  const [selectedLoadType, setSelectedLoadType] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     invoices: [] as string[],
@@ -366,7 +366,10 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
   const filteredReceipts = receipts.filter(r => {
     const matchesText = (r.load_id || '').toLowerCase().includes(filterText.toLowerCase()) || 
                        r.supplier_name.toLowerCase().includes(filterText.toLowerCase()) ||
-                       (r.driver || '').toLowerCase().includes(filterText.toLowerCase());
+                       (r.driver || '').toLowerCase().includes(filterText.toLowerCase()) ||
+                       (r.invoices || []).some(nf => nf.toLowerCase().includes(filterText.toLowerCase()));
+    
+    const matchesLoadType = !selectedLoadType || r.load_type === selectedLoadType;
     
     const receiptDate = new Date(r.created_at);
     const start = new Date(startDate);
@@ -376,7 +379,7 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
     
     const matchesDate = receiptDate >= start && receiptDate <= end;
     
-    return matchesText && matchesDate;
+    return matchesText && matchesDate && matchesLoadType;
   });
 
   const drivers = useMemo(() => dbSuppliers.filter(s => !!s.is_driver), [dbSuppliers]);
@@ -420,7 +423,7 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
       exit={{ opacity: 0, x: -20 }}
       className="pt-8 px-4 max-w-7xl mx-auto pb-32"
     >
-      <section className="mb-8">
+      <section className="mb-8 space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div>
             <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">Cargas</h2>
@@ -431,7 +434,7 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
               <div className="relative flex-1 min-w-[200px]">
                 <input 
                   type="text"
-                  placeholder="Buscar Carga, Motorista ou Fornecedor..."
+                  placeholder="Buscar Carga, Motorista, Fornecedor ou NF..."
                   value={filterText}
                   onChange={(e) => setFilterText(e.target.value)}
                   className="w-full bg-transparent text-on-surface border-0 rounded-xl px-4 py-2 pl-10 focus:ring-0 outline-none text-sm"
@@ -463,6 +466,43 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
               Nova Carga
             </button>
           </div>
+        </div>
+
+        {/* Load Type Filters */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setSelectedLoadType(null)}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-bold border transition-all",
+              selectedLoadType === null 
+                ? "bg-primary text-white border-primary shadow-md" 
+                : "bg-surface-container-low text-on-surface-variant border-outline-variant/10 hover:border-primary/30"
+            )}
+          >
+            Todos os Tipos
+          </button>
+          {loadTypes.map(type => (
+            <button
+              key={type.id}
+              onClick={() => setSelectedLoadType(type.name)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2",
+                selectedLoadType === type.name 
+                  ? "shadow-md bg-opacity-100 text-white" 
+                  : "bg-surface-container-low text-on-surface-variant border-outline-variant/10 hover:border-primary/30"
+              )}
+              style={{ 
+                backgroundColor: selectedLoadType === type.name ? (type.color || '#3b82f6') : undefined,
+                borderColor: selectedLoadType === type.name ? 'transparent' : undefined
+              }}
+            >
+              <div 
+                className="w-2 h-2 rounded-full" 
+                style={{ backgroundColor: type.color || '#3b82f6' }}
+              />
+              {type.name}
+            </button>
+          ))}
         </div>
       </section>
 
