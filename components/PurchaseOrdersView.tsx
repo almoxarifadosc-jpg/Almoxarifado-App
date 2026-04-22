@@ -375,6 +375,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
 
       const { error: dbError } = await supabase.from('purchase_orders').insert([{
         ...extractedData,
+        date: new Date().toISOString(), // Usar a data de upload conforme solicitado
         items: finalItems,
         pdf_url: publicUrl,
         status: 'Pendente'

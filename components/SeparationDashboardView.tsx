@@ -91,7 +91,7 @@ export function SeparationDashboardView() {
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
-      const orderDate = new Date(order.created_at);
+      const orderDate = new Date(order.date || order.created_at);
       
       const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
       const start = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
@@ -219,11 +219,20 @@ export function SeparationDashboardView() {
                   )}
                 </div>
 
-                <div>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 block mb-1">Local</span>
-                  <div className="flex items-center gap-1.5 text-on-surface">
-                    <Eye className="w-3 h-3 text-primary" />
-                    <span className="text-xs font-bold truncate">{order.product_location || 'N/A'}</span>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 block mb-1">Local</span>
+                    <div className="flex items-center gap-1.5 text-on-surface">
+                      <Eye className="w-3 h-3 text-primary" />
+                      <span className="text-xs font-bold truncate">{order.product_location || 'N/A'}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 block mb-1">Data Upload</span>
+                    <div className="flex items-center gap-1.5 text-on-surface">
+                      <Calendar className="w-3 h-3 text-primary" />
+                      <span className="text-xs font-bold">{new Date(order.date || order.created_at).toLocaleDateString('pt-BR')}</span>
+                    </div>
                   </div>
                 </div>
 
