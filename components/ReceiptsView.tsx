@@ -39,6 +39,7 @@ interface Receipt {
   image_url?: string;
   author_id?: string;
   created_at: string;
+  updated_at?: string;
   updated_by_name?: string;
 }
 
@@ -322,14 +323,22 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
   };
 
   const updateStatus = async (id: string, newStatus: Receipt['status']) => {
+    const now = new Date().toISOString();
+    
     // Optimistic update
-    setReceipts(prev => prev.map(r => r.id === id ? { ...r, status: newStatus, updated_by_name: userName } : r));
+    setReceipts(prev => prev.map(r => r.id === id ? { 
+      ...r, 
+      status: newStatus, 
+      updated_by_name: userName,
+      updated_at: now
+    } : r));
     
     const { error } = await supabase
       .from('receipts')
       .update({ 
         status: newStatus,
-        updated_by_name: userName 
+        updated_by_name: userName,
+        updated_at: now
       })
       .eq('id', id);
     
@@ -665,11 +674,21 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
                           <Building2 className="w-3 h-3 opacity-40" />
                           <span className="text-sm font-bold">{receipt.supplier_name}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-on-surface-variant/60">
-                          <Clock className="w-3 h-3 opacity-40" />
-                          <span className="text-[10px] font-bold">
-                            {new Date(receipt.created_at).toLocaleDateString('pt-BR')}
-                          </span>
+                        <div className="flex flex-col gap-1 mt-1">
+                          <div className="flex items-center gap-2 text-on-surface-variant/60">
+                            <Clock className="w-3 h-3 opacity-40" />
+                            <span className="text-[10px] font-bold">
+                              Criado em: {new Date(receipt.created_at).toLocaleDateString('pt-BR')} {new Date(receipt.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          {receipt.updated_at && receipt.status !== 'Pendente' && (
+                            <div className="flex items-center gap-2 text-primary/60">
+                              <CheckCircle2 className="w-3 h-3 opacity-40" />
+                              <span className="text-[10px] font-bold">
+                                Status atualizado: {new Date(receipt.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
