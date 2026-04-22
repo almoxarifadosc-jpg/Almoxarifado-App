@@ -902,7 +902,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                             <td className="px-6 py-4 text-center">
                               <input 
                                 type="number"
-                                value={item.quantity || 0}
+                                value={item.quantity || ''}
                                 disabled={editingOrder.status === 'Baixada'}
                                 onChange={(e) => handleEditItemQuantity(idx, Number(e.target.value))}
                                 className="w-20 h-10 bg-surface-container-high rounded-xl text-on-surface text-center font-black outline-none focus:ring-2 focus:ring-primary/20 border-none mx-auto ring-1 ring-outline-variant/10 disabled:opacity-50"

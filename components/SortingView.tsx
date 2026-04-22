@@ -118,7 +118,15 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
   useEffect(() => {
     fetchOrders();
     fetchProfiles();
+    setError(null);
+    setSuccess(null);
   }, []);
+
+  useEffect(() => {
+    if (isEditModalOpen) {
+      setError(null);
+    }
+  }, [isEditModalOpen]);
 
   const handleEditItemQuantity = (idx: number, newQty: number) => {
     setEditingOrder(prev => {
@@ -137,12 +145,11 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
 
   const validateQuantities = () => {
     if (!editingOrder) return true;
-    if (isAdmin) return true; // Admins podem tudo
 
     const itemsWithLowerQty = editingOrder.items?.filter(item => (item.quantity || 0) < item.planned_quantity);
     if (itemsWithLowerQty && itemsWithLowerQty.length > 0) {
       const descriptions = itemsWithLowerQty.map(i => i.description).slice(0, 2).join(', ');
-      setError(`Quantidade insuficiente: A quantidade separada não pode ser menor que a planejada (${descriptions}...). Apenas administradores podem liberar quantidades menores.`);
+      setError(`Não é possível lançar quantidade menor que o planejado (${descriptions}...). Verifique os valores na coluna "Planejado" antes de confirmar.`);
       return false;
     }
     return true;
@@ -974,6 +981,20 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
               </div>
 
               <div className="flex-1 overflow-y-auto p-8">
+                {error && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-error/10 text-error p-4 rounded-2xl flex items-center gap-3 mb-6 border border-error/20"
+                  >
+                    <AlertCircle className="w-5 h-5 shrink-0" />
+                    <p className="text-sm font-bold leading-tight">{error}</p>
+                    <button onClick={() => setError(null)} className="ml-auto p-1 hover:bg-error/10 rounded-lg">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </motion.div>
+                )}
+
                 {modalMode === 'EDIT' && (
                   <div className="bg-surface-container-high/30 overflow-hidden rounded-[32px] border border-outline-variant/10 shadow-inner">
                     {/* Cabeçalho Desktop */}
@@ -1015,9 +1036,9 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                                 disabled={editingOrder.status !== 'Pendente'}
                                 className={cn(
                                   "w-14 md:w-16 bg-surface-container-high md:bg-surface-container-low text-center font-black p-2 rounded-xl outline-none focus:ring-2 ring-primary/30 text-sm disabled:opacity-50",
-                                  !isAdmin && item.quantity < item.planned_quantity && "ring-2 ring-error/50 text-error bg-error/5"
+                                  item.quantity < item.planned_quantity && "ring-2 ring-error/50 text-error bg-error/5"
                                 )}
-                                value={item.quantity}
+                                value={item.quantity || ''}
                                 onChange={(e) => handleEditItemQuantity(idx, parseInt(e.target.value))}
                               />
                             </div>
