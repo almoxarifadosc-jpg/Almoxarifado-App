@@ -15,6 +15,7 @@ import { AdminView } from '@/components/AdminView';
 import { SuppliersView } from '@/components/SuppliersView';
 import { PurchaseOrdersView } from '@/components/PurchaseOrdersView';
 import { SortingView } from '@/components/SortingView';
+import { SeparationDashboardView } from '@/components/SeparationDashboardView';
 import PerformanceView from '@/components/PerformanceView';
 import { SupabaseSetupView } from '@/components/SupabaseSetupView';
 import { Factory, Settings, CheckCircle2, Loader2 } from 'lucide-react';
@@ -603,6 +604,9 @@ export default function Page() {
                 isConferente={currentUser?.is_conferente}
                 currentUserName={currentUser?.name}
               />
+            )}
+            {currentView === 'SEPARATION_DASHBOARD' && currentUser?.is_admin && (
+              <SeparationDashboardView key="separation-dashboard" />
             )}
             {currentView === 'PERFORMANCE' && currentUser?.is_admin && (
               <PerformanceView key="performance" />

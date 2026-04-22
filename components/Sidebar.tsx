@@ -19,7 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
-export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS' | 'ORDERS' | 'SORTING' | 'PERFORMANCE';
+export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS' | 'ORDERS' | 'SORTING' | 'PERFORMANCE' | 'SEPARATION_DASHBOARD';
 
 interface SidebarProps {
   currentView: View;
@@ -62,6 +62,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
       items: (isAdmin && category !== 'Recebimento') ? [
         { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText },
         { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
+        { id: 'SEPARATION_DASHBOARD' as View, label: 'Painel de Separação', icon: LayoutDashboard },
         { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 },
       ] : []
     },
