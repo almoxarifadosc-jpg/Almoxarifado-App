@@ -57,6 +57,7 @@ interface PurchaseOrder {
   signed_at?: string;
   signed_by_name?: string;
   signature_url?: string;
+  sequence?: number | null;
 }
 
 interface Profile {
@@ -95,7 +96,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
     const { data, error } = await supabase
       .from('purchase_orders')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('sequence', { ascending: true, nullsFirst: false });
 
     if (!error && data) {
       setOrders(data);
@@ -125,10 +126,26 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
       const updatedItems = [...(prev.items || [])];
       const item = { ...updatedItems[idx] };
       const qtyValue = isNaN(newQty) ? 0 : newQty;
+      
+      // Permitimos digitar qualquer valor para não travar a UX (ex: digitar 1 para chegar em 10)
+      // A validação rigorosa será feita no momento de Salvar ou Conferir.
       item.quantity = qtyValue;
       updatedItems[idx] = item;
       return { ...prev, items: updatedItems };
     });
+  };
+
+  const validateQuantities = () => {
+    if (!editingOrder) return true;
+    if (isAdmin) return true; // Admins podem tudo
+
+    const itemsWithLowerQty = editingOrder.items?.filter(item => (item.quantity || 0) < item.planned_quantity);
+    if (itemsWithLowerQty && itemsWithLowerQty.length > 0) {
+      const descriptions = itemsWithLowerQty.map(i => i.description).slice(0, 2).join(', ');
+      setError(`Quantidade insuficiente: A quantidade separada não pode ser menor que a planejada (${descriptions}...). Apenas administradores podem liberar quantidades menores.`);
+      return false;
+    }
+    return true;
   };
 
   const handleToggleItemConferred = (index: number) => {
@@ -157,6 +174,8 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
 
   const updateOrder = async () => {
     if (!editingOrder?.id) return;
+    if (!validateQuantities()) return;
+    
     setIsProcessing(true);
     setError(null);
     try {
@@ -214,6 +233,8 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
 
   const conferOrder = async () => {
     if (!editingOrder?.id) return;
+    if (!validateQuantities()) return;
+    
     if (!currentUserId || !currentUserName) {
       setError("Erro de autenticação: usuário não identificado.");
       return;
@@ -563,6 +584,16 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                 setIsEditModalOpen(true);
               }}
             >
+              {/* Badge de Sequência em Destaque */}
+              <div className={cn(
+                "absolute top-0 right-0 px-6 py-2 rounded-bl-[24px] font-black italic tracking-tighter text-lg shadow-sm z-20",
+                order.sequence 
+                  ? "bg-amber-500 text-white shadow-amber-500/10" 
+                  : "bg-error text-white shadow-error/10"
+              )}>
+                {order.sequence ? `SEQ ${order.sequence}` : 'FALTA SEQ'}
+              </div>
+              
               {/* Cabeçalho do Card */}
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-4">
@@ -576,7 +607,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                 </div>
 
                 {/* Responsáveis Topo Direito */}
-                <div className="flex -space-x-2">
+                <div className="flex -space-x-2 mr-20">
                   {order.assigned_users && order.assigned_users.length > 0 ? (
                     <>
                       {order.assigned_users.slice(0, 3).map(uid => {
@@ -867,16 +898,29 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                     <div className="grid grid-cols-1 gap-2">
                       <button 
                         onClick={() => {
+                          if (!order.sequence) return;
                           setEditingOrder(order);
                           setModalMode('EDIT');
                           setIsEditModalOpen(true);
                         }}
-                        className="w-full bg-primary text-white p-4 rounded-2xl hover:opacity-90 transition-all flex items-center justify-center gap-2 font-bold shadow-lg shadow-primary/20"
-                        title="Realizar Separação"
+                        disabled={!order.sequence}
+                        className={cn(
+                          "w-full p-4 rounded-2xl transition-all flex items-center justify-center gap-2 font-bold shadow-lg",
+                          order.sequence 
+                            ? "bg-primary text-white hover:opacity-90 shadow-primary/20" 
+                            : "bg-surface-container-highest text-on-surface-variant/30 cursor-not-allowed grayscale"
+                        )}
+                        title={order.sequence ? "Realizar Separação" : "Sequência não informada"}
                       >
                         <Edit3 className="w-5 h-5" />
                         <span className="text-sm">Separar Materiais</span>
                       </button>
+                      
+                      {!order.sequence && (
+                        <p className="text-[10px] font-bold text-error text-center bg-error/5 py-1 rounded-lg animate-pulse">
+                          Aguardando definição da Sequência para iniciar
+                        </p>
+                      )}
                       
                       {isConferente && (
                         <button 
@@ -969,7 +1013,10 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                               <input 
                                 type="number"
                                 disabled={editingOrder.status !== 'Pendente'}
-                                className="w-14 md:w-16 bg-surface-container-high md:bg-surface-container-low text-center font-black p-2 rounded-xl outline-none focus:ring-2 ring-primary/30 text-sm disabled:opacity-50"
+                                className={cn(
+                                  "w-14 md:w-16 bg-surface-container-high md:bg-surface-container-low text-center font-black p-2 rounded-xl outline-none focus:ring-2 ring-primary/30 text-sm disabled:opacity-50",
+                                  !isAdmin && item.quantity < item.planned_quantity && "ring-2 ring-error/50 text-error bg-error/5"
+                                )}
                                 value={item.quantity}
                                 onChange={(e) => handleEditItemQuantity(idx, parseInt(e.target.value))}
                               />

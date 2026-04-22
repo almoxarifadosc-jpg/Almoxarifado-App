@@ -46,6 +46,7 @@ interface PurchaseOrder {
   pdf_url?: string;
   created_at: string;
   type?: string;
+  sequence?: number | null;
 }
 
 export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolean, isSuperAdmin?: boolean }) {
@@ -58,6 +59,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
   const [filterText, setFilterText] = useState('');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
+  const [orderSequence, setOrderSequence] = useState<string>('');
   
   const [extractedData, setExtractedData] = useState<Partial<PurchaseOrder> | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -68,7 +70,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
     const { data, error } = await supabase
       .from('purchase_orders')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('sequence', { ascending: true, nullsFirst: false });
 
     if (!error && data) {
       setOrders(data);
@@ -381,7 +383,8 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
         date: dateStr, // Salva yyyy-mm-dd local
         items: finalItems,
         pdf_url: publicUrl,
-        status: 'Pendente'
+        status: 'Pendente',
+        sequence: orderSequence ? parseInt(orderSequence) : null
       }]);
 
       if (dbError) throw dbError;
@@ -390,6 +393,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
       setIsModalOpen(false);
       setExtractedData(null);
       setSelectedFile(null);
+      setOrderSequence('');
     } catch (err: any) {
       setError(`Erro ao salvar pedido: ${err.message}`);
     } finally {
@@ -495,7 +499,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
               key={order.id}
               layout
               className={cn(
-                "bg-surface-container-lowest p-6 rounded-[32px] border border-outline-variant/10 shadow-sm hover:shadow-md transition-all group cursor-pointer flex flex-col relative",
+                "bg-surface-container-lowest p-6 rounded-[32px] border border-outline-variant/10 shadow-sm hover:shadow-md transition-all group cursor-pointer flex flex-col relative overflow-hidden",
                 order.status === 'Baixada' ? 'opacity-80' : ''
               )}
               onClick={() => {
@@ -503,11 +507,21 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                 setIsEditModalOpen(true);
               }}
             >
+              {/* Badge de Sequência em Destaque */}
+              <div className={cn(
+                "absolute top-0 right-0 px-6 py-2 rounded-bl-[20px] font-black italic tracking-tighter text-base shadow-sm z-10",
+                order.sequence 
+                  ? "bg-amber-500 text-white shadow-amber-500/20" 
+                  : "bg-surface-container-highest text-on-surface-variant/20"
+              )}>
+                {order.sequence ? `SEQ ${order.sequence}` : 'S/ SEQ'}
+              </div>
+
               <div className="flex justify-between items-start mb-6">
                 <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
                   <FileText className="w-6 h-6" />
                 </div>
-                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex gap-2 pr-12" onClick={(e) => e.stopPropagation()}>
                   {order.status !== 'Baixada' && (
                     <button 
                       onClick={() => {
@@ -732,32 +746,60 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
 
                     <div className="flex flex-col gap-6">
                       <div className="bg-surface-container-low p-6 rounded-[32px] border border-outline-variant/10 flex-1">
-                        <h4 className="text-lg font-bold text-on-surface mb-4">Verificação de Arquivo</h4>
-                        <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 flex items-center gap-4">
-                          <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                            <FileText className="w-6 h-6" />
+                        <h4 className="text-lg font-bold text-on-surface mb-4">Dados Adicionais</h4>
+                        <div className="space-y-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 ml-1">Sequência de Separação</label>
+                            <div className="relative">
+                              <input 
+                                type="number"
+                                value={orderSequence}
+                                onChange={(e) => setOrderSequence(e.target.value)}
+                                placeholder="Digite o número da sequência..."
+                                name="sequence"
+                                id="sequence-input"
+                                className="w-full bg-surface-container-highest border-0 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-bold text-lg"
+                              />
+                              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30">
+                                <Package className="w-5 h-5" />
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-amber-600 font-bold mt-1 ml-1 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              Campo obrigatório para liberar a separação.
+                            </p>
                           </div>
-                          <div className="overflow-hidden">
-                            <p className="text-sm font-bold text-on-surface truncate">{selectedFile?.name}</p>
-                            <p className="text-xs text-on-surface-variant">{((selectedFile?.size || 0) / 1024 / 1024).toFixed(2)} MB • PDF</p>
+
+                          <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 flex items-center gap-4">
+                            <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                              <FileText className="w-6 h-6" />
+                            </div>
+                            <div className="overflow-hidden">
+                              <p className="text-sm font-bold text-on-surface truncate">{selectedFile?.name}</p>
+                              <p className="text-xs text-on-surface-variant">{((selectedFile?.size || 0) / 1024 / 1024).toFixed(2)} MB • PDF</p>
+                            </div>
                           </div>
                         </div>
-                        <p className="text-xs text-on-surface-variant mt-4 leading-relaxed">
+                        <p className="text-xs text-on-surface-variant mt-6 leading-relaxed">
                           Os dados acima foram extraídos utilizando visão computacional. Verifique os valores antes de salvar para garantir a precisão.
                         </p>
                       </div>
 
                       <div className="flex flex-col gap-3">
                         <button 
-                          onClick={() => setExtractedData(null)}
+                          onClick={() => {
+                            setExtractedData(null);
+                            setOrderSequence('');
+                          }}
                           className="w-full bg-surface-container-high text-on-surface font-bold py-4 rounded-2xl hover:bg-surface-container-highest transition-all"
                         >
                           Tentar outro arquivo
                         </button>
                         <button 
+                          id="confirm-save-btn"
                           onClick={saveOrder}
-                          disabled={isProcessing}
-                          className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-xl shadow-primary/20 hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2"
+                          disabled={isProcessing || !orderSequence}
+                          className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-xl shadow-primary/20 hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:grayscale"
                         >
                           {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle2 className="w-6 h-6" />}
                           Confirmar e Salvar Pedido

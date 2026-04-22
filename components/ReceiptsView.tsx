@@ -41,6 +41,7 @@ interface Receipt {
   created_at: string;
   updated_at?: string;
   updated_by_name?: string;
+  status_history?: Record<string, { at: string; by: string }>;
 }
 
 interface LoadType {
@@ -97,6 +98,7 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [selectedLoadType, setSelectedLoadType] = useState<string | null>(null);
+  const [detailsModal, setDetailsModal] = useState<{ isOpen: boolean; receipt: Receipt | null }>({ isOpen: false, receipt: null });
   
   const [formData, setFormData] = useState({
     invoices: [] as string[],
@@ -292,7 +294,10 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
             invoice_count: formData.invoices.length,
             status: 'Pendente', 
             author_id: currentUserId,
-            updated_by_name: userName 
+            updated_by_name: userName,
+            status_history: {
+               'Pendente': { at: new Date().toISOString(), by: userName || 'Usuário' }
+            }
           }
         ]);
         error = insertError;
@@ -324,13 +329,19 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
 
   const updateStatus = async (id: string, newStatus: Receipt['status']) => {
     const now = new Date().toISOString();
+    const currentOrder = receipts.find(r => r.id === id);
+    const newHistory = {
+      ...(currentOrder?.status_history || {}),
+      [newStatus]: { at: now, by: userName || 'Usuário' }
+    };
     
     // Optimistic update
     setReceipts(prev => prev.map(r => r.id === id ? { 
       ...r, 
       status: newStatus, 
       updated_by_name: userName,
-      updated_at: now
+      updated_at: now,
+      status_history: newHistory
     } : r));
     
     const { error } = await supabase
@@ -338,7 +349,8 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
       .update({ 
         status: newStatus,
         updated_by_name: userName,
-        updated_at: now
+        updated_at: now,
+        status_history: newHistory
       })
       .eq('id', id);
     
@@ -570,15 +582,7 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
               )}
               <div className="flex-1 flex flex-col">
                 {/* Status Bar at the Top */}
-                <div className="px-6 pt-10 pb-4 bg-surface-container-low/30 border-b border-outline-variant/5 relative">
-                  {receipt.updated_by_name && (
-                    <div className="absolute top-2 left-6 flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-pulse" />
-                      <span className="text-[9px] font-bold text-on-surface-variant/60 uppercase tracking-widest">
-                        Atualizado por: {receipt.updated_by_name}
-                      </span>
-                    </div>
-                  )}
+                <div className="px-6 pt-10 pb-6 bg-surface-container-low/30 border-b border-outline-variant/5 relative">
                   <div className="relative">
                     <div className="h-1 w-full bg-surface-container-high rounded-full overflow-hidden">
                       <motion.div 
@@ -609,13 +613,20 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
                             </span>
                             
                             {isCurrent && (
-                              <motion.div 
+                              <motion.button 
+                                onClick={() => setDetailsModal({ isOpen: true, receipt })}
                                 layoutId={`truck-${receipt.id}`}
-                                className={cn("absolute -top-7 transition-colors duration-500", getStatusColor(status))}
+                                className={cn(
+                                  "absolute -top-7 transition-all duration-500 z-10 p-1.5 rounded-full bg-surface shadow-md border border-outline-variant hover:scale-110 active:scale-95 group cursor-pointer", 
+                                  getStatusColor(status)
+                                )}
                                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
                               >
                                 <Truck className="w-5 h-5 fill-current" />
-                              </motion.div>
+                                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-surface-container-highest text-on-surface text-[10px] font-bold px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-outline-variant">
+                                  Ver Histórico
+                                </div>
+                              </motion.button>
                             )}
                           </div>
                         );
@@ -1160,6 +1171,103 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
                     {savingLoadType ? 'Salvando...' : 'Salvar'}
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Detalhes (Histórico) */}
+      <AnimatePresence>
+        {detailsModal.isOpen && detailsModal.receipt && (
+          <div 
+            className="fixed inset-0 z-[140] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setDetailsModal({ isOpen: false, receipt: null })}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-surface-container-high w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-outline-variant"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-outline-variant/30 flex items-center justify-between bg-primary/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                    <Truck className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-headline font-bold text-on-surface uppercase tracking-tight">Histórico da Carga</h3>
+                    <p className="text-[10px] font-bold text-on-surface-variant/70 uppercase">ID: {detailsModal.receipt.load_id}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setDetailsModal({ isOpen: false, receipt: null })}
+                  className="p-2 hover:bg-surface-container-highest rounded-full transition-colors text-on-surface-variant"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-8">
+                <div className="space-y-8 relative before:absolute before:left-[15px] before:top-2 before:bottom-2 before:w-[2px] before:bg-outline-variant/30">
+                  {STATUS_OPTIONS.map((status) => {
+                    const history = detailsModal.receipt?.status_history?.[status];
+                    const isReached = !!history;
+                    
+                    return (
+                      <div key={status} className="relative flex gap-6 items-start group">
+                        <div className={cn(
+                          "z-10 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-500 shadow-sm",
+                          isReached 
+                            ? cn("border-transparent text-white", getStatusBg(status))
+                            : "bg-surface border-outline-variant text-outline-variant"
+                        )}>
+                          {isReached ? <CheckCircle2 className="w-5 h-5" /> : <div className="w-2 h-2 rounded-full bg-current" />}
+                        </div>
+                        
+                        <div className="flex-1 pt-0.5">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className={cn(
+                              "text-sm font-black uppercase tracking-tight",
+                              isReached ? getStatusColor(status) : "text-on-surface-variant/40"
+                            )}>
+                              {status}
+                            </h4>
+                            {isReached && (
+                              <span className="text-[10px] font-bold text-on-surface-variant/50 bg-surface-container-highest px-2 py-0.5 rounded-full">
+                                Concluído
+                              </span>
+                            )}
+                          </div>
+                          
+                          {isReached ? (
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold text-on-surface">
+                                Atualizado por: <span className="text-primary">{history.by}</span>
+                              </p>
+                              <div className="flex items-center gap-1.5 text-[10px] font-medium text-on-surface-variant/60">
+                                <Clock className="w-3 h-3" />
+                                <span>{new Date(history.at).toLocaleString('pt-BR')}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs font-medium text-on-surface-variant/30 italic">Aguardando esta etapa...</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="p-6 px-8 bg-surface-container-highest/20 border-t border-outline-variant/30">
+                <button 
+                  onClick={() => setDetailsModal({ isOpen: false, receipt: null })}
+                  className="w-full py-4 rounded-2xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                >
+                  FECHAR
+                </button>
               </div>
             </motion.div>
           </div>
