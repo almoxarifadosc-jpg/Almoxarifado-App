@@ -291,6 +291,8 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
           { 
             ...formData, 
             load_id,
+            invoice_number: formData.invoices[0] || 'S/N',
+            supplier_type: 'Externo', // Default value to satisfy DB constraint
             invoice_count: formData.invoices.length,
             status: 'Pendente', 
             author_id: currentUserId,
