@@ -231,7 +231,13 @@ export function SeparationDashboardView() {
                     <span className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 block mb-1">Data Upload</span>
                     <div className="flex items-center gap-1.5 text-on-surface">
                       <Calendar className="w-3 h-3 text-primary" />
-                      <span className="text-xs font-bold">{new Date(order.date || order.created_at).toLocaleDateString('pt-BR')}</span>
+                      <span className="text-xs font-bold">
+                        {(() => {
+                          const dateToParse = order.date || order.created_at;
+                          const [y, m, d] = dateToParse.split('T')[0].split('-').map(Number);
+                          return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+                        })()}
+                      </span>
                     </div>
                   </div>
                 </div>

@@ -373,9 +373,12 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
         quantity: 0 // Incializa quantidades como vazias (zero) para edição posterior
       })) || [];
 
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
       const { error: dbError } = await supabase.from('purchase_orders').insert([{
         ...extractedData,
-        date: new Date().toISOString(), // Usar a data de upload conforme solicitado
+        date: dateStr, // Salva yyyy-mm-dd local
         items: finalItems,
         pdf_url: publicUrl,
         status: 'Pendente'
@@ -554,7 +557,10 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Data</h4>
                     <p className="text-sm font-bold text-on-surface flex items-center gap-2">
                        <Calendar className="w-3.5 h-3.5 opacity-40" />
-                       {new Date(order.date).toLocaleDateString('pt-BR')}
+                       {(() => {
+                         const [y, m, d] = order.date.split('T')[0].split('-').map(Number);
+                         return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+                       })()}
                     </p>
                   </div>
                   <div>

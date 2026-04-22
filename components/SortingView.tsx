@@ -632,7 +632,12 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                   </div>
                   <div>
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 mb-1">Data</h4>
-                    <p className="text-sm font-bold text-on-surface">{new Date(order.date).toLocaleDateString('pt-BR')}</p>
+                    <p className="text-sm font-bold text-on-surface">
+                      {(() => {
+                        const [y, m, d] = order.date.split('T')[0].split('-').map(Number);
+                        return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+                      })()}
+                    </p>
                   </div>
                 </div>
 
