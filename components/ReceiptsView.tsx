@@ -31,13 +31,20 @@ interface Receipt {
   invoices: string[];
   invoice_count: number;
   driver: string;
-  supplier_type: 'Intercompany' | 'Externo';
   supplier_name: string;
+  load_type?: string;
+  load_type_color?: string;
   status: 'Pendente' | 'Enviado' | 'Recebido';
   observation?: string;
   image_url?: string;
   created_at: string;
   updated_by_name?: string;
+}
+
+interface LoadType {
+  id: string;
+  name: string;
+  color?: string;
 }
 
 interface Supplier {
@@ -49,6 +56,7 @@ interface Supplier {
 
 interface ReceiptsViewProps {
   isAdmin?: boolean;
+  isSuperAdmin?: boolean;
   userName?: string;
 }
 
@@ -60,11 +68,16 @@ const SUPPLIER_EXAMPLES = [
 
 const STATUS_OPTIONS = ['Pendente', 'Enviado', 'Recebido'] as const;
 
-export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
+export function ReceiptsView({ isAdmin, isSuperAdmin, userName }: ReceiptsViewProps) {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [dbSuppliers, setDbSuppliers] = useState<Supplier[]>([]);
+  const [loadTypes, setLoadTypes] = useState<LoadType[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoadTypeModalOpen, setIsLoadTypeModalOpen] = useState(false);
+  const [newLoadType, setNewLoadType] = useState('');
+  const [newLoadTypeColor, setNewLoadTypeColor] = useState('#3b82f6');
+  const [savingLoadType, setSavingLoadType] = useState(false);
   const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
   const [isInvoiceListOpen, setIsInvoiceListOpen] = useState(false);
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
@@ -87,8 +100,9 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
   const [formData, setFormData] = useState({
     invoices: [] as string[],
     driver: '',
-    supplier_type: 'Intercompany' as 'Intercompany' | 'Externo',
     supplier_name: '',
+    load_type: '',
+    load_type_color: '',
     observation: '',
     image_url: ''
   });
@@ -159,9 +173,35 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
     if (data) setDbSuppliers(data);
   };
 
+  const fetchLoadTypes = async () => {
+    const { data } = await supabase.from('load_types').select('*').order('name');
+    if (data) setLoadTypes(data);
+  };
+
+  const saveLoadType = async () => {
+    if (!newLoadType.trim()) return;
+    setSavingLoadType(true);
+    try {
+      const { error } = await supabase.from('load_types').insert([{ 
+        name: newLoadType.trim(),
+        color: newLoadTypeColor 
+      }]);
+      if (error) throw error;
+      setNewLoadType('');
+      setNewLoadTypeColor('#3b82f6');
+      setIsLoadTypeModalOpen(false);
+      fetchLoadTypes();
+    } catch (err: any) {
+      alert('Erro ao salvar tipo de carga: ' + err.message);
+    } finally {
+      setSavingLoadType(false);
+    }
+  };
+
   useEffect(() => {
     fetchReceipts();
     fetchSuppliers();
+    fetchLoadTypes();
 
     const channel = supabase
       .channel('receipts-realtime')
@@ -181,8 +221,9 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
       setFormData({
         invoices: receipt.invoices || [],
         driver: receipt.driver || '',
-        supplier_type: receipt.supplier_type as any,
         supplier_name: receipt.supplier_name,
+        load_type: receipt.load_type || '',
+        load_type_color: receipt.load_type_color || '',
         observation: receipt.observation || '',
         image_url: receipt.image_url || ''
       });
@@ -191,8 +232,9 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
       setFormData({
         invoices: [],
         driver: '',
-        supplier_type: 'Intercompany',
         supplier_name: '',
+        load_type: '',
+        load_type_color: '',
         observation: '',
         image_url: ''
       });
@@ -207,6 +249,19 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
     setFormError(null);
     
     try {
+      if (formData.invoices.length === 0) {
+        throw new Error('Adicione pelo menos uma Nota Fiscal.');
+      }
+      if (!formData.load_type) {
+        throw new Error('Selecione o Tipo de Carga.');
+      }
+      if (!formData.driver) {
+        throw new Error('Selecione um Motorista.');
+      }
+      if (!formData.supplier_name) {
+        throw new Error('Selecione um Fornecedor.');
+      }
+
       let error;
 
       if (editingReceipt) {
@@ -248,8 +303,9 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
       setFormData({
         invoices: [],
         driver: '',
-        supplier_type: 'Intercompany',
         supplier_name: '',
+        load_type: '',
+        load_type_color: '',
         observation: '',
         image_url: ''
       });
@@ -297,7 +353,6 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
     const matchesText = (r.load_id || '').toLowerCase().includes(filterText.toLowerCase()) || 
                        r.supplier_name.toLowerCase().includes(filterText.toLowerCase()) ||
                        (r.driver || '').toLowerCase().includes(filterText.toLowerCase());
-    const matchesType = typeFilter === 'All' || r.supplier_type === typeFilter;
     
     const receiptDate = new Date(r.created_at);
     const start = new Date(startDate);
@@ -307,7 +362,7 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
     
     const matchesDate = receiptDate >= start && receiptDate <= end;
     
-    return matchesText && matchesType && matchesDate;
+    return matchesText && matchesDate;
   });
 
   const drivers = useMemo(() => dbSuppliers.filter(s => !!s.is_driver), [dbSuppliers]);
@@ -355,7 +410,7 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div>
             <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">Cargas</h2>
-            <p className="text-on-surface-variant mt-1 font-medium">Controle de entradas de cargas Intercompany e Externas.</p>
+            <p className="text-on-surface-variant mt-1 font-medium">Controle de entradas de cargas Intercompany.</p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <div className="flex flex-wrap items-center gap-2 bg-surface-container-low p-1.5 rounded-2xl border border-outline-variant/10">
@@ -385,16 +440,6 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                   className="bg-transparent text-xs font-bold text-on-surface outline-none"
                 />
               </div>
-
-              <select 
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as any)}
-                className="bg-surface-container-high text-on-surface-variant text-[10px] font-bold uppercase tracking-wider px-3 py-2 rounded-xl border-0 outline-none cursor-pointer"
-              >
-                <option value="All">Todos</option>
-                <option value="Intercompany">Intercompany</option>
-                <option value="Externo">Externo</option>
-              </select>
             </div>
             <button 
               onClick={() => handleOpenModal()}
@@ -450,8 +495,15 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
               layout
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="glass-card rounded-2xl border border-outline-variant/10 shadow-sm overflow-hidden flex flex-col md:flex-row items-stretch"
+              className="glass-card rounded-2xl border border-outline-variant/10 shadow-sm overflow-hidden flex flex-col md:flex-row items-stretch relative"
             >
+              {/* Load Type Visual Signal */}
+              {receipt.load_type_color && (
+                <div 
+                  className="absolute left-0 top-0 bottom-0 w-1.5 z-10" 
+                  style={{ backgroundColor: receipt.load_type_color }}
+                />
+              )}
               <div className="flex-1 flex flex-col">
                 {/* Status Bar at the Top */}
                 <div className="px-6 pt-10 pb-4 bg-surface-container-low/30 border-b border-outline-variant/5 relative">
@@ -510,28 +562,19 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
 
                 <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0",
-                      receipt.supplier_type === 'Intercompany' ? "bg-primary/10 text-primary" : "bg-tertiary/10 text-tertiary"
-                    )}>
-                      {receipt.supplier_type === 'Intercompany' ? <Building2 className="w-6 h-6" /> : <Package className="w-6 h-6" />}
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 bg-primary/10 text-primary">
+                      <Building2 className="w-6 h-6" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h4 className="font-headline font-bold text-on-surface text-lg leading-tight">Carga #{receipt.load_id}</h4>
-                        <span className={cn(
-                          "px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-widest",
-                          receipt.supplier_type === 'Intercompany' ? "bg-primary/10 text-primary" : "bg-tertiary/10 text-tertiary"
-                        )}>
-                          {receipt.supplier_type}
-                        </span>
                       </div>
                       <div className="flex flex-col gap-0.5 mt-1">
                         <div className="flex items-center gap-2 text-on-surface-variant">
                           <Truck className="w-3 h-3 opacity-40" />
                           <span className="text-sm font-bold">Motorista: {receipt.driver}</span>
                         </div>
-                    <div className="flex flex-center gap-2 text-on-surface-variant">
+                        <div className="flex flex-center gap-2 text-on-surface-variant">
                           <Package className="w-3 h-3 opacity-40" />
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{receipt.invoice_count} Notas Fiscais</span>
@@ -549,6 +592,20 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                             )}
                           </div>
                         </div>
+                        {receipt.load_type && (
+                          <div className="flex items-center gap-2 text-on-surface-variant">
+                            <Filter className="w-3 h-3 opacity-40" />
+                            <span className="text-sm font-bold flex items-center gap-2">
+                              Tipo: 
+                              <span 
+                                className="px-2 py-0.5 rounded text-[10px] text-white font-black uppercase tracking-widest"
+                                style={{ backgroundColor: receipt.load_type_color || '#3b82f6' }}
+                              >
+                                {receipt.load_type}
+                              </span>
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 text-on-surface-variant">
                           <Building2 className="w-3 h-3 opacity-40" />
                           <span className="text-sm font-bold">{receipt.supplier_name}</span>
@@ -666,7 +723,7 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                 )}
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Motorista</label>
+                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Motorista *</label>
                     <select 
                       required
                       className="w-full bg-surface-container-low text-on-surface border-0 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer" 
@@ -685,7 +742,7 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Adicionar Notas Fiscais</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Adicionar Notas Fiscais *</label>
                   <div className="flex gap-2">
                     <input 
                       type="text"
@@ -722,34 +779,55 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Tipo</label>
-                    <select 
-                      className="w-full bg-surface-container-low text-on-surface border-0 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer" 
-                      value={formData.supplier_type}
-                      onChange={(e) => setFormData({ ...formData, supplier_type: e.target.value as any })}
-                    >
-                      <option value="Intercompany">Intercompany</option>
-                      <option value="Externo">Externo</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Fornecedor</label>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Fornecedor *</label>
+                  <select 
+                    required
+                    className="w-full bg-surface-container-low text-on-surface border-0 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer" 
+                    value={formData.supplier_name}
+                    onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
+                  >
+                    <option value="" disabled>Selecione um fornecedor</option>
+                    {suppliersOnly.map(s => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
+                    {!suppliersOnly.length && SUPPLIER_EXAMPLES.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant px-1">Tipo de Carga *</label>
+                  <div className="flex gap-2">
                     <select 
                       required
-                      className="w-full bg-surface-container-low text-on-surface border-0 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer" 
-                      value={formData.supplier_name}
-                      onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
+                      className="flex-1 bg-surface-container-low text-on-surface border-0 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer" 
+                      value={formData.load_type}
+                      onChange={(e) => {
+                        const selectedType = loadTypes.find(lt => lt.name === e.target.value);
+                        setFormData({ 
+                          ...formData, 
+                          load_type: e.target.value,
+                          load_type_color: selectedType?.color || '#3b82f6'
+                        });
+                      }}
                     >
-                      <option value="" disabled>Selecione um fornecedor</option>
-                      {suppliersOnly.map(s => (
-                        <option key={s.id} value={s.name}>{s.name}</option>
-                      ))}
-                      {!suppliersOnly.length && SUPPLIER_EXAMPLES.map(s => (
-                        <option key={s} value={s}>{s}</option>
+                      <option value="" disabled>Selecione o tipo de carga</option>
+                      {loadTypes.map(lt => (
+                        <option key={lt.id} value={lt.name}>{lt.name}</option>
                       ))}
                     </select>
+                    {isSuperAdmin && (
+                      <button 
+                        type="button"
+                        onClick={() => setIsLoadTypeModalOpen(true)}
+                        className="w-12 h-12 flex items-center justify-center bg-surface-container-high text-primary rounded-2xl border border-outline-variant/10 hover:bg-primary/10 transition-colors"
+                        title="Adicionar Novo Tipo de Carga"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -924,6 +1002,80 @@ export function ReceiptsView({ isAdmin, userName }: ReceiptsViewProps) {
                 >
                   Excluir
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* New Load Type Modal */}
+      <AnimatePresence>
+        {isLoadTypeModalOpen && (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface-container-lowest p-8 rounded-3xl shadow-2xl w-full max-w-sm border border-outline-variant/10 relative"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                  <Plus className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-headline font-bold text-on-surface">Novo Tipo de Carga</h3>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 px-1">Nome do Tipo</label>
+                  <input 
+                    type="text"
+                    value={newLoadType}
+                    onChange={(e) => setNewLoadType(e.target.value)}
+                    className="w-full bg-surface-container-low border-0 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-sm"
+                    placeholder="Ex: Refugo, Devolução..."
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 px-1">Cor de Sinalização</label>
+                  <div className="flex flex-wrap gap-2 bg-surface-container-low p-3 rounded-xl border border-outline-variant/10">
+                    {['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'].map(color => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setNewLoadTypeColor(color)}
+                        className={cn(
+                          "w-8 h-8 rounded-full border-2 transition-all",
+                          newLoadTypeColor === color ? "border-white scale-110 shadow-lg" : "border-transparent opacity-50 hover:opacity-100"
+                        )}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                    <input 
+                      type="color"
+                      value={newLoadTypeColor}
+                      onChange={(e) => setNewLoadTypeColor(e.target.value)}
+                      className="w-8 h-8 rounded-full overflow-hidden border-0 p-0 bg-transparent cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    onClick={() => setIsLoadTypeModalOpen(false)}
+                    className="flex-1 py-3 rounded-xl border border-outline-variant font-bold text-sm hover:bg-surface-container-low transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={saveLoadType}
+                    disabled={savingLoadType || !newLoadType.trim()}
+                    className="flex-1 py-3 rounded-xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/20 hover:opacity-90 transition-all disabled:opacity-50"
+                  >
+                    {savingLoadType ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

@@ -574,7 +574,12 @@ export default function Page() {
               <DashboardView key="dashboard" operations={operations} />
             )}
             {currentView === 'RECEIPTS' && !currentUser?.is_viewer && (
-              <ReceiptsView key="receipts" isAdmin={currentUser?.is_admin} userName={currentUser?.name} />
+              <ReceiptsView 
+                key="receipts" 
+                isAdmin={currentUser?.is_admin} 
+                isSuperAdmin={currentUser?.is_super_admin}
+                userName={currentUser?.name} 
+              />
             )}
             {currentView === 'RECEIPTS_DASHBOARD' && !currentUser?.is_viewer && (
               <ReceiptsDashboardView key="receipts-dashboard" />
