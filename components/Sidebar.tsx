@@ -43,6 +43,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
         { id: 'DASHBOARD' as View, label: 'Dashboard', icon: LayoutDashboard },
         { id: 'LAUNCH' as View, label: 'Portal', icon: Rocket },
       ].filter(item => {
+        if (category === 'Recebimento') return false;
         if (category === 'Bemplas') return false;
         if (isViewer && (item.id === 'OPERATIONS' || item.id === 'LAUNCH')) return false;
         return true;
@@ -58,7 +59,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
     },
     {
       title: 'Em desenvolvimento',
-      items: isAdmin ? [
+      items: (isAdmin && category !== 'Recebimento') ? [
         { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText },
         { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
         { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 },
@@ -66,7 +67,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
     },
     {
       title: 'Admin',
-      items: isAdmin && category !== 'Bemplas' ? [
+      items: isAdmin && category !== 'Bemplas' && category !== 'Recebimento' ? [
         { id: 'ADMIN_PANEL' as View, label: 'Admin', icon: ShieldCheck }
       ] : []
     }

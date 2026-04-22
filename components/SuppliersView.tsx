@@ -29,7 +29,11 @@ interface Supplier {
   created_at: string;
 }
 
-export function SuppliersView() {
+interface SuppliersViewProps {
+  isAdmin?: boolean;
+}
+
+export function SuppliersView({ isAdmin }: SuppliersViewProps) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -202,13 +206,15 @@ export function SuppliersView() {
               />
               <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />
             </div>
-            <button 
-              onClick={() => handleOpenModal()}
-              className="px-6 py-3 rounded-xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              Novo Fornecedor
-            </button>
+            {isAdmin && (
+              <button 
+                onClick={() => handleOpenModal()}
+                className="px-6 py-3 rounded-xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Novo Fornecedor
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -248,23 +254,25 @@ export function SuppliersView() {
                     </span>
                   )}
                 </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={() => handleOpenModal(supplier)}
-                    className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant transition-colors"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setSupplierToDelete(supplier.id);
-                      setIsDeleteModalOpen(true);
-                    }}
-                    className="p-2 hover:bg-error/10 rounded-lg text-error transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => handleOpenModal(supplier)}
+                      className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant transition-colors"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setSupplierToDelete(supplier.id);
+                        setIsDeleteModalOpen(true);
+                      }}
+                      className="p-2 hover:bg-error/10 rounded-lg text-error transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">

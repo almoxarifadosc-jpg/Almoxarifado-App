@@ -172,6 +172,8 @@ export default function Page() {
       setCurrentUser(profile);
       if (profile.is_viewer) {
         setCurrentView('ANALYTICS');
+      } else if (profile.category === 'Recebimento') {
+        setCurrentView('RECEIPTS');
       }
     } else {
       setCurrentUser(null);
@@ -578,7 +580,7 @@ export default function Page() {
               <ReceiptsDashboardView key="receipts-dashboard" />
             )}
             {currentView === 'SUPPLIERS' && !currentUser?.is_viewer && (
-              <SuppliersView key="suppliers" />
+              <SuppliersView key="suppliers" isAdmin={currentUser?.is_admin} />
             )}
             {currentView === 'ORDERS' && currentUser?.is_admin && (
               <PurchaseOrdersView 
