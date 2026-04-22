@@ -87,12 +87,10 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
   const [observationModal, setObservationModal] = useState<{ isOpen: boolean; text: string }>({ isOpen: false, text: '' });
   const [filterText, setFilterText] = useState('');
   const [startDate, setStartDate] = useState<string>(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    return new Date().toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState<string>(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    return new Date().toISOString().split('T')[0];
   });
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -372,10 +370,13 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
     const matchesLoadType = !selectedLoadType || r.load_type === selectedLoadType;
     
     const receiptDate = new Date(r.created_at);
-    const start = new Date(startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
+    
+    // Parse dates manually to avoid timezone shifts
+    const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
+    const start = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
+    
+    const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
+    const end = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
     
     const matchesDate = receiptDate >= start && receiptDate <= end;
     
