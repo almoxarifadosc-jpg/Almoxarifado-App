@@ -6,8 +6,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 export const isSupabaseConfigured = Boolean(
   supabaseUrl && 
   supabaseAnonKey && 
-  supabaseUrl.startsWith('https://') &&
-  supabaseUrl.includes('.supabase.co')
+  supabaseUrl.startsWith('https://')
 );
 
 // Valid-looking dummy values to satisfy the library's internal validation during build/init

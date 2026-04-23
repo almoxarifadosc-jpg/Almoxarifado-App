@@ -189,12 +189,13 @@ export default function Page() {
   }, []);
 
   const checkUser = useCallback(async () => {
+    console.log('Executando checkUser...');
     try {
       // Get the current session
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (error) {
-        console.warn('Auth session error:', error.message);
+        console.warn('Erro na sessão de autenticação:', error.message);
         // Se o token for inválido ou não encontrado, limpamos a sessão localmente
         if (
           error.message.toLowerCase().includes('refresh_token') || 
@@ -205,18 +206,21 @@ export default function Page() {
           await supabase.auth.signOut({ scope: 'local' });
           setCurrentUser(null);
         }
-        setLoading(false);
         return;
       }
 
       if (session?.user) {
+        console.log('Sessão encontrada para:', session.user.email);
         await fetchProfile(session.user.id);
       } else {
+        console.log('Nenhuma sessão encontrada no getSession.');
         setCurrentUser(null);
-        setLoading(false);
       }
     } catch (err: any) {
-      console.error('Auth check error:', err.message);
+      console.error('Falha crítica no checkUser:', err.message);
+    } finally {
+      // Garantimos que o loading pare aqui se não houver um fetchProfile em andamento
+      // Se houver fetchProfile, ele mesmo chamará setLoading(false) ao terminar
       setLoading(false);
     }
   }, [fetchProfile]);
@@ -291,34 +295,52 @@ export default function Page() {
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      console.log('Supabase não configurado, exibindo tela de setup.');
       setLoading(false);
       return;
     }
 
+    console.log('Iniciando verificação de usuário...');
     checkUser();
     
     // Escuta mudanças no estado de autenticação
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
-      console.log('Auth Event:', event);
+      console.log('Evento de Autenticação:', event);
       
       if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         setCurrentUser(null);
         setLoading(false);
       } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
+          console.log('Usuário autenticado:', session.user.email);
           await fetchProfile(session.user.id);
         } else {
+          console.log('Nenhuma sessão ativa encontrada.');
           setCurrentUser(null);
           setLoading(false);
         }
-      } else if (event === 'PASSWORD_RECOVERY') {
-        // Opcional: tratar recuperação de senha
+      } else {
+        // Para qualquer outro evento, garantimos que o loading pare se já estivermos esperando
+        setLoading(false);
       }
     });
 
+    // Tempo limite de segurança: se após 10 segundos ainda estiver carregando, forçamos a tela de login
+    const timeout = setTimeout(() => {
+      setLoading(current => {
+        if (current) {
+          console.warn('Tempo limite de carregamento atingido. Forçando encerramento do spinner.');
+          return false;
+        }
+        return current;
+      });
+    }, 10000);
+
     return () => {
-      authListener.subscription.unsubscribe();
+      if (authListener?.subscription) {
+        authListener.subscription.unsubscribe();
+      }
+      clearTimeout(timeout);
     };
   }, [checkUser, fetchProfile]);
 
