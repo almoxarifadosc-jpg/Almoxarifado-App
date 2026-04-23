@@ -151,6 +151,14 @@ export default function Page() {
     }
   };
 
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const addLog = useCallback((msg: string) => {
+    console.log(`[DEBUG] ${msg}`);
+    setDebugLog(prev => [...prev.slice(-4), msg]);
+  }, []);
+
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+
   const fetchProfile = useCallback(async (userId: string) => {
     const urlMask = process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 15) || 'URL AUSENTE';
     addLog(`Conectando em: ${urlMask}...`);
@@ -177,7 +185,7 @@ export default function Page() {
       
       if (error) {
         addLog(`Erro da API (${duration}s): ${error.message}`);
-        setLoading(false);
+        // Não chamamos setLoading(false) aqui para o diagnóstico não sumir se houver erro
         return;
       }
 
@@ -190,22 +198,25 @@ export default function Page() {
           }
           setCurrentUser(profile);
           addLog('Acesso liberado.');
+          // Sucesso! Remove o loading
+          setLoading(false);
         } else {
           addLog('Cadastro Pendente.');
           setCurrentUser(null);
+          setLoading(false);
         }
       } else {
         addLog(`Aviso (${duration}s): Registro não encontrado.`);
         setCurrentUser(null);
+        setLoading(false);
       }
     } catch (err: any) {
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       addLog(`Falha Crítica (${duration}s): ${err.message}`);
       console.error('Falha no fetchProfile:', err);
-    } finally {
-      setLoading(false);
+      // Mantém o loading+diagnóstico se for erro crítico de rede
     }
-  }, []);
+  }, [addLog]);
 
   const checkUser = useCallback(async () => {
     console.log('Executando checkUser...');
@@ -237,11 +248,8 @@ export default function Page() {
       }
     } catch (err: any) {
       console.error('Falha crítica no checkUser:', err.message);
-    } finally {
-      // Garantimos que o loading pare aqui se não houver um fetchProfile em andamento
-      // Se houver fetchProfile, ele mesmo chamará setLoading(false) ao terminar
-      setLoading(false);
     }
+    // Removido o setLoading(false) daqui para que o fetchProfile ou timeout controlem o encerramento
   }, [fetchProfile]);
 
   const fetchData = useCallback(async () => {
@@ -315,15 +323,7 @@ export default function Page() {
     } catch (err: any) {
       console.error('Error fetching data:', err.message);
     }
-  }, []);
-
-  const [debugLog, setDebugLog] = useState<string[]>([]);
-  const addLog = (msg: string) => {
-    console.log(`[DEBUG] ${msg}`);
-    setDebugLog(prev => [...prev.slice(-4), msg]);
-  };
-
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  }, [addLog]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
