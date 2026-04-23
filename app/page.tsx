@@ -151,72 +151,35 @@ export default function Page() {
     }
   };
 
-  const [debugLog, setDebugLog] = useState<string[]>([]);
-  const addLog = useCallback((msg: string) => {
-    console.log(`[DEBUG] ${msg}`);
-    setDebugLog(prev => [...prev.slice(-4), msg]);
-  }, []);
-
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
-
   const fetchProfile = useCallback(async (userId: string) => {
-    const urlMask = process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 15) || 'URL AUSENTE';
-    addLog(`Conectando em: ${urlMask}...`);
-    const startTime = Date.now();
-    
     try {
-      addLog('Enviando query via SDK...');
-      
-      // Criamos uma promessa para a query do Supabase
-      const queryPromise = supabase
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      // Corremos contra um timeout de 8 segundos
-      const result = await Promise.race([
-        queryPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('API Inacessível (Timeout 8s)')), 8000))
-      ]) as any;
-
-      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-      const { data: profile, error } = result;
-      
       if (error) {
-        addLog(`Erro da API (${duration}s): ${error.message}`);
-        // Não chamamos setLoading(false) aqui para o diagnóstico não sumir se houver erro
+        console.error('Error fetching profile:', error);
+        setLoading(false);
         return;
       }
 
-      if (profile) {
-        addLog(`Perfil OK (${duration}s): ${profile.status}`);
-        if (profile.status === 'APPROVED') {
-          if (profile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
-            profile.is_super_admin = true;
-            profile.is_admin = true;
-          }
-          setCurrentUser(profile);
-          addLog('Acesso liberado.');
-          // Sucesso! Remove o loading
-          setLoading(false);
-        } else {
-          addLog('Cadastro Pendente.');
-          setCurrentUser(null);
-          setLoading(false);
+      if (profile && profile.status === 'APPROVED') {
+        if (profile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
+          profile.is_super_admin = true;
+          profile.is_admin = true;
         }
+        setCurrentUser(profile);
       } else {
-        addLog(`Aviso (${duration}s): Registro não encontrado.`);
         setCurrentUser(null);
-        setLoading(false);
       }
     } catch (err: any) {
-      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-      addLog(`Falha Crítica (${duration}s): ${err.message}`);
       console.error('Falha no fetchProfile:', err);
-      // Mantém o loading+diagnóstico se for erro crítico de rede
+    } finally {
+      setLoading(false);
     }
-  }, [addLog]);
+  }, []);
 
   const checkUser = useCallback(async () => {
     console.log('Executando checkUser...');
@@ -248,12 +211,12 @@ export default function Page() {
       }
     } catch (err: any) {
       console.error('Falha crítica no checkUser:', err.message);
+    } finally {
+      setLoading(false);
     }
-    // Removido o setLoading(false) daqui para que o fetchProfile ou timeout controlem o encerramento
   }, [fetchProfile]);
 
   const fetchData = useCallback(async () => {
-    addLog('Carregando dados das tabelas...');
     try {
       const [opsRes, newsRes, linesRes, settingsRes] = await Promise.all([
         supabase.from('operations').select('*').order('created_at', { ascending: false }),
@@ -262,18 +225,13 @@ export default function Page() {
         supabase.from('settings').select('*').eq('key', 'company_logo').single()
       ]);
 
-      if (opsRes.error) addLog(`Erro OPs: ${opsRes.error.message}`);
-      if (newsRes.error) addLog(`Erro News: ${newsRes.error.message}`);
-
       if (opsRes.error && (opsRes.error.message.includes('JWT') || opsRes.error.message.includes('token'))) {
-        addLog('Token expirado no fetchData.');
         await supabase.auth.signOut({ scope: 'local' });
         setCurrentUser(null);
         return;
       }
 
       if (opsRes.data) {
-        addLog(`OPs carregadas: ${opsRes.data.length}`);
         const mappedOps = opsRes.data.map((op: any) => ({
           ...op,
           iconType: op.icon_type,
@@ -323,31 +281,25 @@ export default function Page() {
     } catch (err: any) {
       console.error('Error fetching data:', err.message);
     }
-  }, [addLog]);
+  }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      addLog('Supabase não configurado.');
       setLoading(false);
       return;
     }
 
-    addLog('Iniciando verificação...');
     checkUser();
     
     // Escuta mudanças no estado de autenticação
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
-      addLog(`Evento de Autenticação: ${event}`);
-      
       if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         setCurrentUser(null);
         setLoading(false);
       } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
-          addLog(`Sessão ativa para ${session.user.email}`);
           await fetchProfile(session.user.id);
         } else {
-          addLog('Sem sessão ativa.');
           setCurrentUser(null);
           setLoading(false);
         }
@@ -356,28 +308,10 @@ export default function Page() {
       }
     });
 
-    // Diagnóstico visual se demorar muito
-    const debugTimer = setTimeout(() => {
-      setShowDebugPanel(true);
-    }, 4000);
-
-    // Tempo limite de segurança
-    const timeout = setTimeout(() => {
-      setLoading(current => {
-        if (current) {
-          addLog('Timeout atingido. Forçando display.');
-          return false;
-        }
-        return current;
-      });
-    }, 12000);
-
     return () => {
       if (authListener?.subscription) {
         authListener.subscription.unsubscribe();
       }
-      clearTimeout(timeout);
-      clearTimeout(debugTimer);
     };
   }, [checkUser, fetchProfile]);
 
@@ -579,31 +513,7 @@ export default function Page() {
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-surface-container-lowest p-6">
-        <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
-        
-        {showDebugPanel && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="w-full max-w-sm bg-surface-container p-4 rounded-2xl border border-outline-variant/20 shadow-lg text-center"
-          >
-            <h3 className="text-sm font-black mb-2 flex items-center justify-center gap-2">
-              DIAGNÓSTICO DO SISTEMA
-            </h3>
-            <div className="text-[10px] font-mono text-on-surface-variant bg-black/5 p-2 rounded-lg text-left space-y-1 mb-4 h-24 overflow-auto">
-              {debugLog.map((log, i) => <div key={i}>{`> ${log}`}</div>)}
-            </div>
-            <button 
-              onClick={() => setLoading(false)}
-              className="w-full py-2 bg-primary text-white text-xs font-bold rounded-xl active:scale-95 transition-transform"
-            >
-              Ignorar e Continuar
-            </button>
-            <p className="text-[8px] mt-4 opacity-40">
-              Verifique sua conexão e se o Supabase está respondendo.
-            </p>
-          </motion.div>
-        )}
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
       </div>
     );
   }
