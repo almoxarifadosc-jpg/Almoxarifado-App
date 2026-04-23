@@ -20,6 +20,7 @@ import {
   Package, 
   Clock, 
   CheckCircle2, 
+  AlertCircle,
   Calendar,
   Filter,
   TrendingUp,
@@ -34,7 +35,7 @@ interface Receipt {
   load_id: string;
   supplier_type: 'Intercompany' | 'Externo';
   supplier_name: string;
-  status: 'Pendente' | 'Enviado' | 'Recebido';
+  status: 'Pendente' | 'Enviado' | 'Recebido' | 'Divergente' | 'Concluído';
   created_at: string;
 }
 
@@ -85,6 +86,8 @@ export function ReceiptsDashboardView() {
       pendente: filteredData.filter(r => r.status === 'Pendente').length,
       enviado: filteredData.filter(r => r.status === 'Enviado').length,
       recebido: filteredData.filter(r => r.status === 'Recebido').length,
+      divergente: filteredData.filter(r => r.status === 'Divergente').length,
+      concluido: filteredData.filter(r => r.status === 'Concluído').length,
     };
   }, [filteredData]);
 
@@ -112,7 +115,7 @@ export function ReceiptsDashboardView() {
 
   const topSuppliers = useMemo(() => {
     const suppliers: Record<string, number> = {};
-    filteredData.filter(r => r.status === 'Recebido').forEach(r => {
+    filteredData.filter(r => r.status === 'Recebido' || r.status === 'Concluído').forEach(r => {
       suppliers[r.supplier_name] = (suppliers[r.supplier_name] || 0) + 1;
     });
 
@@ -164,12 +167,14 @@ export function ReceiptsDashboardView() {
       </header>
 
       {/* KPI Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
         {[
-          { label: 'Total de Cargas', value: kpis.total, icon: Package, color: 'text-primary', bg: 'bg-primary/10' },
+          { label: 'Total', value: kpis.total, icon: Package, color: 'text-primary', bg: 'bg-primary/10' },
           { label: 'Pendentes', value: kpis.pendente, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10' },
           { label: 'Enviados', value: kpis.enviado, icon: Truck, color: 'text-blue-500', bg: 'bg-blue-500/10' },
           { label: 'Recebidos', value: kpis.recebido, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { label: 'Divergentes', value: kpis.divergente, icon: AlertCircle, color: 'text-rose-500', bg: 'bg-rose-500/10' },
+          { label: 'Concluídos', value: kpis.concluido, icon: CheckCircle2, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-surface-container-lowest p-6 rounded-3xl border border-outline-variant/10 shadow-sm">
             <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center mb-4", kpi.bg, kpi.color)}>
