@@ -208,8 +208,16 @@ export function OperationsView({
     return `${year}-${month}-${day}`;
   };
 
-  const [startDate, setStartDate] = useState(formatToISODate(new Date()));
-  const [endDate, setEndDate] = useState(formatToISODate(new Date()));
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return formatToISODate(d);
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return formatToISODate(d);
+  });
   const [filterOP, setFilterOP] = useState('');
 
   const parseDate = (dateStr: string) => {
