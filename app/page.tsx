@@ -291,16 +291,10 @@ export default function Page() {
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }
-
-    // Safety timeout: forçar saída do carregamento após 5 segundos se nada acontecer
-    // Útil para mobile/Android onde o getSession pode travar em redes instáveis
-    const safetyTimer = setTimeout(() => {
-      console.log('Safety timeout triggered: forcing loading to false');
-      setLoading(false);
-    }, 4500);
 
     checkUser();
     
@@ -311,7 +305,6 @@ export default function Page() {
       if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         setCurrentUser(null);
         setLoading(false);
-        clearTimeout(safetyTimer);
       } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
           await fetchProfile(session.user.id);
@@ -319,16 +312,12 @@ export default function Page() {
           setCurrentUser(null);
           setLoading(false);
         }
-        clearTimeout(safetyTimer);
-      } else {
-        // Para qualquer outro evento (como PASSWORD_RECOVERY), garantimos que o loading pare
-        setLoading(false);
-        clearTimeout(safetyTimer);
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // Opcional: tratar recuperação de senha
       }
     });
 
     return () => {
-      clearTimeout(safetyTimer);
       authListener.subscription.unsubscribe();
     };
   }, [checkUser, fetchProfile]);

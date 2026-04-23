@@ -22,16 +22,7 @@ export const supabase = new Proxy({} as any, {
       try {
         client = createClient(
           supabaseUrl || DUMMY_URL,
-          supabaseAnonKey || DUMMY_KEY,
-          {
-            auth: {
-              persistSession: true,
-              autoRefreshToken: true,
-              detectSessionInUrl: true,
-              // Desabilita as travas de storage que costumam dar erro no mobile
-              storageKey: 'sb-auth-token-v2'
-            }
-          }
+          supabaseAnonKey || DUMMY_KEY
         );
       } catch (e) {
         console.warn('Supabase client initialization failed, using fallback.', e);
