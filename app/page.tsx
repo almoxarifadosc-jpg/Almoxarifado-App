@@ -152,40 +152,53 @@ export default function Page() {
   };
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-    
-    if (error) {
-      console.error('Error fetching profile:', error.message, error.details, error.hint);
-      // Se o erro for relacionado ao JWT (token expirado ou inválido), deslogamos
-      if (error.message.toLowerCase().includes('jwt') || error.message.toLowerCase().includes('token')) {
-        console.log('Token expirado detectado no fetchProfile, deslogando...');
-        await supabase.auth.signOut({ scope: 'local' });
+    addLog(`Buscando perfil para ID: ${userId}...`);
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (error) {
+        addLog(`Erro ao buscar perfil: ${error.message}`);
+        console.error('Error fetching profile:', error.message, error.details, error.hint);
+        if (error.message.toLowerCase().includes('jwt') || error.message.toLowerCase().includes('token')) {
+          await supabase.auth.signOut({ scope: 'local' });
+          setCurrentUser(null);
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (profile) {
+        addLog(`Perfil encontrado! Status: ${profile.status}`);
+        if (profile.status === 'APPROVED') {
+          if (profile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
+            profile.is_super_admin = true;
+            profile.is_admin = true;
+          }
+          setCurrentUser(profile);
+          if (profile.is_viewer) {
+            setCurrentView('ANALYTICS');
+          } else if (profile.category === 'Recebimento') {
+            setCurrentView('RECEIPTS');
+          }
+          addLog('Acesso autorizado.');
+        } else {
+          addLog('Perfil aguardando aprovação.');
+          setCurrentUser(null);
+        }
+      } else {
+        addLog('Perfil não encontrado no banco.');
         setCurrentUser(null);
       }
+    } catch (err: any) {
+      addLog(`Falha na API de perfil: ${err.message}`);
+    } finally {
       setLoading(false);
-      return;
+      addLog('Carregamento finalizado.');
     }
-
-    if (profile && profile.status === 'APPROVED') {
-      // Força Super Admin no frontend para o email mestre
-      if (profile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
-        profile.is_super_admin = true;
-        profile.is_admin = true;
-      }
-      setCurrentUser(profile);
-      if (profile.is_viewer) {
-        setCurrentView('ANALYTICS');
-      } else if (profile.category === 'Recebimento') {
-        setCurrentView('RECEIPTS');
-      }
-    } else {
-      setCurrentUser(null);
-    }
-    setLoading(false);
   }, []);
 
   const checkUser = useCallback(async () => {
@@ -226,6 +239,7 @@ export default function Page() {
   }, [fetchProfile]);
 
   const fetchData = useCallback(async () => {
+    addLog('Carregando dados das tabelas...');
     try {
       const [opsRes, newsRes, linesRes, settingsRes] = await Promise.all([
         supabase.from('operations').select('*').order('created_at', { ascending: false }),
@@ -234,14 +248,18 @@ export default function Page() {
         supabase.from('settings').select('*').eq('key', 'company_logo').single()
       ]);
 
+      if (opsRes.error) addLog(`Erro OPs: ${opsRes.error.message}`);
+      if (newsRes.error) addLog(`Erro News: ${newsRes.error.message}`);
+
       if (opsRes.error && (opsRes.error.message.includes('JWT') || opsRes.error.message.includes('token'))) {
-        console.log('JWT inválido detectado no fetchData, deslogando localmente...');
+        addLog('Token expirado no fetchData.');
         await supabase.auth.signOut({ scope: 'local' });
         setCurrentUser(null);
         return;
       }
 
       if (opsRes.data) {
+        addLog(`OPs carregadas: ${opsRes.data.length}`);
         const mappedOps = opsRes.data.map((op: any) => ({
           ...op,
           iconType: op.icon_type,
