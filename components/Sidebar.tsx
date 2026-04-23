@@ -59,7 +59,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
     },
     {
       title: 'Em desenvolvimento',
-      items: (isAdmin && category !== 'Recebimento') ? [
+      items: ((isAdmin && category !== 'Recebimento') || category === 'Ventisol') ? [
         { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText },
         { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
         { id: 'SEPARATION_DASHBOARD' as View, label: 'Painel de Separação', icon: LayoutDashboard },
