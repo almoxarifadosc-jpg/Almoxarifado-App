@@ -378,13 +378,22 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
       const today = new Date();
       const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
+      // Buscar usuários marcados para atribuição automática
+      const { data: autoAssignUsers } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('is_auto_assign', true);
+      
+      const autoAssignIds = (autoAssignUsers as { id: string }[] | null)?.map(u => u.id) || [];
+
       const { error: dbError } = await supabase.from('purchase_orders').insert([{
         ...extractedData,
         date: dateStr, // Salva yyyy-mm-dd local
         items: finalItems,
         pdf_url: publicUrl,
         status: 'Pendente',
-        sequence: orderSequence ? parseInt(orderSequence) : null
+        sequence: orderSequence ? parseInt(orderSequence) : null,
+        assigned_users: autoAssignIds
       }]);
 
       if (dbError) throw dbError;

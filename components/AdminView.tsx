@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { ShieldCheck, CheckCircle, XCircle, Loader2, Users, Factory, Plus, Trash2, Pencil } from 'lucide-react';
+import { ShieldCheck, CheckCircle, XCircle, Loader2, Users, Factory, Plus, Trash2, Pencil, Star } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface Profile {
@@ -15,6 +15,7 @@ interface Profile {
   is_super_admin: boolean;
   is_viewer: boolean;
   is_conferente: boolean;
+  is_auto_assign: boolean;
   category?: string;
   allowed_groups?: string[];
 }
@@ -41,6 +42,7 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     is_super_admin: false,
     is_viewer: false, 
     is_conferente: false,
+    is_auto_assign: false,
     category: 'Ventisol',
     allowed_groups: '' 
   });
@@ -85,6 +87,7 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
       is_super_admin: user.is_super_admin,
       is_viewer: user.is_viewer,
       is_conferente: user.is_conferente,
+      is_auto_assign: user.is_auto_assign || false,
       category: user.category || 'Ventisol',
       allowed_groups: user.allowed_groups?.join(', ') || ''
     });
@@ -101,6 +104,7 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
       name: userFormData.name,
       is_viewer: userFormData.is_viewer,
       is_conferente: userFormData.is_conferente,
+      is_auto_assign: userFormData.is_auto_assign,
       category: userFormData.category,
       allowed_groups: groupsArray
     };
@@ -361,6 +365,15 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     }
   };
 
+  const handleToggleAutoAssign = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_auto_assign: !currentStatus })
+      .eq('id', id);
+    
+    if (!error) fetchApprovedUsers();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -494,6 +507,16 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="font-bold text-on-surface">{user.name}</p>
+                        <button 
+                          onClick={() => handleToggleAutoAssign(user.id, user.is_auto_assign)}
+                          className={cn(
+                            "p-1 hover:scale-110 transition-transform",
+                            user.is_auto_assign ? "text-amber-500 fill-amber-500" : "text-on-surface-variant/20 hover:text-amber-500/50"
+                          )}
+                          title={user.is_auto_assign ? "Atribuição automática ativa" : "Ativar atribuição automática"}
+                        >
+                          <Star size={14} />
+                        </button>
                         {user.is_super_admin && (
                           <span className="text-[10px] bg-purple-500/10 text-purple-600 px-2 py-0.5 rounded-full font-bold">Super Admin</span>
                         )}
@@ -725,6 +748,19 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
                     )}
                   >
                     Conferente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUserFormData({ ...userFormData, is_auto_assign: !userFormData.is_auto_assign })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[8px] uppercase tracking-widest leading-none",
+                      userFormData.is_auto_assign
+                        ? "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/20" 
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-amber-500/30"
+                    )}
+                  >
+                    <Star size={10} className={userFormData.is_auto_assign ? "fill-white" : ""} />
+                    Auto Atribuir
                   </button>
                 </div>
 

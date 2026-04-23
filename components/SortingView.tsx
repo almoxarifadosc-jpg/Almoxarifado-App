@@ -127,7 +127,8 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     const { data, error } = await supabase
       .from('profiles')
       .select('id, name, email')
-      .eq('status', 'APPROVED');
+      .eq('status', 'APPROVED')
+      .order('name');
 
     if (!error && data) {
       setProfiles(data);
@@ -602,11 +603,11 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     if (isSuperAdmin) {
       canSee = true;
     } else if (userCategory === 'Ventisol') {
-      canSee = isAssigned;
+      canSee = !!isAssigned;
     } else if (isAdmin) {
       canSee = true;
     } else {
-      canSee = isAssigned;
+      canSee = !!isAssigned;
     }
 
     if (!canSee) return false;
@@ -1177,11 +1178,11 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                               <span className="md:hidden text-[9px] font-black uppercase text-on-surface-variant/40 mb-1">Dif.</span>
                               <span className={cn(
                                 "text-sm md:text-xs font-black px-2 py-0.5 rounded-md",
-                                (item.planned_quantity - item.quantity) === 0 
+                                (item.planned_quantity - (item.quantity ?? 0)) === 0 
                                   ? "bg-emerald-500/10 text-emerald-500" 
                                   : "bg-amber-500/10 text-amber-500"
                               )}>
-                                {item.planned_quantity - item.quantity}
+                                {item.planned_quantity - (item.quantity ?? 0)}
                               </span>
                             </div>
                           </div>
@@ -1340,13 +1341,13 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                                   <p className="text-[11px] font-medium text-on-surface-variant leading-tight">{item.description}</p>
                                 </td>
                                 <td className="px-4 py-4 text-center text-sm font-bold text-on-surface">{item.planned_quantity}</td>
-                                <td className="px-4 py-4 text-center text-sm font-black text-primary">{item.quantity}</td>
+                                <td className="px-4 py-4 text-center text-sm font-black text-primary">{item.quantity ?? 0}</td>
                                 <td className="px-4 py-4 text-center">
                                   <span className={cn(
                                     "text-[11px] font-black px-2 py-0.5 rounded-md",
-                                    (item.planned_quantity - item.quantity) === 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
+                                    (item.planned_quantity - (item.quantity ?? 0)) === 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
                                   )}>
-                                    {item.planned_quantity - item.quantity}
+                                    {item.planned_quantity - (item.quantity ?? 0)}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4 text-center">
@@ -1642,7 +1643,9 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
               </div>
 
               <div className="p-8 space-y-2 max-h-[400px] overflow-y-auto">
-                {profiles.map(profile => {
+                {profiles
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map(profile => {
                   const isAssigned = assigningOrder.assigned_users?.includes(profile.id);
                   return (
                     <button
