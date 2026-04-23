@@ -140,6 +140,27 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     fetchProfiles();
     setError(null);
     setSuccess(null);
+
+    // Inscrição em tempo real para OPs
+    const ordersChannel = supabase
+      .channel('sorting-orders')
+      .on('postgres_changes', { event: '*', table: 'purchase_orders', schema: 'public' }, () => {
+        fetchOrders();
+      })
+      .subscribe();
+
+    // Inscrição em tempo real para Perfis
+    const profilesChannel = supabase
+      .channel('sorting-profiles')
+      .on('postgres_changes', { event: '*', table: 'profiles', schema: 'public' }, () => {
+        fetchProfiles();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(profilesChannel);
+    };
   }, []);
 
   useEffect(() => {
