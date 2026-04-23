@@ -41,7 +41,7 @@ interface Receipt {
   created_at: string;
   updated_at?: string;
   updated_by_name?: string;
-  status_history?: Record<string, { at: string; by: string }>;
+  status_history?: Record<string, { at: string; by: string; by_id?: string }>;
 }
 
 interface LoadType {
@@ -62,6 +62,7 @@ interface ReceiptsViewProps {
   isSuperAdmin?: boolean;
   currentUserId?: string;
   userName?: string;
+  userCategory?: string;
 }
 
 const SUPPLIER_EXAMPLES = [
@@ -72,7 +73,7 @@ const SUPPLIER_EXAMPLES = [
 
 const STATUS_OPTIONS = ['Pendente', 'Enviado', 'Recebido'] as const;
 
-export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }: ReceiptsViewProps) {
+export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, userCategory }: ReceiptsViewProps) {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [dbSuppliers, setDbSuppliers] = useState<Supplier[]>([]);
   const [loadTypes, setLoadTypes] = useState<LoadType[]>([]);
@@ -298,8 +299,12 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
             author_id: currentUserId,
             updated_by_name: userName,
             status_history: {
-               'Pendente': { at: new Date().toISOString(), by: userName || 'Usuário' }
-            }
+          'Pendente': { 
+            at: new Date().toISOString(), 
+            by: userName || 'Usuário',
+            by_id: currentUserId
+          }
+        }
           }
         ]);
         error = insertError;
@@ -332,9 +337,23 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
   const updateStatus = async (id: string, newStatus: Receipt['status']) => {
     const now = new Date().toISOString();
     const currentOrder = receipts.find(r => r.id === id);
+    
+    // Regra de Retroceder Status
+    const currentIndex = getStatusIndex(currentOrder?.status || 'Pendente');
+    const targetIndex = getStatusIndex(newStatus);
+    const isRetroceding = targetIndex < currentIndex;
+
+    if (!isSuperAdmin && isRetroceding && userCategory === 'Recebimento') {
+      const lastUpdate = currentOrder?.status_history?.[currentOrder.status];
+      if (lastUpdate && lastUpdate.by_id !== currentUserId) {
+        alert('Você só pode retroceder o status se foi você quem realizou a última atualização.');
+        return;
+      }
+    }
+
     const newHistory = {
       ...(currentOrder?.status_history || {}),
-      [newStatus]: { at: now, by: userName || 'Usuário' }
+      [newStatus]: { at: now, by: userName || 'Usuário', by_id: currentUserId }
     };
     
     // Optimistic update
@@ -729,10 +748,26 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName }:
                       </a>
                     )}
                     {STATUS_OPTIONS.map((status) => {
-                      const isDisabled = !isSuperAdmin && (
-                        (receipt.status === 'Enviado' || receipt.status === 'Recebido') ||
-                        (receipt.status === 'Pendente' && receipt.author_id !== currentUserId)
-                      );
+                      const targetIdx = getStatusIndex(status);
+                      const currentIdx = getStatusIndex(receipt.status);
+                      const isRetroceding = targetIdx < currentIdx;
+                      
+                      let isDisabled = !isSuperAdmin;
+                      
+                      if (isSuperAdmin) {
+                        isDisabled = false;
+                      } else if (userCategory === 'Recebimento') {
+                        if (isRetroceding) {
+                          const lastUpdate = receipt.status_history?.[receipt.status];
+                          isDisabled = lastUpdate?.by_id !== currentUserId;
+                        } else {
+                          isDisabled = false;
+                        }
+                      } else {
+                        // Original rules for others
+                        isDisabled = (receipt.status === 'Enviado' || receipt.status === 'Recebido') ||
+                                     (receipt.status === 'Pendente' && receipt.author_id !== currentUserId);
+                      }
                       
                       return (
                         <button

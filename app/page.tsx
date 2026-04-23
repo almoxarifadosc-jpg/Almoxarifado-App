@@ -581,6 +581,7 @@ export default function Page() {
                 isSuperAdmin={currentUser?.is_super_admin}
                 currentUserId={currentUser?.id}
                 userName={currentUser?.name} 
+                userCategory={currentUser?.category}
               />
             )}
             {currentView === 'RECEIPTS_DASHBOARD' && !currentUser?.is_viewer && (

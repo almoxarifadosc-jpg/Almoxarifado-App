@@ -19,7 +19,9 @@ import {
   Plus,
   UserCheck,
   Eraser,
-  Pen
+  Pen,
+  Camera,
+  Image as ImageIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -58,6 +60,9 @@ interface PurchaseOrder {
   signed_by_name?: string;
   signature_url?: string;
   sequence?: number | null;
+  pis?: string[];
+  observation?: string;
+  photos?: string[];
 }
 
 interface Profile {
@@ -85,6 +90,8 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [assigningOrder, setAssigningOrder] = useState<PurchaseOrder | null>(null);
+  const [currentPI, setCurrentPI] = useState('');
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const sigCanvas = React.useRef<SignatureCanvas>(null);
 
   const [revertingId, setRevertingId] = useState<string | null>(null);
@@ -141,6 +148,59 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
       updatedItems[idx] = item;
       return { ...prev, items: updatedItems };
     });
+  };
+
+  const handleAddPI = () => {
+    if (!currentPI.trim() || !editingOrder) return;
+    const newPIs = [...(editingOrder.pis || []), currentPI.trim()];
+    setEditingOrder({ ...editingOrder, pis: newPIs });
+    setCurrentPI('');
+  };
+
+  const handleRemovePI = (piToRemove: string) => {
+    if (!editingOrder) return;
+    const newPIs = (editingOrder.pis || []).filter(pi => pi !== piToRemove);
+    setEditingOrder({ ...editingOrder, pis: newPIs });
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !editingOrder) return;
+
+    setUploadingPhotos(true);
+    try {
+      const newUploads = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `order_${editingOrder.id}_${Date.now()}_${i}.${fileExt}`;
+        
+        const { error } = await supabase.storage
+          .from('orders')
+          .upload(fileName, file);
+
+        if (error) throw error;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('orders')
+          .getPublicUrl(fileName);
+
+        newUploads.push(publicUrl);
+      }
+      
+      const existingPhotos = editingOrder.photos || [];
+      setEditingOrder({ ...editingOrder, photos: [...existingPhotos, ...newUploads] });
+    } catch (err: any) {
+      setError(`Erro ao carregar fotos: ${err.message}`);
+    } finally {
+      setUploadingPhotos(false);
+    }
+  };
+
+  const handleRemovePhoto = (urlToRemove: string) => {
+    if (!editingOrder) return;
+    const newPhotos = (editingOrder.photos || []).filter(url => url !== urlToRemove);
+    setEditingOrder({ ...editingOrder, photos: newPhotos });
   };
 
   const validateQuantities = () => {
@@ -214,7 +274,10 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
         .update({
           items: editingOrder.items,
           status: 'Pendente',
-          signature_url: signatureUrl
+          signature_url: signatureUrl,
+          pis: editingOrder.pis || [],
+          observation: editingOrder.observation || '',
+          photos: editingOrder.photos || []
         })
         .eq('id', editingOrder.id);
 
@@ -259,7 +322,10 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
           conferred_by_id: currentUserId,
           conferred_by_name: currentUserName,
           conferred_at: new Date().toISOString(),
-          status: 'Processado'
+          status: 'Processado',
+          pis: editingOrder.pis || [],
+          observation: editingOrder.observation || '',
+          photos: editingOrder.photos || []
         })
         .eq('id', editingOrder.id);
 
@@ -996,7 +1062,43 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                 )}
 
                 {modalMode === 'EDIT' && (
-                  <div className="bg-surface-container-high/30 overflow-hidden rounded-[32px] border border-outline-variant/10 shadow-inner">
+                  <>
+                    {/* Campo PI */}
+                    <div className="mb-6 p-6 bg-surface-container-low rounded-[32px] border border-outline-variant/10">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-3 block ml-1">Processos Industriais (PI)</label>
+                      <div className="flex gap-2 mb-4">
+                        <input 
+                          type="text"
+                          value={currentPI}
+                          onChange={(e) => setCurrentPI(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddPI()}
+                          placeholder="Digite o número da PI..."
+                          className="flex-1 bg-surface-container-highest border-0 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-bold"
+                        />
+                        <button 
+                          onClick={handleAddPI}
+                          className="w-14 h-14 bg-primary text-white rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all"
+                        >
+                          <Plus className="w-6 h-6" />
+                        </button>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {editingOrder.pis?.map(pi => (
+                          <div key={pi} className="bg-primary/10 text-primary px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border border-primary/20">
+                            {pi}
+                            <button onClick={() => handleRemovePI(pi)} className="hover:text-error transition-colors">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                        {(!editingOrder.pis || editingOrder.pis.length === 0) && (
+                          <p className="text-[10px] text-on-surface-variant italic ml-1">Nenhuma PI adicionada.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-surface-container-high/30 overflow-hidden rounded-[32px] border border-outline-variant/10 shadow-inner">
                     {/* Cabeçalho Desktop */}
                     <div className="hidden md:grid grid-cols-[1fr,100px,100px,80px] bg-surface-container-high px-6 py-4">
                       <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Material / Código</div>
@@ -1076,6 +1178,74 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                       ))}
                     </div>
                   </div>
+
+                  {/* Observações e Fotos */}
+                  <div className="mt-8 space-y-6">
+                      <div className="bg-surface-container-low p-6 rounded-[32px] border border-outline-variant/10">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-3 block ml-1">Observação da Separação</label>
+                        <textarea 
+                          value={editingOrder.observation || ''}
+                          onChange={(e) => setEditingOrder({ ...editingOrder, observation: e.target.value })}
+                          placeholder="Alguma observação sobre esta separação?"
+                          className="w-full bg-surface-container-highest border-0 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-medium text-sm min-h-[100px] resize-none"
+                        />
+                      </div>
+
+                      <div className="bg-surface-container-low p-6 rounded-[32px] border border-outline-variant/10">
+                        <div className="flex items-center justify-between mb-4">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 ml-1">Fotos da Separação</label>
+                          <label className="cursor-pointer bg-primary text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-primary/10">
+                            <Camera className="w-3 h-3" />
+                            Adicionar Fotos
+                            <input 
+                              type="file" 
+                              multiple 
+                              accept="image/*" 
+                              capture="environment"
+                              className="hidden" 
+                              onChange={handlePhotoUpload} 
+                              disabled={uploadingPhotos}
+                            />
+                          </label>
+                        </div>
+
+                        {uploadingPhotos && (
+                          <div className="flex items-center gap-2 text-primary font-bold text-xs mb-4 animate-pulse">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Carregando fotos...
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                          {editingOrder.photos?.map((url, i) => (
+                            <div key={i} className="relative aspect-square rounded-2xl overflow-hidden border border-outline-variant/20 group">
+                              <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                              <button 
+                                onClick={() => handleRemovePhoto(url)}
+                                className="absolute top-2 right-2 p-1.5 bg-error text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                              <a 
+                                href={url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="absolute bottom-2 right-2 p-1.5 bg-surface-container-lowest text-on-surface rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                              >
+                                <Eye className="w-3 h-3" />
+                              </a>
+                            </div>
+                          ))}
+                          {(!editingOrder.photos || editingOrder.photos.length === 0) && (
+                            <div className="col-span-full py-8 border-2 border-dashed border-outline-variant/20 rounded-2xl flex flex-col items-center justify-center text-on-surface-variant/40">
+                              <ImageIcon className="w-8 h-8 mb-2 opacity-20" />
+                              <p className="text-[10px] font-bold uppercase tracking-widest">Nenhuma foto anexada</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 {modalMode === 'REVIEW' && (
@@ -1164,6 +1334,42 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                         </table>
                       </div>
                     </div>
+
+                    {/* PIs e Observações no Review */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      {editingOrder.pis && editingOrder.pis.length > 0 && (
+                        <div className="bg-surface-container-high/20 rounded-[32px] border border-outline-variant/10 p-6">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-3">PIs Vinculadas</p>
+                          <div className="flex flex-wrap gap-2">
+                            {editingOrder.pis.map(pi => (
+                              <span key={pi} className="bg-primary/5 text-primary px-3 py-1.5 rounded-xl text-xs font-bold border border-primary/10">
+                                PI #{pi}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {editingOrder.observation && (
+                        <div className="bg-surface-container-high/20 rounded-[32px] border border-outline-variant/10 p-6">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-3">Observação</p>
+                          <p className="text-sm text-on-surface font-medium leading-relaxed italic">"{editingOrder.observation}"</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Fotos no Review */}
+                    {editingOrder.photos && editingOrder.photos.length > 0 && (
+                      <div className="bg-surface-container-high/20 rounded-[32px] border border-outline-variant/10 p-6">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-4">Fotos da Separação</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                          {editingOrder.photos.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="aspect-square rounded-2xl overflow-hidden border border-outline-variant/10 hover:ring-2 ring-primary transition-all">
+                              <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Exibição da Assinatura no Review se existir */}
                     {editingOrder.is_signed && (
