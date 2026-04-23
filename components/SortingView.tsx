@@ -617,17 +617,16 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     // 1. Filtro por permissão de visualização
     const isAssigned = o.assigned_users?.includes(currentUserId || '');
     
-    // Admins vêem tudo, a menos que sejam da categoria Ventisol
-    // Se for Ventisol (mesmo sendo admin local), só vê as atribuições
+    // 1. Super Admins e Admins vêem tudo
+    // Usuários da categoria Ventisol que NÃO são admins vêem apenas as atribuições
     let canSee = false;
     
-    if (isSuperAdmin) {
+    if (isSuperAdmin || isAdmin) {
       canSee = true;
     } else if (userCategory === 'Ventisol') {
       canSee = !!isAssigned;
-    } else if (isAdmin) {
-      canSee = true;
     } else {
+      // Outras categorias (caso existam) sem ser admin também só vêem se atribuído
       canSee = !!isAssigned;
     }
 

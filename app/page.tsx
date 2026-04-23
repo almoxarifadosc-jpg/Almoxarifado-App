@@ -160,6 +160,12 @@ export default function Page() {
     
     if (error) {
       console.error('Error fetching profile:', error.message, error.details, error.hint);
+      // Se o erro for relacionado ao JWT (token expirado ou inválido), deslogamos
+      if (error.message.toLowerCase().includes('jwt') || error.message.toLowerCase().includes('token')) {
+        console.log('Token expirado detectado no fetchProfile, deslogando...');
+        await supabase.auth.signOut({ scope: 'local' });
+        setCurrentUser(null);
+      }
       setLoading(false);
       return;
     }
@@ -184,20 +190,29 @@ export default function Page() {
 
   const checkUser = useCallback(async () => {
     try {
+      // Get the current session
       const { data: { session }, error } = await supabase.auth.getSession();
+      
       if (error) {
         console.warn('Auth session error:', error.message);
-        if (error.message.includes('Refresh Token Not Found') || 
-            error.message.includes('invalid_refresh_token') ||
-            error.message.includes('refresh_token_not_found')) {
-          await supabase.auth.signOut();
+        // Se o token for inválido ou não encontrado, limpamos a sessão localmente
+        if (
+          error.message.toLowerCase().includes('refresh_token') || 
+          error.message.toLowerCase().includes('invalid session') ||
+          error.message.toLowerCase().includes('jwt')
+        ) {
+          console.log('Sessão inválida detectada, limpando armazenamento local...');
+          await supabase.auth.signOut({ scope: 'local' });
+          setCurrentUser(null);
         }
         setLoading(false);
         return;
       }
+
       if (session?.user) {
-        fetchProfile(session.user.id);
+        await fetchProfile(session.user.id);
       } else {
+        setCurrentUser(null);
         setLoading(false);
       }
     } catch (err: any) {
@@ -215,8 +230,10 @@ export default function Page() {
         supabase.from('settings').select('*').eq('key', 'company_logo').single()
       ]);
 
-      if (opsRes.error && opsRes.error.message.includes('JWT')) {
-        await supabase.auth.signOut();
+      if (opsRes.error && (opsRes.error.message.includes('JWT') || opsRes.error.message.includes('token'))) {
+        console.log('JWT inválido detectado no fetchData, deslogando localmente...');
+        await supabase.auth.signOut({ scope: 'local' });
+        setCurrentUser(null);
         return;
       }
 
@@ -280,16 +297,23 @@ export default function Page() {
     }
 
     checkUser();
-    const { data: authListener } = supabase.auth.onAuthStateChange((event: any, session: any) => {
+    
+    // Escuta mudanças no estado de autenticação
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
+      console.log('Auth Event:', event);
+      
       if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         setCurrentUser(null);
         setLoading(false);
-      } else if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setCurrentUser(null);
-        // Only set loading false if we're not already loading
-        setLoading(prev => prev ? false : false); 
+      } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        } else {
+          setCurrentUser(null);
+          setLoading(false);
+        }
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // Opcional: tratar recuperação de senha
       }
     });
 
@@ -597,7 +621,7 @@ export default function Page() {
                 isSuperAdmin={currentUser?.is_super_admin}
               />
             )}
-            {currentView === 'SORTING' && currentUser?.is_admin && (
+            {currentView === 'SORTING' && (currentUser?.is_admin || currentUser?.category === 'Ventisol') && (
               <SortingView 
                 key="sorting" 
                 isAdmin={currentUser?.is_admin} 
@@ -608,10 +632,10 @@ export default function Page() {
                 userCategory={currentUser?.category}
               />
             )}
-            {currentView === 'SEPARATION_DASHBOARD' && currentUser?.is_admin && (
+            {currentView === 'SEPARATION_DASHBOARD' && (currentUser?.is_admin || currentUser?.category === 'Ventisol') && (
               <SeparationDashboardView key="separation-dashboard" />
             )}
-            {currentView === 'PERFORMANCE' && currentUser?.is_admin && (
+            {currentView === 'PERFORMANCE' && (currentUser?.is_admin || currentUser?.category === 'Ventisol') && (
               <PerformanceView key="performance" />
             )}
             {currentView === 'ADMIN_PANEL' && (
