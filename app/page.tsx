@@ -152,18 +152,29 @@ export default function Page() {
   };
 
   const fetchProfile = useCallback(async (userId: string) => {
-    addLog(`Buscando perfil para ID: ${userId}...`);
+    addLog(`Buscando perfil... (ID: ${userId?.substring(0, 5)}...)`);
+    
+    // Timeout individual de 6 segundos para a consulta ao banco
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Timeout na consulta ao banco (6s)')), 6000)
+    );
+
     try {
-      const { data: profile, error } = await supabase
+      addLog('Iniciando query em public.profiles...');
+      
+      const profilePromise = supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
+
+      const { data: profile, error } = (await Promise.race([profilePromise, timeoutPromise])) as any;
       
       if (error) {
-        addLog(`Erro ao buscar perfil: ${error.message}`);
-        console.error('Error fetching profile:', error.message, error.details, error.hint);
+        addLog(`DB Error: ${error.message}`);
+        console.error('Error fetching profile:', error);
         if (error.message.toLowerCase().includes('jwt') || error.message.toLowerCase().includes('token')) {
+          addLog('Limpando sessão por erro de token.');
           await supabase.auth.signOut({ scope: 'local' });
           setCurrentUser(null);
         }
@@ -172,32 +183,28 @@ export default function Page() {
       }
 
       if (profile) {
-        addLog(`Perfil encontrado! Status: ${profile.status}`);
+        addLog(`OK! Perfil: ${profile.status}`);
         if (profile.status === 'APPROVED') {
           if (profile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
             profile.is_super_admin = true;
             profile.is_admin = true;
           }
           setCurrentUser(profile);
-          if (profile.is_viewer) {
-            setCurrentView('ANALYTICS');
-          } else if (profile.category === 'Recebimento') {
-            setCurrentView('RECEIPTS');
-          }
-          addLog('Acesso autorizado.');
+          addLog('Acesso liberado.');
         } else {
-          addLog('Perfil aguardando aprovação.');
+          addLog('Aguardando aprovação.');
           setCurrentUser(null);
         }
       } else {
-        addLog('Perfil não encontrado no banco.');
+        addLog('Perfil não existe no banco.');
         setCurrentUser(null);
       }
     } catch (err: any) {
-      addLog(`Falha na API de perfil: ${err.message}`);
+      addLog(`Erro crítico: ${err.message}`);
+      console.error('Falha no fetchProfile:', err);
     } finally {
       setLoading(false);
-      addLog('Carregamento finalizado.');
+      addLog('Processo concluído.');
     }
   }, []);
 
