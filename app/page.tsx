@@ -601,9 +601,11 @@ export default function Page() {
               <SortingView 
                 key="sorting" 
                 isAdmin={currentUser?.is_admin} 
+                isSuperAdmin={currentUser?.is_super_admin}
                 currentUserId={currentUser?.id} 
                 isConferente={currentUser?.is_conferente}
                 currentUserName={currentUser?.name}
+                userCategory={currentUser?.category}
               />
             )}
             {currentView === 'SEPARATION_DASHBOARD' && currentUser?.is_admin && (

@@ -33,7 +33,7 @@ interface OrderItem {
   code?: string;
   description: string;
   planned_quantity: number;
-  quantity: number;
+  quantity: number | null;
   unitPrice?: number;
   totalPrice?: number;
   collector_name?: string;
@@ -72,11 +72,13 @@ interface Profile {
   is_super_admin?: boolean;
 }
 
-export function SortingView({ isAdmin, currentUserId, isConferente, currentUserName }: { 
+export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente, currentUserName, userCategory }: { 
   isAdmin?: boolean, 
+  isSuperAdmin?: boolean,
   currentUserId?: string,
   isConferente?: boolean,
-  currentUserName?: string
+  currentUserName?: string,
+  userCategory?: string
 }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -88,6 +90,16 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'EDIT' | 'SIGN' | 'REVIEW'>('EDIT');
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
+  const handleOpenOrder = (order: PurchaseOrder) => {
+    const preparedOrder = {
+      ...order,
+      items: order.items.map(item => ({
+        ...item,
+        quantity: item.quantity === 0 ? null : item.quantity
+      }))
+    };
+    setEditingOrder(preparedOrder);
+  };
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [assigningOrder, setAssigningOrder] = useState<PurchaseOrder | null>(null);
   const [currentPI, setCurrentPI] = useState('');
@@ -140,7 +152,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
       if (!prev) return null;
       const updatedItems = [...(prev.items || [])];
       const item = { ...updatedItems[idx] };
-      const qtyValue = isNaN(newQty) ? 0 : newQty;
+      const qtyValue = isNaN(newQty) ? null : newQty;
       
       // Permitimos digitar qualquer valor para não travar a UX (ex: digitar 1 para chegar em 10)
       // A validação rigorosa será feita no momento de Salvar ou Conferir.
@@ -206,10 +218,12 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
   const validateQuantities = () => {
     if (!editingOrder) return true;
 
-    const itemsWithLowerQty = editingOrder.items?.filter(item => (item.quantity || 0) < item.planned_quantity);
+    const itemsWithLowerQty = editingOrder.items?.filter(item => 
+      item.quantity !== null && (item.quantity as number) < item.planned_quantity
+    );
+
     if (itemsWithLowerQty && itemsWithLowerQty.length > 0) {
-      const descriptions = itemsWithLowerQty.map(i => i.description).slice(0, 2).join(', ');
-      setError(`Não é possível lançar quantidade menor que o planejado (${descriptions}...). Verifique os valores na coluna "Planejado" antes de confirmar.`);
+      setError(`Não é possível lançar quantidade menor que o planejado. Verifique os valores na coluna "Planejado" antes de confirmar.`);
       return false;
     }
     return true;
@@ -580,7 +594,21 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
   const filteredOrders = orders.filter(o => {
     // 1. Filtro por permissão de visualização
     const isAssigned = o.assigned_users?.includes(currentUserId || '');
-    const canSee = isAdmin || isAssigned;
+    
+    // Admins vêem tudo, a menos que sejam da categoria Ventisol
+    // Se for Ventisol (mesmo sendo admin local), só vê as atribuições
+    let canSee = false;
+    
+    if (isSuperAdmin) {
+      canSee = true;
+    } else if (userCategory === 'Ventisol') {
+      canSee = isAssigned;
+    } else if (isAdmin) {
+      canSee = true;
+    } else {
+      canSee = isAssigned;
+    }
+
     if (!canSee) return false;
 
     // 2. Filtro por busca de texto
@@ -648,7 +676,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                 order.status === 'Baixada' ? 'opacity-80' : ''
               )}
               onClick={() => {
-                setEditingOrder(order);
+                handleOpenOrder(order);
                 if (order.status === 'Baixada') {
                   setModalMode('REVIEW');
                 } else {
@@ -875,7 +903,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              setEditingOrder(order);
+                              handleOpenOrder(order);
                               setModalMode('SIGN');
                               setIsEditModalOpen(true);
                             }}
@@ -891,7 +919,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              setEditingOrder(order);
+                              handleOpenOrder(order);
                               setModalMode('REVIEW');
                               setIsEditModalOpen(true);
                             }}
@@ -955,7 +983,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              setEditingOrder(order);
+                              handleOpenOrder(order);
                               setModalMode('SIGN');
                               setIsEditModalOpen(true);
                             }}
@@ -972,7 +1000,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                       <button 
                         onClick={() => {
                           if (!order.sequence) return;
-                          setEditingOrder(order);
+                          handleOpenOrder(order);
                           setModalMode('EDIT');
                           setIsEditModalOpen(true);
                         }}
@@ -998,7 +1026,7 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                       {isConferente && (
                         <button 
                           onClick={() => {
-                            setEditingOrder(order);
+                            handleOpenOrder(order);
                             setModalMode('EDIT');
                             setIsEditModalOpen(true);
                           }}
@@ -1138,9 +1166,9 @@ export function SortingView({ isAdmin, currentUserId, isConferente, currentUserN
                                 disabled={editingOrder.status !== 'Pendente'}
                                 className={cn(
                                   "w-14 md:w-16 bg-surface-container-high md:bg-surface-container-low text-center font-black p-2 rounded-xl outline-none focus:ring-2 ring-primary/30 text-sm disabled:opacity-50",
-                                  item.quantity < item.planned_quantity && "ring-2 ring-error/50 text-error bg-error/5"
+                                  item.quantity !== null && (item.quantity as number) < item.planned_quantity && "ring-2 ring-error/50 text-error bg-error/5"
                                 )}
-                                value={item.quantity || ''}
+                                value={item.quantity === null ? '' : item.quantity}
                                 onChange={(e) => handleEditItemQuantity(idx, parseInt(e.target.value))}
                               />
                             </div>
