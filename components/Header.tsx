@@ -28,7 +28,7 @@ export function Header({
   isAdmin, 
   isViewer, 
   category,
-  logoUrl = '/app-logo.png?v=4',
+  logoUrl = '/app-logo.png',
   isDarkMode,
   onToggleDarkMode,
   notificationsEnabled,

@@ -17,7 +17,7 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: 'Almoxarifado App',
   description: 'Sistema de controle de fluxo de operações industriais e gestão de produção.',
-  manifest: '/manifest.json?v=8',
+  manifest: '/manifest.json',
   icons: {
     icon: [
       { url: '/favicon.ico' },

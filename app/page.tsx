@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Header } from '@/components/Header';
 import { Sidebar, View } from '@/components/Sidebar';
 import { LaunchView } from '@/components/LaunchView';
@@ -50,7 +50,7 @@ export default function Page() {
   const [newsFilter, setNewsFilter] = useState('');
   const [operations, setOperations] = useState<Operation[]>([]);
   const [productionLines, setProductionLines] = useState<string[]>([]);
-  const [logoUrl, setLogoUrl] = useState<string>('/app-logo.png?v=4');
+  const [logoUrl, setLogoUrl] = useState<string>('/app-logo.png');
   const [loading, setLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -286,61 +286,74 @@ export default function Page() {
       if (settingsRes.data && settingsRes.data.value) {
         setLogoUrl(settingsRes.data.value);
       } else {
-        setLogoUrl('/app-logo.png?v=4');
+        setLogoUrl('/app-logo.png');
       }
     } catch (err: any) {
       console.error('Error fetching data:', err.message);
     }
   }, []);
 
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const addLog = (msg: string) => {
+    console.log(`[DEBUG] ${msg}`);
+    setDebugLog(prev => [...prev.slice(-4), msg]);
+  };
+
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      console.log('Supabase não configurado, exibindo tela de setup.');
+      addLog('Supabase não configurado.');
       setLoading(false);
       return;
     }
 
-    console.log('Iniciando verificação de usuário...');
+    addLog('Iniciando verificação...');
     checkUser();
     
     // Escuta mudanças no estado de autenticação
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
-      console.log('Evento de Autenticação:', event);
+      addLog(`Evento de Autenticação: ${event}`);
       
       if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         setCurrentUser(null);
         setLoading(false);
       } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
-          console.log('Usuário autenticado:', session.user.email);
+          addLog(`Sessão ativa para ${session.user.email}`);
           await fetchProfile(session.user.id);
         } else {
-          console.log('Nenhuma sessão ativa encontrada.');
+          addLog('Sem sessão ativa.');
           setCurrentUser(null);
           setLoading(false);
         }
       } else {
-        // Para qualquer outro evento, garantimos que o loading pare se já estivermos esperando
         setLoading(false);
       }
     });
 
-    // Tempo limite de segurança: se após 10 segundos ainda estiver carregando, forçamos a tela de login
+    // Diagnóstico visual se demorar muito
+    const debugTimer = setTimeout(() => {
+      setShowDebugPanel(true);
+    }, 4000);
+
+    // Tempo limite de segurança
     const timeout = setTimeout(() => {
       setLoading(current => {
         if (current) {
-          console.warn('Tempo limite de carregamento atingido. Forçando encerramento do spinner.');
+          addLog('Timeout atingido. Forçando display.');
           return false;
         }
         return current;
       });
-    }, 10000);
+    }, 12000);
 
     return () => {
       if (authListener?.subscription) {
         authListener.subscription.unsubscribe();
       }
       clearTimeout(timeout);
+      clearTimeout(debugTimer);
     };
   }, [checkUser, fetchProfile]);
 
@@ -541,8 +554,32 @@ export default function Page() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-container-lowest">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-surface-container-lowest p-6">
+        <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+        
+        {showDebugPanel && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-sm bg-surface-container p-4 rounded-2xl border border-outline-variant/20 shadow-lg text-center"
+          >
+            <h3 className="text-sm font-black mb-2 flex items-center justify-center gap-2">
+              DIAGNÓSTICO DO SISTEMA
+            </h3>
+            <div className="text-[10px] font-mono text-on-surface-variant bg-black/5 p-2 rounded-lg text-left space-y-1 mb-4 h-24 overflow-auto">
+              {debugLog.map((log, i) => <div key={i}>{`> ${log}`}</div>)}
+            </div>
+            <button 
+              onClick={() => setLoading(false)}
+              className="w-full py-2 bg-primary text-white text-xs font-bold rounded-xl active:scale-95 transition-transform"
+            >
+              Ignorar e Continuar
+            </button>
+            <p className="text-[8px] mt-4 opacity-40">
+              Verifique sua conexão e se o Supabase está respondendo.
+            </p>
+          </motion.div>
+        )}
       </div>
     );
   }

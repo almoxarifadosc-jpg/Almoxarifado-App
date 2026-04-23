@@ -1,4 +1,4 @@
-const CACHE_NAME = 'almoxarifado-cache-v7';
+const CACHE_NAME = 'almoxarifado-cache-v10';
 const ASSETS_TO_CACHE = [
   '/',
   '/manifest.json',
