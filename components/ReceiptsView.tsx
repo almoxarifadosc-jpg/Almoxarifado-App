@@ -164,16 +164,23 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
   };
 
   const fetchReceipts = async (showLoading = true) => {
-    if (showLoading) setLoading(true);
-    const { data, error } = await supabase
-      .from('receipts')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (!error && data) {
-      setReceipts(data);
+    try {
+      if (showLoading) setLoading(true);
+      const { data, error } = await supabase
+        .from('receipts')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      if (data) {
+        setReceipts(data);
+      }
+    } catch (err: any) {
+      console.error('Erro ao buscar carregamentos:', err.message);
+    } finally {
+      if (showLoading) setLoading(false);
     }
-    if (showLoading) setLoading(false);
   };
 
   const fetchSuppliers = async () => {
@@ -482,23 +489,33 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
   };
 
   const filteredReceipts = receipts.filter(r => {
-    const matchesText = (r.load_id || '').toLowerCase().includes(filterText.toLowerCase()) || 
-                       r.supplier_name.toLowerCase().includes(filterText.toLowerCase()) ||
-                       (r.driver || '').toLowerCase().includes(filterText.toLowerCase()) ||
-                       (r.invoices || []).some(nf => nf.toLowerCase().includes(filterText.toLowerCase()));
+    if (!r) return false;
+
+    const searchTerm = filterText.toLowerCase();
+    const loadId = (r.load_id || '').toLowerCase();
+    const supplier = (r.supplier_name || '').toLowerCase();
+    const driverName = (r.driver || '').toLowerCase();
+    const invoicesList = (r.invoices || []);
+
+    const matchesText = loadId.includes(searchTerm) || 
+                       supplier.includes(searchTerm) ||
+                       driverName.includes(searchTerm) ||
+                       invoicesList.some(nf => (nf || '').toLowerCase().includes(searchTerm));
     
     const matchesLoadType = !selectedLoadType || r.load_type === selectedLoadType;
     
-    const receiptDate = new Date(r.created_at);
-    
-    // Parse dates manually to avoid timezone shifts
-    const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
-    const start = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
-    
-    const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
-    const end = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
-    
-    const matchesDate = receiptDate >= start && receiptDate <= end;
+    let matchesDate = true;
+    if (r.created_at) {
+      const receiptDate = new Date(r.created_at);
+      
+      const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
+      const start = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
+      
+      const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
+      const end = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
+      
+      matchesDate = receiptDate >= start && receiptDate <= end;
+    }
     
     return matchesText && matchesDate && matchesLoadType;
   });
