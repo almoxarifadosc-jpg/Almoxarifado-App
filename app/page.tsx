@@ -152,38 +152,37 @@ export default function Page() {
   };
 
   const fetchProfile = useCallback(async (userId: string) => {
-    addLog(`Buscando perfil... (ID: ${userId?.substring(0, 5)}...)`);
+    const urlMask = process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 15) || 'URL AUSENTE';
+    addLog(`Conectando em: ${urlMask}...`);
+    const startTime = Date.now();
     
-    // Timeout individual de 6 segundos para a consulta ao banco
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Timeout na consulta ao banco (6s)')), 6000)
-    );
-
     try {
-      addLog('Iniciando query em public.profiles...');
+      addLog('Enviando query via SDK...');
       
-      const profilePromise = supabase
+      // Criamos uma promessa para a query do Supabase
+      const queryPromise = supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      const { data: profile, error } = (await Promise.race([profilePromise, timeoutPromise])) as any;
+      // Corremos contra um timeout de 8 segundos
+      const result = await Promise.race([
+        queryPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('API Inacessível (Timeout 8s)')), 8000))
+      ]) as any;
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      const { data: profile, error } = result;
       
       if (error) {
-        addLog(`DB Error: ${error.message}`);
-        console.error('Error fetching profile:', error);
-        if (error.message.toLowerCase().includes('jwt') || error.message.toLowerCase().includes('token')) {
-          addLog('Limpando sessão por erro de token.');
-          await supabase.auth.signOut({ scope: 'local' });
-          setCurrentUser(null);
-        }
+        addLog(`Erro da API (${duration}s): ${error.message}`);
         setLoading(false);
         return;
       }
 
       if (profile) {
-        addLog(`OK! Perfil: ${profile.status}`);
+        addLog(`Perfil OK (${duration}s): ${profile.status}`);
         if (profile.status === 'APPROVED') {
           if (profile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
             profile.is_super_admin = true;
@@ -192,19 +191,19 @@ export default function Page() {
           setCurrentUser(profile);
           addLog('Acesso liberado.');
         } else {
-          addLog('Aguardando aprovação.');
+          addLog('Cadastro Pendente.');
           setCurrentUser(null);
         }
       } else {
-        addLog('Perfil não existe no banco.');
+        addLog(`Aviso (${duration}s): Registro não encontrado.`);
         setCurrentUser(null);
       }
     } catch (err: any) {
-      addLog(`Erro crítico: ${err.message}`);
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      addLog(`Falha Crítica (${duration}s): ${err.message}`);
       console.error('Falha no fetchProfile:', err);
     } finally {
       setLoading(false);
-      addLog('Processo concluído.');
     }
   }, []);
 
