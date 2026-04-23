@@ -10,6 +10,7 @@ import {
   Image as ImageIcon, 
   AlertCircle,
   CheckCircle2,
+  ShieldCheck,
   Clock,
   ChevronRight,
   Package,
@@ -34,7 +35,7 @@ interface Receipt {
   supplier_name: string;
   load_type?: string;
   load_type_color?: string;
-  status: 'Pendente' | 'Enviado' | 'Recebido';
+  status: 'Pendente' | 'Enviado' | 'Recebido' | 'Conferido' | 'Divergente';
   observation?: string;
   image_url?: string;
   author_id?: string;
@@ -71,7 +72,8 @@ const SUPPLIER_EXAMPLES = [
   "Transportadora TransRápido"
 ];
 
-const STATUS_OPTIONS = ['Pendente', 'Enviado', 'Recebido'] as const;
+const STATUS_OPTIONS = ['Pendente', 'Enviado', 'Conferido', 'Recebido'] as const;
+const ALL_STATUSES = ['Pendente', 'Enviado', 'Conferido', 'Recebido', 'Divergente'] as const;
 
 export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, userCategory }: ReceiptsViewProps) {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -88,6 +90,8 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
   const [observationModal, setObservationModal] = useState<{ isOpen: boolean; text: string }>({ isOpen: false, text: '' });
+  const [divergenceModal, setDivergenceModal] = useState<{ isOpen: boolean; receiptId: string | null; currentStatus: Receipt['status'] | null }>({ isOpen: false, receiptId: null, currentStatus: null });
+  const [divergenceForm, setDivergenceForm] = useState({ observation: '', image_url: '' });
   const [filterText, setFilterText] = useState('');
   const [startDate, setStartDate] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
@@ -338,6 +342,13 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
     const now = new Date().toISOString();
     const currentOrder = receipts.find(r => r.id === id);
     
+    // Se for divergente, abre o modal antes de atualizar
+    if (newStatus === 'Divergente') {
+      setDivergenceModal({ isOpen: true, receiptId: id, currentStatus: currentOrder?.status || 'Pendente' });
+      setDivergenceForm({ observation: currentOrder?.observation || '', image_url: currentOrder?.image_url || '' });
+      return;
+    }
+
     // Regra de Retroceder Status
     const currentIndex = getStatusIndex(currentOrder?.status || 'Pendente');
     const targetIndex = getStatusIndex(newStatus);
@@ -379,6 +390,73 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
       console.error('Erro ao atualizar status:', error.message);
       fetchReceipts(false);
     }
+  };
+
+  const handleDivergenceImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `receipt-divergences/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('receipts')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('receipts')
+        .getPublicUrl(filePath);
+
+      setDivergenceForm(prev => ({ ...prev, image_url: publicUrl }));
+    } catch (error: any) {
+      console.error('Erro no upload da divergência:', error.message);
+      alert('Erro ao fazer upload da imagem.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDivergenceSubmit = async () => {
+    if (!divergenceForm.observation.trim()) {
+      alert('O campo observação é obrigatório para marcar como divergente.');
+      return;
+    }
+
+    if (!divergenceModal.receiptId) return;
+
+    setSaving(true);
+    const now = new Date().toISOString();
+    const currentOrder = receipts.find(r => r.id === divergenceModal.receiptId);
+    
+    const newHistory = {
+      ...(currentOrder?.status_history || {}),
+      'Divergente': { at: now, by: userName || 'Usuário', by_id: currentUserId }
+    };
+
+    const { error } = await supabase
+      .from('receipts')
+      .update({ 
+        status: 'Divergente',
+        observation: divergenceForm.observation,
+        image_url: divergenceForm.image_url,
+        updated_by_name: userName,
+        updated_at: now,
+        status_history: newHistory
+      })
+      .eq('id', divergenceModal.receiptId);
+
+    if (!error) {
+      setDivergenceModal({ isOpen: false, receiptId: null, currentStatus: null });
+      fetchReceipts(false);
+    } else {
+      alert('Erro ao atualizar para divergente: ' + error.message);
+    }
+    setSaving(false);
   };
 
   const deleteReceipt = async () => {
@@ -433,12 +511,14 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
       pendente: filteredReceipts.filter(r => r.status === 'Pendente').length,
       enviado: filteredReceipts.filter(r => r.status === 'Enviado').length,
       recebido: filteredReceipts.filter(r => r.status === 'Recebido').length,
+      conferido: filteredReceipts.filter(r => r.status === 'Conferido').length,
+      divergente: filteredReceipts.filter(r => r.status === 'Divergente').length,
       total: filteredReceipts.length
     };
   }, [filteredReceipts]);
 
   const getStatusIndex = (status: Receipt['status']) => {
-    return STATUS_OPTIONS.indexOf(status);
+    return (STATUS_OPTIONS as readonly string[]).indexOf(status);
   };
 
   const getStatusColor = (status: Receipt['status']) => {
@@ -446,6 +526,8 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
       case 'Pendente': return 'text-amber-500';
       case 'Enviado': return 'text-blue-500';
       case 'Recebido': return 'text-emerald-500';
+      case 'Conferido': return 'text-indigo-500';
+      case 'Divergente': return 'text-error';
       default: return 'text-primary';
     }
   };
@@ -455,6 +537,8 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
       case 'Pendente': return 'bg-amber-500';
       case 'Enviado': return 'bg-blue-500';
       case 'Recebido': return 'bg-emerald-500';
+      case 'Conferido': return 'bg-indigo-500';
+      case 'Divergente': return 'bg-error';
       default: return 'bg-primary';
     }
   };
@@ -554,7 +638,9 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
         {[
           { label: 'Pendente', value: kpis.pendente, color: 'text-amber-500', bg: 'bg-amber-500/10', icon: Clock },
           { label: 'Enviado', value: kpis.enviado, color: 'text-blue-500', bg: 'bg-blue-500/10', icon: Truck },
+          { label: 'Conferido', value: kpis.conferido, color: 'text-indigo-500', bg: 'bg-indigo-500/10', icon: ShieldCheck },
           { label: 'Recebido', value: kpis.recebido, color: 'text-emerald-500', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
+          { label: 'Divergente', value: kpis.divergente, color: 'text-error', bg: 'bg-error/10', icon: AlertCircle },
           { label: 'Total', value: kpis.total, color: 'text-primary', bg: 'bg-primary/10', icon: Package },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-surface-container-lowest p-4 rounded-2xl border border-outline-variant/10 flex items-center gap-4">
@@ -607,18 +693,24 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
                   <div className="relative">
                     <div className="h-1 w-full bg-surface-container-high rounded-full overflow-hidden">
                       <motion.div 
-                        className={cn("h-full transition-colors duration-500", getStatusBg(receipt.status))}
+                        className={cn(
+                          "h-full transition-colors duration-500", 
+                          receipt.status === 'Divergente' ? 'bg-error' : getStatusBg(receipt.status)
+                        )}
                         initial={false}
                         animate={{ 
-                          width: receipt.status === 'Pendente' ? '0%' : receipt.status === 'Enviado' ? '50%' : '100%' 
+                          width: receipt.status === 'Pendente' ? '0%' : 
+                                receipt.status === 'Enviado' ? '33.33%' : 
+                                receipt.status === 'Conferido' ? '66.66%' : 
+                                (receipt.status === 'Recebido' || receipt.status === 'Divergente') ? '100%' : '0%' 
                         }}
                       />
                     </div>
                     
                     <div className="absolute top-0 left-0 w-full flex justify-between items-center -translate-y-1/2 px-0.5">
                       {STATUS_OPTIONS.map((status, idx) => {
-                        const isReached = getStatusIndex(receipt.status) >= idx;
-                        const isCurrent = receipt.status === status;
+                        const isReached = receipt.status === 'Divergente' || getStatusIndex(receipt.status) >= idx;
+                        const isCurrent = receipt.status === status || (receipt.status === 'Divergente' && idx === 3);
                         
                         return (
                           <div key={status} className="flex flex-col items-center gap-2 relative">
@@ -747,7 +839,7 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
                         <ImageIcon className="w-5 h-5" />
                       </a>
                     )}
-                    {STATUS_OPTIONS.map((status) => {
+                    {ALL_STATUSES.map((status) => {
                       const targetIdx = getStatusIndex(status);
                       const currentIdx = getStatusIndex(receipt.status);
                       const isRetroceding = targetIdx < currentIdx;
@@ -765,15 +857,17 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
                         }
                       } else {
                         // Original rules for others
-                        isDisabled = (receipt.status === 'Enviado' || receipt.status === 'Recebido') ||
+                        isDisabled = (receipt.status === 'Enviado' || receipt.status === 'Recebido' || receipt.status === 'Conferido' || receipt.status === 'Divergente') ||
                                      (receipt.status === 'Pendente' && receipt.author_id !== currentUserId);
                       }
+                      
+                      if (status === 'Divergente' && receipt.status === 'Divergente') isDisabled = true;
                       
                       return (
                         <button
                           key={status}
                           disabled={isDisabled}
-                          onClick={() => updateStatus(receipt.id, status)}
+                          onClick={() => updateStatus(receipt.id, status as any)}
                           className={cn(
                             "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed",
                             receipt.status === status 
@@ -1214,6 +1308,106 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
         )}
       </AnimatePresence>
 
+      {/* Divergence Modal */}
+      <AnimatePresence>
+        {divergenceModal.isOpen && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-surface-container-lowest p-8 rounded-[32px] shadow-2xl w-full max-w-md border border-outline-variant/10 relative overflow-hidden"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-error/10 rounded-2xl flex items-center justify-center text-error">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-headline font-black text-on-surface">Informar Divergência</h3>
+                  <p className="text-xs text-on-surface-variant">Descreva o que foi encontrado de errado.</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant px-1">Observação da Divergência *</label>
+                  <textarea 
+                    autoFocus
+                    required
+                    className="w-full bg-surface-container-low text-on-surface border-0 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-error/20 outline-none min-h-[120px] resize-none text-sm leading-relaxed" 
+                    placeholder="Descreva a divergência aqui... (obrigatório)"
+                    value={divergenceForm.observation}
+                    onChange={(e) => setDivergenceForm({ ...divergenceForm, observation: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant px-1">Foto da Divergência (Opcional)</label>
+                  <div className="flex items-center gap-4">
+                    <label className="flex-1 flex items-center justify-center gap-3 bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant border-2 border-dashed border-outline-variant/30 rounded-2xl p-6 cursor-pointer transition-all active:scale-95 group">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        capture="environment"
+                        onChange={handleDivergenceImageUpload}
+                        disabled={uploading}
+                      />
+                      <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center group-hover:scale-110 transition-transform">
+                        {uploading ? (
+                          <Clock className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <ImageIcon className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <span className="text-xs font-black block uppercase tracking-tight">
+                          {uploading ? 'Enviando...' : divergenceForm.image_url ? 'Trocar Foto' : 'Tirar Foto / Galeria'}
+                        </span>
+                        <span className="text-[9px] opacity-40">PNG, JPG ou JPEG</span>
+                      </div>
+                    </label>
+                  </div>
+                  
+                  {divergenceForm.image_url && (
+                    <div className="mt-2 w-full h-40 rounded-2xl overflow-hidden border border-outline-variant/20 relative group">
+                      <img src={divergenceForm.image_url} alt="Divergencia" className="w-full h-full object-cover" />
+                      <button 
+                        onClick={() => setDivergenceForm(prev => ({ ...prev, image_url: '' }))}
+                        className="absolute top-2 right-2 p-2 bg-error text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    onClick={() => setDivergenceModal({ isOpen: false, receiptId: null, currentStatus: null })}
+                    className="flex-1 py-4 px-6 rounded-2xl bg-surface-container-high text-on-surface font-black text-sm hover:bg-surface-container-highest transition-all"
+                  >
+                    CANCELAR
+                  </button>
+                  <button 
+                    disabled={saving || !divergenceForm.observation.trim() || uploading}
+                    onClick={handleDivergenceSubmit}
+                    className="flex-[2] py-4 px-6 rounded-2xl bg-error text-white font-black text-sm shadow-xl shadow-error/20 hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {saving ? (
+                      <Clock className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-5 h-5" />
+                    )}
+                    {saving ? 'SALVANDO...' : 'CONFIRMAR DIVERGÊNCIA'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Modal de Detalhes (Histórico) */}
       <AnimatePresence>
         {detailsModal.isOpen && detailsModal.receipt && (
@@ -1248,9 +1442,11 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
 
               <div className="p-8">
                 <div className="space-y-8 relative before:absolute before:left-[15px] before:top-2 before:bottom-2 before:w-[2px] before:bg-outline-variant/30">
-                  {STATUS_OPTIONS.map((status) => {
+                  {ALL_STATUSES.map((status) => {
                     const history = detailsModal.receipt?.status_history?.[status];
                     const isReached = !!history;
+                    
+                    if (status === 'Divergente' && !isReached) return null;
                     
                     return (
                       <div key={status} className="relative flex gap-6 items-start group">
