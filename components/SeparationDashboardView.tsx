@@ -68,7 +68,7 @@ export function SeparationDashboardView() {
 
     const channel = supabase
       .channel('separation-dashboard')
-      .on('postgres_changes', { event: '*', table: 'purchase_orders' }, () => {
+      .on('postgres_changes', { event: '*', table: 'purchase_orders', schema: 'public' }, () => {
         fetchOrders();
       })
       .subscribe();
