@@ -18,7 +18,7 @@ import { SortingView } from '@/components/SortingView';
 import { SeparationDashboardView } from '@/components/SeparationDashboardView';
 import PerformanceView from '@/components/PerformanceView';
 import { SupabaseSetupView } from '@/components/SupabaseSetupView';
-import { Factory, Settings, CheckCircle2, Loader2 } from 'lucide-react';
+import { Factory, Settings, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export interface Operation {
@@ -52,6 +52,8 @@ export default function Page() {
   const [productionLines, setProductionLines] = useState<string[]>([]);
   const [logoUrl, setLogoUrl] = useState<string>('/app-logo.png');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [showTroubleshoot, setShowTroubleshoot] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -153,14 +155,21 @@ export default function Page() {
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
-      const { data: profile, error } = await supabase
+      const profilePromise = supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
+      // Timeout de 10 segundos para a busca do perfil
+      const { data: profile, error } = await Promise.race([
+        profilePromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao buscar perfil')), 10000))
+      ]) as any;
+
       if (error) {
         console.error('Error fetching profile:', error);
+        setLoadError('Erro ao carregar perfil: Conexão instável.');
         setLoading(false);
         return;
       }
@@ -176,6 +185,7 @@ export default function Page() {
       }
     } catch (err: any) {
       console.error('Falha no fetchProfile:', err);
+      setLoadError('A rede bloqueou a conexão com o banco de dados (Supabase).');
     } finally {
       setLoading(false);
     }
@@ -183,13 +193,19 @@ export default function Page() {
 
   const checkUser = useCallback(async () => {
     console.log('Executando checkUser...');
+    setLoadError(null);
     try {
-      // Get the current session
-      const { data: { session }, error } = await supabase.auth.getSession();
+      const sessionPromise = supabase.auth.getSession();
+      
+      // Timeout de 8 segundos para a sessão inicial
+      const { data: { session }, error } = await Promise.race([
+        sessionPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout na sessão')), 8000))
+      ]) as any;
       
       if (error) {
         console.warn('Erro na sessão de autenticação:', error.message);
-        // Se o token for inválido ou não encontrado, limpamos a sessão localmente
+        setLoadError('Servidor de autenticação inacessível.');
         if (
           error.message.toLowerCase().includes('refresh_token') || 
           error.message.toLowerCase().includes('invalid session') ||
@@ -211,6 +227,7 @@ export default function Page() {
       }
     } catch (err: any) {
       console.error('Falha crítica no checkUser:', err.message);
+      setLoadError('Conexão bloqueada pelo Firewall da empresa.');
     } finally {
       setLoading(false);
     }
@@ -291,6 +308,10 @@ export default function Page() {
 
     checkUser();
     
+    const troubleshootTimer = setTimeout(() => {
+      setShowTroubleshoot(true);
+    }, 6000);
+
     // Escuta mudanças no estado de autenticação
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
@@ -312,6 +333,7 @@ export default function Page() {
       if (authListener?.subscription) {
         authListener.subscription.unsubscribe();
       }
+      clearTimeout(troubleshootTimer);
     };
   }, [checkUser, fetchProfile]);
 
@@ -512,8 +534,48 @@ export default function Page() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-surface-container-lowest p-6">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-surface-container-lowest p-6 text-center">
+        <Loader2 className="w-12 h-12 animate-spin text-primary mb-6" />
+        
+        <AnimatePresence>
+          {showTroubleshoot && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="max-w-xs space-y-4"
+            >
+              <div className="p-4 bg-surface-container rounded-2xl border border-outline-variant/20 shadow-sm">
+                <AlertCircle className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                <h3 className="text-sm font-black text-on-surface uppercase tracking-tight">Conexão Lenta</h3>
+                <p className="text-[10px] text-on-surface-variant mt-2 leading-relaxed">
+                  O sistema está tentando conectar ao banco de dados. 
+                  {loadError ? (
+                    <span className="block mt-2 text-error font-bold">{loadError}</span>
+                  ) : 'Se demorar muito, pode ser um bloqueio na rede local.'}
+                </p>
+              </div>
+              
+              <div className="flex flex-col gap-2">
+                <button 
+                  onClick={() => checkUser()}
+                  className="w-full py-3 bg-primary text-white text-xs font-black rounded-xl active:scale-95 transition-all shadow-lg shadow-primary/20"
+                >
+                  Tentar Novamente
+                </button>
+                <button 
+                  onClick={() => setLoading(false)}
+                  className="w-full py-2 text-[10px] font-bold text-on-surface-variant underline"
+                >
+                  Ignorar (Acesso Offline/Limitado)
+                </button>
+              </div>
+
+              <p className="text-[8px] opacity-30 mt-4 leading-tight">
+                Dica: Se estiver na Ventisol, tente abrir este link pelo 4G do celular para confirmar se é o firewall.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
