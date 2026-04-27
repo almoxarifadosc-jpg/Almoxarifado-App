@@ -1070,29 +1070,29 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-surface-container-lowest w-full max-w-4xl max-h-[90vh] rounded-[40px] shadow-2xl overflow-hidden flex flex-col"
+              className="bg-surface-container-lowest w-full max-w-4xl max-h-[95vh] md:max-h-[90vh] rounded-2xl md:rounded-[40px] shadow-2xl overflow-hidden flex flex-col"
             >
-              <div className="p-8 border-b border-outline-variant/10 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
-                    <ClipboardList className="w-6 h-6" />
+              <div className="p-4 md:p-8 border-b border-outline-variant/10 flex items-center justify-between">
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-primary/10 rounded-xl md:rounded-2xl flex items-center justify-center text-primary">
+                    <ClipboardList className="w-5 h-5 md:w-6 md:h-6" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-headline font-black text-on-surface">
+                    <h3 className="text-lg md:text-2xl font-headline font-black text-on-surface">
                       {modalMode === 'SIGN' ? 'Assinatura Eletrônica' : modalMode === 'REVIEW' ? 'Revisão da OP' : 'Lançar Separação'}
                     </h3>
-                    <p className="text-sm text-on-surface-variant">OP #{editingOrder.order_number}</p>
+                    <p className="text-xs md:text-sm text-on-surface-variant">OP #{editingOrder.order_number}</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setIsEditModalOpen(false)}
-                  className="p-2 hover:bg-surface-container-high rounded-full transition-colors"
+                  className="p-1.5 md:p-2 hover:bg-surface-container-high rounded-full transition-colors"
                 >
-                  <ArrowLeft className="w-6 h-6" />
+                  <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8">
+              <div className="flex-1 overflow-y-auto p-4 md:p-8">
                 {error && (
                   <motion.div 
                     initial={{ opacity: 0, y: -10 }}
@@ -1110,22 +1110,22 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                 {modalMode === 'EDIT' && (
                   <>
                     {/* Campo PI */}
-                    <div className="mb-6 p-6 bg-surface-container-low rounded-[32px] border border-outline-variant/10">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-3 block ml-1">Processos Industriais (PI)</label>
-                      <div className="flex gap-2 mb-4">
+                    <div className="mb-4 md:mb-6 p-4 md:p-6 bg-surface-container-low rounded-[24px] md:rounded-[32px] border border-outline-variant/10">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-2 md:mb-3 block ml-1">Processos Industriais (PI)</label>
+                      <div className="flex gap-2 mb-3 md:mb-4">
                         <input 
                           type="text"
                           value={currentPI}
                           onChange={(e) => setCurrentPI(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleAddPI()}
                           placeholder="Digite o número da PI..."
-                          className="flex-1 bg-surface-container-highest border-0 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-bold"
+                          className="flex-1 bg-surface-container-highest border-0 rounded-xl md:rounded-2xl px-4 md:px-5 py-3 md:py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-bold text-sm"
                         />
                         <button 
                           onClick={handleAddPI}
-                          className="w-14 h-14 bg-primary text-white rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all"
+                          className="w-12 h-12 md:w-14 md:h-14 bg-primary text-white rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all outline-none"
                         >
-                          <Plus className="w-6 h-6" />
+                          <Plus className="w-5 h-5 md:w-6 md:h-6" />
                         </button>
                       </div>
                       
@@ -1144,7 +1144,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                       </div>
                     </div>
 
-                    <div className="bg-surface-container-high/30 overflow-hidden rounded-[32px] border border-outline-variant/10 shadow-inner">
+                    <div className="bg-surface-container-high/30 overflow-hidden rounded-2xl md:rounded-[32px] border border-outline-variant/10 shadow-inner">
                     {/* Cabeçalho Desktop */}
                     <div className="hidden md:grid grid-cols-[1fr,100px,100px,80px] bg-surface-container-high px-6 py-4">
                       <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Material / Código</div>
@@ -1155,7 +1155,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
                     <div className="divide-y divide-outline-variant/10">
                       {editingOrder.items?.map((item, idx) => (
-                        <div key={idx} className="p-4 md:px-6 md:py-3 hover:bg-surface-container-low/50 transition-colors grid grid-cols-1 md:grid-cols-[1fr,100px,100px,80px,50px] items-center gap-4 md:gap-0">
+                        <div key={idx} className="p-3 md:p-4 md:px-6 md:py-3 hover:bg-surface-container-low/50 transition-colors grid grid-cols-1 md:grid-cols-[1fr,100px,100px,80px,50px] items-center gap-3 md:gap-0">
                           {/* Material Info */}
                           <div className="min-w-0">
                             {/* Desktop: Descrição > Código */}
@@ -1503,7 +1503,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                 )}
               </div>
 
-              <div className="p-8 border-t border-outline-variant/10 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6 md:gap-3">
+                  <div className="p-4 md:p-8 border-t border-outline-variant/10 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 md:gap-3">
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
                   {modalMode === 'EDIT' && (
                     editingOrder.conferred_by_name ? (

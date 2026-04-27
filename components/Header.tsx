@@ -69,7 +69,7 @@ export function Header({
   const isBemplas = category === 'Bemplas';
 
   return (
-    <header className="sticky top-0 w-full z-50 bg-surface/80 backdrop-blur-xl flex items-center justify-between px-6 py-4 shadow-sm shadow-on-surface/5">
+    <header className="sticky top-0 w-full z-50 bg-surface/80 backdrop-blur-xl flex items-center justify-between px-4 md:px-6 py-2 md:py-4 shadow-sm shadow-on-surface/5">
       <div className="flex items-center gap-3">
         <button 
           onClick={onMenuToggle}
