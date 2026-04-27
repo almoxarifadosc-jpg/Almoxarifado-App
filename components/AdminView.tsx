@@ -47,7 +47,7 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     allowed_groups: '' 
   });
 
-  const categories = ['Ventisol', 'Bemplas', 'Recebimento'];
+  const categories = ['Ventisol', 'Conferente', 'Bemplas', 'Recebimento'];
 
   const fetchPendingUsers = useCallback(async () => {
     try {

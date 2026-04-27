@@ -724,21 +724,21 @@ export default function Page() {
                 isSuperAdmin={currentUser?.is_super_admin}
               />
             )}
-            {currentView === 'SORTING' && (currentUser?.is_admin || currentUser?.category === 'Ventisol') && (
+            {currentView === 'SORTING' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente') && (
               <SortingView 
                 key="sorting" 
                 isAdmin={currentUser?.is_admin} 
                 isSuperAdmin={currentUser?.is_super_admin}
                 currentUserId={currentUser?.id} 
-                isConferente={currentUser?.is_conferente}
+                isConferente={currentUser?.is_conferente || currentUser?.category === 'Conferente'}
                 currentUserName={currentUser?.name}
                 userCategory={currentUser?.category}
               />
             )}
-            {currentView === 'SEPARATION_DASHBOARD' && (currentUser?.is_admin || currentUser?.category === 'Ventisol') && (
+            {currentView === 'SEPARATION_DASHBOARD' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente') && (
               <SeparationDashboardView key="separation-dashboard" />
             )}
-            {currentView === 'PERFORMANCE' && (currentUser?.is_admin || currentUser?.category === 'Ventisol') && (
+            {currentView === 'PERFORMANCE' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente') && (
               <PerformanceView key="performance" />
             )}
             {currentView === 'ADMIN_PANEL' && (

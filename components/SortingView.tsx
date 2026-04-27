@@ -621,12 +621,9 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     // Usuários da categoria Ventisol que NÃO são admins vêem apenas as atribuições
     let canSee = false;
     
-    if (isSuperAdmin || isAdmin) {
+    if (isSuperAdmin || isAdmin || userCategory === 'Ventisol' || userCategory === 'Conferente') {
       canSee = true;
-    } else if (userCategory === 'Ventisol') {
-      canSee = !!isAssigned;
     } else {
-      // Outras categorias (caso existam) sem ser admin também só vêem se atribuído
       canSee = !!isAssigned;
     }
 
