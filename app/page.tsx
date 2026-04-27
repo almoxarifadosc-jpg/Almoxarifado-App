@@ -154,42 +154,46 @@ export default function Page() {
     }
   };
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string, retryCount = 0) => {
     try {
-      const profilePromise = supabase
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      // Timeout de 10 segundos para a busca do perfil
-      const result = await Promise.race([
-        profilePromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 10000))
-      ]) as any;
-
-      if (result.error) {
-        console.error('Error fetching profile:', result.error);
-        setLoadError('Erro ao carregar perfil: Conexão instável.');
+      if (error) {
+        console.error('Error fetching profile:', error);
+        if (retryCount < 3) {
+          const delay = (retryCount + 1) * 2000;
+          console.log(`Retrying profile fetch in ${delay}ms... (Attempt ${retryCount + 1})`);
+          setTimeout(() => fetchProfile(userId, retryCount + 1), delay);
+          return;
+        }
+        setLoadError('Erro de conexão com o banco de dados.');
         return;
       }
 
-      const profile = result.data;
-      if (profile && profile.status === 'APPROVED') {
-        if (profile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
-          profile.is_super_admin = true;
-          profile.is_admin = true;
+      const userProfile = profile;
+      if (userProfile && userProfile.status === 'APPROVED') {
+        if (userProfile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
+          userProfile.is_super_admin = true;
+          userProfile.is_admin = true;
         }
-        setCurrentUser(profile);
-      } else if (profile) {
-        setLoadError('Seu cadastro ainda não foi aprovado.');
+        setCurrentUser(userProfile);
+        setLoadError(null);
+      } else if (userProfile) {
+        setLoadError('Aguardando aprovação do cadastro.');
+      } else {
+        setLoadError('Perfil não encontrado no sistema.');
       }
     } catch (err: any) {
       console.error('Falha no fetchProfile:', err);
-      if (err.message === 'TIMEOUT') {
-        setLoadError('A rede está muito lenta. Tentando novamente...');
+      if (retryCount < 3) {
+        const delay = (retryCount + 1) * 2000;
+        setTimeout(() => fetchProfile(userId, retryCount + 1), delay);
       } else {
-        setLoadError('A rede bloqueou a conexão com o banco de dados.');
+        setLoadError('Erro de rede ao carregar perfil.');
       }
     } finally {
       setLoading(false);
@@ -200,33 +204,27 @@ export default function Page() {
     console.log('Executando checkUser...');
     setLoadError(null);
     try {
-      const sessionPromise = supabase.auth.getSession();
-      
-      const sessionResult = await Promise.race([
-        sessionPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000))
-      ]) as any;
-
-      const session = sessionResult.data?.session;
-      const error = sessionResult.error;
+      const { data: { session }, error } = await supabase.auth.getSession();
       
       if (error) {
-        console.warn('Erro na sessão de autenticação:', error.message);
-        setLoadError('Servidor de autenticação inacessível.');
+        console.warn('Erro na sessão:', error.message);
+        setLoadError('Erro ao carregar sessão.');
+        setLoading(false);
         return;
       }
 
       if (session?.user) {
         setAuthSession(session);
-        await fetchProfile(session.user.id);
+        // Don't await here to avoid blocking and potential timeout flicker
+        fetchProfile(session.user.id);
       } else {
         setAuthSession(null);
         setCurrentUser(null);
         setLoading(false);
       }
     } catch (err: any) {
-      console.error('Falha crítica no checkUser:', err.message);
-      setLoadError('Conexão bloqueada pelo Firewall.');
+      console.error('Falha no checkUser:', err.message);
+      setLoadError('Servidor inacessível. Verifique sua rede.');
       setLoading(false);
     }
   }, [fetchProfile]);
@@ -308,7 +306,7 @@ export default function Page() {
     
     const troubleshootTimer = setTimeout(() => {
       setShowTroubleshoot(true);
-    }, 6000);
+    }, 10000);
 
     // Escuta mudanças no estado de autenticação
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
