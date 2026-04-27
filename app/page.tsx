@@ -156,25 +156,29 @@ export default function Page() {
 
   const fetchProfile = useCallback(async (userId: string, retryCount = 0) => {
     try {
-      const { data: profile, error } = await supabase
+      // Timeout para evitar que a rede bloqueada segure o app eternamente
+      const profilePromise = supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) {
-        console.error('Error fetching profile:', error);
-        if (retryCount < 3) {
-          const delay = (retryCount + 1) * 2000;
-          console.log(`Retrying profile fetch in ${delay}ms... (Attempt ${retryCount + 1})`);
-          setTimeout(() => fetchProfile(userId, retryCount + 1), delay);
+      const result = await Promise.race([
+        profilePromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 15000))
+      ]) as any;
+
+      if (result.error) {
+        console.error('Error fetching profile:', result.error);
+        if (retryCount < 2) {
+          setTimeout(() => fetchProfile(userId, retryCount + 1), 3000);
           return;
         }
-        setLoadError('Erro de conexão com o banco de dados.');
+        if (!currentUser) setLoadError('Conector de dados instável ou bloqueado.');
         return;
       }
 
-      const userProfile = profile;
+      const userProfile = result.data;
       if (userProfile && userProfile.status === 'APPROVED') {
         if (userProfile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
           userProfile.is_super_admin = true;
@@ -184,21 +188,21 @@ export default function Page() {
         setLoadError(null);
       } else if (userProfile) {
         setLoadError('Aguardando aprovação do cadastro.');
-      } else {
+      } else if (!currentUser) {
         setLoadError('Perfil não encontrado no sistema.');
       }
     } catch (err: any) {
       console.error('Falha no fetchProfile:', err);
-      if (retryCount < 3) {
-        const delay = (retryCount + 1) * 2000;
-        setTimeout(() => fetchProfile(userId, retryCount + 1), delay);
-      } else {
-        setLoadError('Erro de rede ao carregar perfil.');
+      if (err.message === 'TIMEOUT' && !currentUser) {
+        setLoadError('A conexão está demorando mais que o normal...');
+      }
+      if (retryCount < 2) {
+        setTimeout(() => fetchProfile(userId, retryCount + 1), 3000);
       }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   const checkUser = useCallback(async () => {
     console.log('Executando checkUser...');
@@ -302,22 +306,44 @@ export default function Page() {
       return;
     }
 
-    checkUser();
+    // Fallback: check session manually if event doesn't fire
+    setTimeout(() => {
+      if (!authSession) {
+        console.log('Running fallback checkUser...');
+        checkUser();
+      }
+    }, 1000);
     
     const troubleshootTimer = setTimeout(() => {
       setShowTroubleshoot(true);
-    }, 10000);
+    }, 5000); // Mostra ajuda após 5 segundos em vez de 10
 
     // Escuta mudanças no estado de autenticação
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
+      console.log('Auth state change:', event, session?.user?.email);
       setAuthSession(session);
+      
       if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         setCurrentUser(null);
         setAuthSession(null);
         setLoading(false);
       } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
-          await fetchProfile(session.user.id);
+          // Se for o super admin, já podemos liberar o acesso básico enquanto carrega o perfil completo
+          if (session.user.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
+            setCurrentUser((prev: any) => prev || {
+              id: session.user.id,
+              email: session.user.email,
+              name: 'Administrador (Ventisol)',
+              status: 'APPROVED',
+              is_admin: true,
+              is_super_admin: true,
+              is_fallback: true
+            });
+            setLoading(false);
+          }
+          
+          fetchProfile(session.user.id);
         } else {
           setCurrentUser(null);
           setLoading(false);
@@ -546,7 +572,9 @@ export default function Page() {
                 <AlertCircle className="w-6 h-6 text-amber-500 mx-auto mb-2" />
                 <h3 className="text-sm font-black text-on-surface uppercase tracking-tight">Conexão Lenta</h3>
                 <p className="text-[10px] text-on-surface-variant mt-2 leading-relaxed">
-                  {loadError || 'O sistema está tentando conectar ao banco de dados.'}
+                  {loadError || 'O sistema está tentando conectar ao banco de dados do Supabase.'}
+                  <br /><br />
+                  <span className="font-bold">Dica:</span> Se estiver na rede da Ventisol, verifique se o domínio <code className="bg-surface-container-high px-1">supabase.co</code> está liberado no firewall.
                 </p>
               </div>
               
