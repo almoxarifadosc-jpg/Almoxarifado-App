@@ -45,6 +45,7 @@ export interface NewsPost {
 
 export default function Page() {
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authSession, setAuthSession] = useState<any>(null);
   const [currentView, setCurrentView] = useState<View>('OPERATIONS');
   const [newsPosts, setNewsPosts] = useState<NewsPost[]>([]);
   const [newsFilter, setNewsFilter] = useState('');
@@ -162,30 +163,34 @@ export default function Page() {
         .maybeSingle();
 
       // Timeout de 10 segundos para a busca do perfil
-      const { data: profile, error } = await Promise.race([
+      const result = await Promise.race([
         profilePromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao buscar perfil')), 10000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 10000))
       ]) as any;
 
-      if (error) {
-        console.error('Error fetching profile:', error);
+      if (result.error) {
+        console.error('Error fetching profile:', result.error);
         setLoadError('Erro ao carregar perfil: Conexão instável.');
-        setLoading(false);
         return;
       }
 
+      const profile = result.data;
       if (profile && profile.status === 'APPROVED') {
         if (profile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
           profile.is_super_admin = true;
           profile.is_admin = true;
         }
         setCurrentUser(profile);
-      } else {
-        setCurrentUser(null);
+      } else if (profile) {
+        setLoadError('Seu cadastro ainda não foi aprovado.');
       }
     } catch (err: any) {
       console.error('Falha no fetchProfile:', err);
-      setLoadError('A rede bloqueou a conexão com o banco de dados (Supabase).');
+      if (err.message === 'TIMEOUT') {
+        setLoadError('A rede está muito lenta. Tentando novamente...');
+      } else {
+        setLoadError('A rede bloqueou a conexão com o banco de dados.');
+      }
     } finally {
       setLoading(false);
     }
@@ -197,38 +202,31 @@ export default function Page() {
     try {
       const sessionPromise = supabase.auth.getSession();
       
-      // Timeout de 8 segundos para a sessão inicial
-      const { data: { session }, error } = await Promise.race([
+      const sessionResult = await Promise.race([
         sessionPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout na sessão')), 8000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000))
       ]) as any;
+
+      const session = sessionResult.data?.session;
+      const error = sessionResult.error;
       
       if (error) {
         console.warn('Erro na sessão de autenticação:', error.message);
         setLoadError('Servidor de autenticação inacessível.');
-        if (
-          error.message.toLowerCase().includes('refresh_token') || 
-          error.message.toLowerCase().includes('invalid session') ||
-          error.message.toLowerCase().includes('jwt')
-        ) {
-          console.log('Sessão inválida detectada, limpando armazenamento local...');
-          await supabase.auth.signOut({ scope: 'local' });
-          setCurrentUser(null);
-        }
         return;
       }
 
       if (session?.user) {
-        console.log('Sessão encontrada para:', session.user.email);
+        setAuthSession(session);
         await fetchProfile(session.user.id);
       } else {
-        console.log('Nenhuma sessão encontrada no getSession.');
+        setAuthSession(null);
         setCurrentUser(null);
+        setLoading(false);
       }
     } catch (err: any) {
       console.error('Falha crítica no checkUser:', err.message);
-      setLoadError('Conexão bloqueada pelo Firewall da empresa.');
-    } finally {
+      setLoadError('Conexão bloqueada pelo Firewall.');
       setLoading(false);
     }
   }, [fetchProfile]);
@@ -314,8 +312,10 @@ export default function Page() {
 
     // Escuta mudanças no estado de autenticação
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
+      setAuthSession(session);
       if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         setCurrentUser(null);
+        setAuthSession(null);
         setLoading(false);
       } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
@@ -548,10 +548,7 @@ export default function Page() {
                 <AlertCircle className="w-6 h-6 text-amber-500 mx-auto mb-2" />
                 <h3 className="text-sm font-black text-on-surface uppercase tracking-tight">Conexão Lenta</h3>
                 <p className="text-[10px] text-on-surface-variant mt-2 leading-relaxed">
-                  O sistema está tentando conectar ao banco de dados. 
-                  {loadError ? (
-                    <span className="block mt-2 text-error font-bold">{loadError}</span>
-                  ) : 'Se demorar muito, pode ser um bloqueio na rede local.'}
+                  {loadError || 'O sistema está tentando conectar ao banco de dados.'}
                 </p>
               </div>
               
@@ -562,17 +559,15 @@ export default function Page() {
                 >
                   Tentar Novamente
                 </button>
-                <button 
-                  onClick={() => setLoading(false)}
-                  className="w-full py-2 text-[10px] font-bold text-on-surface-variant underline"
-                >
-                  Ignorar (Acesso Offline/Limitado)
-                </button>
+                {authSession && (
+                  <button 
+                    onClick={() => setLoading(false)}
+                    className="w-full py-2 text-[10px] font-bold text-on-surface-variant underline"
+                  >
+                    Entrar mesmo assim (Pode haver erros)
+                  </button>
+                )}
               </div>
-
-              <p className="text-[8px] opacity-30 mt-4 leading-tight">
-                Dica: Se estiver na Ventisol, tente abrir este link pelo 4G do celular para confirmar se é o firewall.
-              </p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -580,7 +575,7 @@ export default function Page() {
     );
   }
 
-  if (!currentUser) {
+  if (!authSession) {
     return (
       <AuthView 
         onAuthSuccess={checkUser} 
@@ -588,6 +583,33 @@ export default function Page() {
         onToggleDarkMode={toggleDarkMode}
         logoUrl={logoUrl}
       />
+    );
+  }
+
+  // Se tivermos sessão mas não perfil (ex: erro de rede)
+  if (!currentUser && authSession) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-surface-container-lowest p-6 text-center">
+        <AlertCircle className="w-12 h-12 text-error mb-4" />
+        <h2 className="text-lg font-black text-on-surface mb-2">Falha na Autenticação</h2>
+        <p className="text-sm text-on-surface-variant mb-6 max-w-sm">
+          {loadError || "Não foi possível carregar seu perfil de acesso. Verifique sua conexão ou se seu cadastro foi aprovado."}
+        </p>
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          <button 
+            onClick={() => checkUser()}
+            className="py-3 bg-primary text-white rounded-xl font-bold shadow-lg"
+          >
+            Tentar Reconectar
+          </button>
+          <button 
+            onClick={handleLogout}
+            className="py-3 bg-surface-container text-on-surface-variant rounded-xl font-bold"
+          >
+            Sair da Conta
+          </button>
+        </div>
+      </div>
     );
   }
 
