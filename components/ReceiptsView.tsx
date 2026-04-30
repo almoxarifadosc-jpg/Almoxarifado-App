@@ -40,7 +40,6 @@ import {
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { supabase } from '@/lib/supabase'; // Keeping for storage only
 
 interface Receipt {
   id: string;

@@ -310,19 +310,12 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         const signatureDataUrl = canvas.toDataURL('image/png');
         try {
           const blob = await (await fetch(signatureDataUrl)).blob();
-          const fileName = `signature_${editingOrder.id}_${Date.now()}.png`;
-
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('orders')
-            .upload(fileName, blob, { contentType: 'image/png' });
-
-          if (uploadError) throw uploadError;
-
-          const { data: { publicUrl } } = supabase.storage
-            .from('orders')
-            .getPublicUrl(fileName);
+          const fileName = `signatures/signature_${editingOrder.id}_${Date.now()}.png`;
+          const storage = getStorage();
+          const storageRef = ref(storage, fileName);
           
-          signatureUrl = publicUrl;
+          await uploadBytes(storageRef, blob);
+          signatureUrl = await getDownloadURL(storageRef);
         } catch (storageErr) {
           console.warn('Fallback to Base64 signature due to storage error:', storageErr);
           signatureUrl = signatureDataUrl;
@@ -415,18 +408,12 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
       try {
         const blob = await (await fetch(signatureDataUrl)).blob();
-        const fileName = `signature_${editingOrder.id}_${Date.now()}.png`;
+        const fileName = `signatures/signature_${editingOrder.id}_${Date.now()}.png`;
+        const storage = getStorage();
+        const storageRef = ref(storage, fileName);
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('orders')
-          .upload(fileName, blob, { contentType: 'image/png' });
-
-        if (!uploadError) {
-          const { data: { publicUrl } } = supabase.storage
-            .from('orders')
-            .getPublicUrl(fileName);
-          signatureUrl = publicUrl;
-        }
+        await uploadBytes(storageRef, blob);
+        signatureUrl = await getDownloadURL(storageRef);
       } catch (storageErr) {
         console.warn('Signature storage error, using base64 fallback:', storageErr);
       }

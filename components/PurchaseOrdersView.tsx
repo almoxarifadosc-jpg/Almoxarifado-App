@@ -38,7 +38,6 @@ import {
 import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { GoogleGenAI, Type } from "@google/genai";
-import { supabase } from '@/lib/supabase'; // Keeping for storage only
 
 interface OrderItem {
   code?: string;
