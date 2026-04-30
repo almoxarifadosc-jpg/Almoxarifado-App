@@ -21,8 +21,23 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/firebase';
+import { 
+  collection, 
+  query, 
+  orderBy, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  onSnapshot, 
+  serverTimestamp 
+} from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { GoogleGenAI, Type } from "@google/genai";
+import { supabase } from '@/lib/supabase'; // Keeping for storage only
 
 interface OrderItem {
   code?: string;
@@ -67,19 +82,27 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
 
   const fetchOrders = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('purchase_orders')
-      .select('*')
-      .order('sequence', { ascending: true, nullsFirst: false });
-
-    if (!error && data) {
+    try {
+      const q = query(collection(db, 'purchase_orders'), orderBy('sequence', 'asc'));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PurchaseOrder[];
       setOrders(data);
+    } catch (err: any) {
+      console.error('Error fetching orders:', err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     fetchOrders();
+    const unsubscribe = onSnapshot(collection(db, 'purchase_orders'), () => {
+      fetchOrders();
+    });
+    return unsubscribe;
   }, []);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -272,7 +295,6 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
     setError(null);
     
     try {
-      // Limpeza profunda dos itens para garantir que o JSONB seja puro
       const itemsToSave = editingOrder.items.map(item => ({
         code: String(item.code || ''),
         description: String(item.description || ''),
@@ -286,36 +308,12 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
       const payload = {
         items: itemsToSave,
         total_amount: Number(editingOrder.total_amount) || 0,
-        status: 'Processado'
+        status: 'Processado',
+        updated_at: serverTimestamp()
       };
 
-      console.log('Enviando atualização para o Supabase:', {
-        id: editingOrder.id,
-        payload
-      });
-
-      const { data, error: dbError, status, statusText } = await supabase
-        .from('purchase_orders')
-        .update(payload)
-        .eq('id', editingOrder.id)
-        .select();
-
-      if (dbError) throw dbError;
-
-      // Se der status 200/204 mas data vier vazio, pode ser RLS restringindo o SELECT após a mudança de status.
-      // Nestes casos, consideramos o sucesso se o status do HTTP for de sucesso.
-      const isSuccessStatus = status >= 200 && status < 300;
-      
-      if (!isSuccessStatus) {
-        throw new Error(`O servidor respondeu com status ${status}: ${statusText}`);
-      }
-      
-      if (!data || data.length === 0) {
-        console.warn('O update parece ter funcionado (status OK), mas não retornou dados. Isso pode ser devido a políticas de RLS.');
-        // Não jogamos erro aqui, apenas logamos o aviso e prosseguimos.
-      } else {
-        console.log('Update confirmado pelo banco:', data[0]);
-      }
+      const orderRef = doc(db, 'purchase_orders', editingOrder.id);
+      await updateDoc(orderRef, payload);
 
       await fetchOrders();
       setIsEditModalOpen(false);
@@ -324,9 +322,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
       setSuccess('Conferência salva com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      console.error('Erro de persistência:', err);
-      // Mostrar erro detalhado para ajudar no diagnóstico
-      setError(`Falha ao salvar: ${err.message || 'Erro desconhecido'}`);
+      handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${editingOrder.id}`);
     } finally {
       setIsProcessing(false);
     }
@@ -339,37 +335,28 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
     setError(null);
     try {
       // 1. Verificação de duplicidade por número de OP
-      const { data: existingOP, error: checkError } = await supabase
-        .from('purchase_orders')
-        .select('id')
-        .eq('order_number', extractedData.order_number)
-        .maybeSingle();
-
-      if (checkError) throw checkError;
+      const q = query(collection(db, 'purchase_orders'), where('order_number', '==', extractedData.order_number));
+      const querySnapshot = await getDocs(q);
       
-      if (existingOP) {
+      if (!querySnapshot.empty) {
         throw new Error(`A OP #${extractedData.order_number} já foi importada anteriormente.`);
       }
 
-      // 2. Upload PDF to Storage
+      // 2. Upload PDF to Firebase Storage
+      const storage = getStorage();
       // Normalize filename to remove accents and special characters
       const normalizedName = selectedFile.name
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-zA-Z0-9.-]/g, '_');
         
-      const fileName = `${Date.now()}_${normalizedName}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('orders')
-        .upload(fileName, selectedFile);
+      const fileName = `orders/${Date.now()}_${normalizedName}`;
+      const storageRef = ref(storage, fileName);
 
-      if (uploadError) throw uploadError;
+      await uploadBytes(storageRef, selectedFile);
+      const publicUrl = await getDownloadURL(storageRef);
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('orders')
-        .getPublicUrl(fileName);
-
-      // 2. Save to Database
+      // 3. Save to Database
       const finalItems = extractedData.items?.map(item => ({
         ...item,
         quantity: 0 // Incializa quantidades como vazias (zero) para edição posterior
@@ -379,24 +366,20 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
       const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
       // Buscar usuários marcados para atribuição automática
-      const { data: autoAssignUsers } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('is_auto_assign', true);
-      
-      const autoAssignIds = (autoAssignUsers as { id: string }[] | null)?.map(u => u.id) || [];
+      const profilesQuery = query(collection(db, 'profiles'), where('is_auto_assign', '==', true));
+      const profilesSnap = await getDocs(profilesQuery);
+      const autoAssignIds = profilesSnap.docs.map(doc => doc.id);
 
-      const { error: dbError } = await supabase.from('purchase_orders').insert([{
+      await addDoc(collection(db, 'purchase_orders'), {
         ...extractedData,
         date: dateStr, // Salva yyyy-mm-dd local
         items: finalItems,
         pdf_url: publicUrl,
         status: 'Pendente',
         sequence: orderSequence ? parseInt(orderSequence) : null,
-        assigned_users: autoAssignIds
-      }]);
-
-      if (dbError) throw dbError;
+        assigned_users: autoAssignIds,
+        created_at: serverTimestamp()
+      });
 
       fetchOrders();
       setIsModalOpen(false);
@@ -404,7 +387,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
       setSelectedFile(null);
       setOrderSequence('');
     } catch (err: any) {
-      setError(`Erro ao salvar pedido: ${err.message}`);
+      handleFirestoreError(err, OperationType.CREATE, 'purchase_orders');
     } finally {
       setIsProcessing(false);
     }
@@ -413,13 +396,12 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
   const deleteOrder = async (id: string) => {
     setIsProcessing(true);
     try {
-      const { error } = await supabase.from('purchase_orders').delete().eq('id', id);
-      if (error) throw error;
+      const orderRef = doc(db, 'purchase_orders', id);
+      await deleteDoc(orderRef);
       fetchOrders();
       setOrderToDelete(null);
     } catch (err: any) {
-      console.error('Erro ao excluir:', err);
-      setError(`Erro ao excluir: ${err.message}`);
+      handleFirestoreError(err, OperationType.DELETE, `purchase_orders/${id}`);
     } finally {
       setIsProcessing(false);
     }

@@ -19,7 +19,10 @@ import { SeparationDashboardView } from '@/components/SeparationDashboardView';
 import PerformanceView from '@/components/PerformanceView';
 import { SupabaseSetupView } from '@/components/SupabaseSetupView';
 import { Factory, Settings, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { collection, query, where, getDocs, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, orderBy, limit, serverTimestamp } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
 
 export interface Operation {
   id: string;
@@ -154,133 +157,116 @@ export default function Page() {
     }
   };
 
-  const fetchProfile = useCallback(async (userId: string, retryCount = 0) => {
+  const fetchProfile = useCallback(async (user: any) => {
     try {
-      // Timeout para evitar que a rede bloqueada segure o app eternamente
-      const profilePromise = supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      const userId = user.uid;
+      const profileRef = doc(db, 'profiles', userId);
+      const profileSnap = await getDoc(profileRef);
 
-      const result = await Promise.race([
-        profilePromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 15000))
-      ]) as any;
-
-      if (result.error) {
-        console.error('Error fetching profile:', result.error);
-        if (retryCount < 2) {
-          setTimeout(() => fetchProfile(userId, retryCount + 1), 3000);
+      if (!profileSnap.exists()) {
+        const isPrimaryAdmin = user.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br' || user.email?.toLowerCase() === 'espinmais@gmail.com';
+        
+        if (isPrimaryAdmin) {
+          // Auto-create missing profile for primary admin
+          const newProfile = {
+            id: userId,
+            email: user.email,
+            name: user.email?.split('@')[0] || 'Admin',
+            status: 'APPROVED',
+            is_admin: true,
+            is_super_admin: true,
+            created_at: serverTimestamp()
+          };
+          await setDoc(profileRef, newProfile);
+          setCurrentUser(newProfile);
+          setLoadError(null);
+          setLoading(false);
           return;
         }
-        if (!currentUser) setLoadError('Conector de dados instável ou bloqueado.');
+
+        setLoadError('Perfil não encontrado no sistema.');
         return;
       }
 
-      const userProfile = result.data;
+      const userProfile = profileSnap.data();
       if (userProfile && userProfile.status === 'APPROVED') {
-        if (userProfile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
+        const isPrimaryAdmin = userProfile.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br' || userProfile.email?.toLowerCase() === 'espinmais@gmail.com';
+        if (isPrimaryAdmin && (!userProfile.is_super_admin || !userProfile.is_admin)) {
           userProfile.is_super_admin = true;
           userProfile.is_admin = true;
+          await updateDoc(profileRef, { is_admin: true, is_super_admin: true, status: 'APPROVED' });
         }
-        setCurrentUser(userProfile);
+        setCurrentUser({ id: userId, ...userProfile });
         setLoadError(null);
       } else if (userProfile) {
         setLoadError('Aguardando aprovação do cadastro.');
-      } else if (!currentUser) {
+      } else {
         setLoadError('Perfil não encontrado no sistema.');
       }
     } catch (err: any) {
       console.error('Falha no fetchProfile:', err);
-      if (err.message === 'TIMEOUT' && !currentUser) {
-        setLoadError('A conexão está demorando mais que o normal...');
-      }
-      if (retryCount < 2) {
-        setTimeout(() => fetchProfile(userId, retryCount + 1), 3000);
-      }
+      setLoadError('Erro ao carregar perfil.');
     } finally {
       setLoading(false);
     }
-  }, [currentUser]);
+  }, []);
 
-  const checkUser = useCallback(async () => {
+  const checkUser = useCallback(() => {
     console.log('Executando checkUser...');
     setLoadError(null);
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.warn('Erro na sessão:', error.message);
-        setLoadError('Erro ao carregar sessão.');
-        setLoading(false);
-        return;
-      }
-
-      if (session?.user) {
-        setAuthSession(session);
-        // Don't await here to avoid blocking and potential timeout flicker
-        fetchProfile(session.user.id);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setAuthSession(user);
+        fetchProfile(user);
       } else {
         setAuthSession(null);
         setCurrentUser(null);
         setLoading(false);
       }
-    } catch (err: any) {
-      console.error('Falha no checkUser:', err.message);
-      setLoadError('Servidor inacessível. Verifique sua rede.');
-      setLoading(false);
-    }
+    });
+    return unsubscribe;
   }, [fetchProfile]);
 
   const fetchData = useCallback(async () => {
     try {
-      const [opsRes, newsRes, linesRes, settingsRes] = await Promise.all([
-        supabase.from('operations').select('*').order('created_at', { ascending: false }),
-        supabase.from('news_posts').select('*').order('created_at', { ascending: false }),
-        supabase.from('production_lines').select('name').order('name'),
-        supabase.from('settings').select('*').eq('key', 'company_logo').single()
+      const opsQuery = query(collection(db, 'operations'), orderBy('created_at', 'desc'));
+      const newsQuery = query(collection(db, 'news_posts'), orderBy('created_at', 'desc'));
+      const linesQuery = query(collection(db, 'production_lines'), orderBy('name', 'asc'));
+      const settingsDoc = doc(db, 'settings', 'company_logo');
+
+      const [opsSnap, newsSnap, linesSnap, settingsSnap] = await Promise.all([
+        getDocs(opsQuery),
+        getDocs(newsQuery),
+        getDocs(linesQuery),
+        getDoc(settingsDoc)
       ]);
 
-      if (opsRes.error && (opsRes.error.message.includes('JWT') || opsRes.error.message.includes('token'))) {
-        await supabase.auth.signOut({ scope: 'local' });
-        setCurrentUser(null);
-        return;
-      }
+      const mappedOps = opsSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any[];
 
-      if (opsRes.data) {
-        const mappedOps = opsRes.data.map((op: any) => ({
-          ...op,
-          iconType: op.icon_type,
-          isCompleted: op.is_completed,
-          isUrgente: op.is_urgente,
-          isLicitacao: op.is_licitacao,
-          isAtrasada: op.is_atrasada
-        }));
+      // Sort: Atrasada first, then Urgent, then Licitacao, then by ID alphabetical
+      const sortedOps = mappedOps.sort((a: any, b: any) => {
+        if (a.isAtrasada && !b.isAtrasada) return -1;
+        if (!a.isAtrasada && b.isAtrasada) return 1;
+        if (a.isUrgente && !b.isUrgente) return -1;
+        if (!a.isUrgente && b.isUrgente) return 1;
+        if (a.isLicitacao && !b.isLicitacao) return -1;
+        if (!a.isLicitacao && b.isLicitacao) return 1;
+        return (a.id || '').localeCompare(b.id || '');
+      });
 
-        // Sort: Atrasada first, then Urgent, then Licitacao, then by ID alphabetical
-        const sortedOps = mappedOps.sort((a: any, b: any) => {
-          if (a.isAtrasada && !b.isAtrasada) return -1;
-          if (!a.isAtrasada && b.isAtrasada) return 1;
-          if (a.isUrgente && !b.isUrgente) return -1;
-          if (!a.isUrgente && b.isUrgente) return 1;
-          if (a.isLicitacao && !b.isLicitacao) return -1;
-          if (!a.isLicitacao && b.isLicitacao) return 1;
-          return a.id.localeCompare(b.id);
-        });
+      setOperations(sortedOps);
 
-        setOperations(sortedOps);
-      }
-      if (newsRes.data) {
-        setNewsPosts(newsRes.data.map((post: any) => ({
-          ...post,
-          imageUrl: post.image_url
-        })));
-      }
-      if (linesRes.data && linesRes.data.length > 0) {
-        setProductionLines(linesRes.data.map((line: any) => line.name));
+      setNewsPosts(newsSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any[]);
+
+      if (!linesSnap.empty) {
+        setProductionLines(linesSnap.docs.map(doc => doc.data().name));
       } else {
-        // Fallback to default lines if table is empty or doesn't exist
         setProductionLines([
           "Linha de Montagem A2",
           "Unidade de Processamento",
@@ -290,8 +276,9 @@ export default function Page() {
           "Embalagem Final"
         ]);
       }
-      if (settingsRes.data && settingsRes.data.value) {
-        setLogoUrl(settingsRes.data.value);
+      
+      if (settingsSnap.exists()) {
+        setLogoUrl(settingsSnap.data().value);
       } else {
         setLogoUrl('/app-logo.png');
       }
@@ -301,230 +288,128 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return;
-    }
-
-    // Fallback: check session manually if event doesn't fire
-    setTimeout(() => {
-      if (!authSession) {
-        console.log('Running fallback checkUser...');
-        checkUser();
-      }
-    }, 1000);
+    const unsubAuth = checkUser();
     
     const troubleshootTimer = setTimeout(() => {
       setShowTroubleshoot(true);
-    }, 5000); // Mostra ajuda após 5 segundos em vez de 10
-
-    // Escuta mudanças no estado de autenticação
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
-      console.log('Auth state change:', event, session?.user?.email);
-      setAuthSession(session);
-      
-      if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
-        setCurrentUser(null);
-        setAuthSession(null);
-        setLoading(false);
-      } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (session?.user) {
-          // Se for o super admin, já podemos liberar o acesso básico enquanto carrega o perfil completo
-          if (session.user.email?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br') {
-            setCurrentUser((prev: any) => prev || {
-              id: session.user.id,
-              email: session.user.email,
-              name: 'Administrador (Ventisol)',
-              status: 'APPROVED',
-              is_admin: true,
-              is_super_admin: true,
-              is_fallback: true
-            });
-            setLoading(false);
-          }
-          
-          fetchProfile(session.user.id);
-        } else {
-          setCurrentUser(null);
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
-      }
-    });
+    }, 5000);
 
     return () => {
-      if (authListener?.subscription) {
-        authListener.subscription.unsubscribe();
-      }
+      unsubAuth();
       clearTimeout(troubleshootTimer);
     };
-  }, [checkUser, fetchProfile]);
+  }, [checkUser]);
 
   useEffect(() => {
-    if (currentUser && isSupabaseConfigured) {
+    if (currentUser) {
       fetchData();
 
-      // Set up real-time subscriptions
+      // Set up real-time subscriptions with Firestore onSnapshot
       console.log('Setting up real-time subscriptions...');
       
-      const operationsChannel = supabase
-        .channel('realtime-operations')
-        .on('postgres_changes', { event: 'UPDATE', table: 'operations', schema: 'public' }, (payload: any) => {
-          console.log('Realtime update received for operations:', payload);
-          
-          // Check for urgent or delayed status changes
-          const oldData = payload.old;
-          const newData = payload.new;
-          
-          if (notificationsEnabledRef.current && Notification.permission === 'granted') {
-            let title = '';
-            let body = '';
+      const unsubOps = onSnapshot(collection(db, 'operations'), (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added" || change.type === "modified") {
+            const newData = change.doc.data();
+            const opId = change.doc.id;
             
-            if (newData.is_urgente && !oldData.is_urgente) {
-              title = `🚨 OP ${newData.id} URGENTE!`;
-              body = `A OP ${newData.id} foi marcada como URGENTE.`;
-            } else if (newData.is_atrasada && !oldData.is_atrasada) {
-              title = `⏰ OP ${newData.id} ATRASADA!`;
-              body = `A OP ${newData.id} foi marcada como ATRASADA.`;
-            }
-
-            if (title) {
-              showLocalNotification(title, {
-                body,
-                tag: `op-${newData.id}-status`
-              });
+            // Notification logic (Simplified for Firebase migration)
+            if (notificationsEnabledRef.current && Notification.permission === 'granted' && (change.type === "modified")) {
+              if (newData.is_urgente) {
+                showLocalNotification(`🚨 OP ${opId} URGENTE!`, { body: `A OP ${opId} está marcada como URGENTE.` });
+              }
             }
           }
-          
-          fetchData();
-        })
-        .on('postgres_changes', { event: 'INSERT', table: 'operations', schema: 'public' }, (payload: any) => {
-          const newData = payload.new;
-          if (notificationsEnabledRef.current && Notification.permission === 'granted' && (newData.is_urgente || newData.is_atrasada)) {
-            const status = newData.is_urgente ? 'URGENTE' : 'ATRASADA';
-            showLocalNotification(`🆕 Nova OP ${status}`, {
-              body: `Uma nova OP (${newData.id}) foi criada com status ${status}.`,
-            });
-          }
-          fetchData();
-        })
-        .on('postgres_changes', { event: 'DELETE', table: 'operations', schema: 'public' }, () => {
-          fetchData();
-        })
-        .subscribe((status: string) => {
-          console.log('Operations subscription status:', status);
         });
+        fetchData();
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'operations'));
 
-      const newsChannel = supabase
-        .channel('realtime-news')
-        .on('postgres_changes', { event: '*', table: 'news_posts', schema: 'public' }, () => {
-          fetchData();
-        })
-        .subscribe();
-
-      const linesChannel = supabase
-        .channel('realtime-lines')
-        .on('postgres_changes', { event: '*', table: 'production_lines', schema: 'public' }, () => {
-          fetchData();
-        })
-        .subscribe();
-
-      const settingsChannel = supabase
-        .channel('realtime-settings')
-        .on('postgres_changes', { event: '*', table: 'settings', schema: 'public' }, () => {
-          fetchData();
-        })
-        .subscribe();
+      const unsubNews = onSnapshot(collection(db, 'news_posts'), () => fetchData());
+      const unsubLines = onSnapshot(collection(db, 'production_lines'), () => fetchData());
+      const unsubSettings = onSnapshot(collection(db, 'settings'), () => fetchData());
 
       return () => {
-        supabase.removeChannel(operationsChannel);
-        supabase.removeChannel(newsChannel);
-        supabase.removeChannel(linesChannel);
-        supabase.removeChannel(settingsChannel);
+        unsubOps();
+        unsubNews();
+        unsubLines();
+        unsubSettings();
       };
     }
   }, [currentUser, fetchData]);
 
   const addNewsPost = async (post: NewsPost) => {
-    const { error } = await supabase.from('news_posts').insert([{
-      image_url: post.imageUrl,
-      text: post.text,
-      author: post.author,
-      date: post.date
-    }]);
-    if (!error) fetchData();
+    try {
+      await setDoc(doc(collection(db, 'news_posts')), {
+        ...post,
+        created_at: serverTimestamp()
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'news_posts');
+    }
   };
 
   const updateNewsPost = async (updatedPost: NewsPost) => {
-    const { error } = await supabase.from('news_posts').update({
-      image_url: updatedPost.imageUrl,
-      text: updatedPost.text,
-      author: updatedPost.author,
-      date: updatedPost.date
-    }).eq('id', updatedPost.id);
-    if (!error) fetchData();
+    try {
+      const { id, ...data } = updatedPost;
+      await updateDoc(doc(db, 'news_posts', id), data);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `news_posts/${updatedPost.id}`);
+    }
   };
 
   const deleteNewsPost = async (id: string) => {
-    const { error } = await supabase.from('news_posts').delete().eq('id', id);
-    if (!error) fetchData();
+    try {
+      await deleteDoc(doc(db, 'news_posts', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `news_posts/${id}`);
+    }
   };
 
   const filteredNews = newsPosts.filter(post => 
-    post.text.toLowerCase().includes(newsFilter.toLowerCase()) ||
-    post.author.toLowerCase().includes(newsFilter.toLowerCase())
+    (post.text || '').toLowerCase().includes(newsFilter.toLowerCase()) ||
+    (post.author || '').toLowerCase().includes(newsFilter.toLowerCase())
   );
 
   const addOperation = async (newOp: Operation) => {
-    const { error } = await supabase.from('operations').insert([{
-      id: newOp.id,
-      line: newOp.line,
-      quantity: newOp.quantity,
-      date: newOp.date,
-      progress: newOp.progress,
-      steps: newOp.steps,
-      icon_type: newOp.iconType,
-      is_completed: newOp.isCompleted,
-      is_urgente: newOp.isUrgente,
-      is_licitacao: newOp.isLicitacao,
-      is_atrasada: newOp.isAtrasada
-    }]);
-    if (!error) fetchData();
+    try {
+      const { id, ...data } = newOp;
+      await setDoc(doc(db, 'operations', id), {
+        ...data,
+        created_at: serverTimestamp()
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'operations');
+    }
   };
 
   const updateOperation = async (updatedOp: Operation) => {
-    const { error } = await supabase.from('operations').update({
-      line: updatedOp.line,
-      quantity: updatedOp.quantity,
-      date: updatedOp.date,
-      progress: updatedOp.progress,
-      steps: updatedOp.steps,
-      icon_type: updatedOp.iconType,
-      is_completed: updatedOp.isCompleted,
-      is_urgente: updatedOp.isUrgente,
-      is_licitacao: updatedOp.isLicitacao,
-      is_atrasada: updatedOp.isAtrasada
-    }).eq('id', updatedOp.id);
-    if (!error) fetchData();
+    try {
+      const { id, ...data } = updatedOp;
+      await updateDoc(doc(db, 'operations', id), data);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `operations/${updatedOp.id}`);
+    }
   };
 
   const deleteOperation = async (id: string) => {
-    const { error } = await supabase.from('operations').delete().eq('id', id);
-    if (!error) fetchData();
+    try {
+      await deleteDoc(doc(db, 'operations', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `operations/${id}`);
+    }
   };
   
   const toggleOperationStatus = async (opId: string, statusKey: 'isUrgente' | 'isLicitacao' | 'isAtrasada') => {
     const op = operations.find(o => o.id === opId);
     if (!op) return;
 
-    const dbKey = statusKey === 'isUrgente' ? 'is_urgente' : statusKey === 'isLicitacao' ? 'is_licitacao' : 'is_atrasada';
-    
-    const { error } = await supabase.from('operations').update({
-      [dbKey]: !op[statusKey]
-    }).eq('id', opId);
-
-    if (!error) fetchData();
+    try {
+      await updateDoc(doc(db, 'operations', opId), {
+        [statusKey]: !op[statusKey]
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `operations/${opId}`);
+    }
   };
 
   const toggleStep = async (opId: string, stepIndex: number) => {
@@ -537,24 +422,25 @@ export default function Page() {
     const newProgress = activeCount * 25;
     const isCompleted = newProgress === 100;
     
-    const { error } = await supabase.from('operations').update({
-      steps: newSteps,
-      progress: newProgress,
-      is_completed: isCompleted,
-      is_atrasada: isCompleted ? false : op.isAtrasada
-    }).eq('id', opId);
-
-    if (!error) fetchData();
+    try {
+      await updateDoc(doc(db, 'operations', opId), {
+        steps: newSteps,
+        progress: newProgress,
+        is_completed: isCompleted,
+        is_atrasada: isCompleted ? false : (op.isAtrasada || false)
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `operations/${opId}`);
+    }
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut(auth);
+    setAuthSession(null);
     setCurrentUser(null);
   };
 
-  if (!isSupabaseConfigured) {
-    return <SupabaseSetupView />;
-  }
+  // Removed SupabaseSetupView check
 
   if (loading) {
     return (

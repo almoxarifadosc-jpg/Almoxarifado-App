@@ -4,8 +4,28 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import Image from 'next/image';
 import { User, Lock, Mail, UserPlus, LogIn, ShieldCheck, CheckCircle, XCircle, Loader2, Sun, Moon } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { auth, db } from '@/lib/firebase';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  GoogleAuthProvider, 
+  signInWithPopup 
+} from 'firebase/auth';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
 import { cn } from '@/lib/utils';
+import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
 
 export type AuthMode = 'LOGIN' | 'REGISTER' | 'ADMIN_PANEL';
 
@@ -40,60 +60,127 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
   }, [mode]);
 
   const fetchPendingUsers = async () => {
-    if (!isSupabaseConfigured) return;
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('status', 'PENDING');
-      
-      if (error) throw error;
-      if (data) setPendingUsers(data);
+      const q = query(collection(db, 'profiles'), where('status', '==', 'PENDING'));
+      const querySnapshot = await getDocs(q);
+      const users: Profile[] = [];
+      querySnapshot.forEach((doc) => {
+        users.push({ id: doc.id, ...doc.data() } as Profile);
+      });
+      setPendingUsers(users);
     } catch (err: any) {
       console.error('Error fetching pending users:', err);
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Check if profile exists
+      const profileSnap = await getDoc(doc(db, 'profiles', user.uid));
+      let profile = profileSnap.data();
+      
+      if (!profileSnap.exists()) {
+        const email = user.email?.toLowerCase();
+        const isPrimaryAdmin = email === 'almoxarifado.sc@ventisol.com.br' || email === 'espinmais@gmail.com';
+        // Create profile for new Google users
+        const newProfile = {
+          id: user.uid,
+          email: user.email,
+          name: user.displayName || '',
+          status: isPrimaryAdmin ? 'APPROVED' : 'PENDING',
+          is_admin: isPrimaryAdmin,
+          is_super_admin: isPrimaryAdmin,
+          created_at: serverTimestamp()
+        };
+        await setDoc(doc(db, 'profiles', user.uid), newProfile);
+        profile = newProfile;
+
+        if (!isPrimaryAdmin) {
+          setError('Conta criada! Aguarde a aprovação do administrador.');
+          await signOut(auth);
+          return;
+        }
+      }
+
+      if (profile.status === 'PENDING') {
+        setError('Seu cadastro ainda não foi aprovado pelo administrador.');
+        await signOut(auth);
+        return;
+      }
+
+      onAuthSuccess();
+    } catch (err: any) {
+      setError(err.message || 'Erro ao entrar com Google.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSupabaseConfigured) {
-      setError('Configuração do Supabase ausente.');
-      return;
-    }
     setError('');
     setLoading(true);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
+      const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password);
+      const user = userCredential.user;
 
-      if (authError) throw authError;
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authData.user.id)
-        .maybeSingle();
-
-      if (profileError) throw profileError;
+      const profileSnap = await getDoc(doc(db, 'profiles', user.uid));
+      let profile = profileSnap.data();
 
       if (!profile) {
-        setError('Perfil não encontrado. Entre em contato com o administrador.');
-        await supabase.auth.signOut();
-        return;
+        const email = user.email?.toLowerCase();
+        const isPrimaryAdmin = email === 'almoxarifado.sc@ventisol.com.br' || email === 'espinmais@gmail.com';
+        
+        if (isPrimaryAdmin) {
+          // Auto-create missing profile for primary admin during login
+          const newProfile = {
+            id: user.uid,
+            email: user.email,
+            name: user.email?.split('@')[0] || 'Admin',
+            status: 'APPROVED',
+            is_admin: true,
+            is_super_admin: true,
+            created_at: serverTimestamp()
+          };
+          await setDoc(doc(db, 'profiles', user.uid), newProfile);
+          profile = newProfile;
+        } else {
+          setError('Perfil não encontrado. Entre em contato com o administrador.');
+          await signOut(auth);
+          return;
+        }
+      }
+
+      // Ensure primary admins always have their permissions up to date
+      const email = user.email?.toLowerCase();
+      const isPrimaryAdmin = email === 'almoxarifado.sc@ventisol.com.br' || email === 'espinmais@gmail.com';
+      if (isPrimaryAdmin && (!profile.is_super_admin || !profile.is_admin || profile.status !== 'APPROVED')) {
+        profile.is_admin = true;
+        profile.is_super_admin = true;
+        profile.status = 'APPROVED';
+        await updateDoc(doc(db, 'profiles', user.uid), {
+          is_admin: true,
+          is_super_admin: true,
+          status: 'APPROVED'
+        });
       }
 
       if (profile.status === 'PENDING') {
-        await supabase.auth.signOut();
+        await signOut(auth);
         setError('Seu cadastro ainda não foi aprovado pelo administrador.');
         return;
       }
 
       onAuthSuccess();
     } catch (err: any) {
-      setError(err.message || 'Erro ao fazer login.');
+      setError('E-mail ou senha inválidos.');
     } finally {
       setLoading(false);
     }
@@ -101,19 +188,11 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSupabaseConfigured) {
-      setError('Configuração do Supabase ausente.');
-      return;
-    }
-
-    // 1. Validar Nome Obrigatório
     if (!formData.name.trim()) {
       setError('O nome completo é obrigatório.');
       return;
     }
 
-    // 2. Validar Senha Forte
-    // Requisitos: Letras maiúsculas, minúsculas, números e um caractere especial
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/;
     if (formData.password.length < 8) {
       setError('A senha deve ter pelo menos 8 caracteres.');
@@ -129,31 +208,29 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
     setLoading(true);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const user = userCredential.user;
+
+      const email = formData.email?.toLowerCase();
+      const isPrimaryAdmin = email === 'espinmais@gmail.com' || email === 'almoxarifado.sc@ventisol.com.br';
+
+      await setDoc(doc(db, 'profiles', user.uid), {
+        id: user.uid,
         email: formData.email,
-        password: formData.password,
+        name: formData.name,
+        status: isPrimaryAdmin ? 'APPROVED' : 'PENDING',
+        is_admin: isPrimaryAdmin,
+        is_super_admin: isPrimaryAdmin,
+        created_at: serverTimestamp()
       });
 
-      if (authError) throw authError;
-
-      if (authData.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: authData.user.id,
-              email: formData.email,
-              name: formData.name,
-              status: 'PENDING',
-              is_admin: formData.email === 'espinmais@gmail.com'
-            }
-          ]);
-
-        if (profileError) throw profileError;
-
+      if (isPrimaryAdmin) {
+        setSuccess('Conta de administrador criada com sucesso! Faça login para continuar.');
+      } else {
         setSuccess('Solicitação de cadastro enviada! Aguarde a aprovação do administrador.');
-        setMode('LOGIN');
       }
+      setMode('LOGIN');
+      await signOut(auth);
     } catch (err: any) {
       setError(err.message || 'Erro ao realizar cadastro.');
     } finally {
@@ -162,21 +239,21 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
   };
 
   const handleApprove = async (id: string) => {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ status: 'APPROVED' })
-      .eq('id', id);
-    
-    if (!error) fetchPendingUsers();
+    try {
+      await updateDoc(doc(db, 'profiles', id), { status: 'APPROVED' });
+      fetchPendingUsers();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
+    }
   };
 
   const handleReject = async (id: string) => {
-    const { error } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', id);
-    
-    if (!error) fetchPendingUsers();
+    try {
+      await deleteDoc(doc(db, 'profiles', id));
+      fetchPendingUsers();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `profiles/${id}`);
+    }
   };
 
   if (mode === 'ADMIN_PANEL') {
@@ -347,6 +424,46 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (mode === 'LOGIN' ? <LogIn className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />)}
             {mode === 'LOGIN' ? 'Entrar' : 'Solicitar Cadastro'}
           </button>
+
+          {mode === 'LOGIN' && (
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-outline-variant/10"></div>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-surface-container-lowest px-2 text-on-surface-variant/50 font-bold">Ou continue com</span>
+              </div>
+            </div>
+          )}
+
+          {mode === 'LOGIN' && (
+            <button 
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading}
+              className="w-full bg-surface-container-high text-on-surface font-bold py-4 rounded-xl border border-outline-variant/10 hover:bg-surface-container-highest active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path
+                  fill="currentColor"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                />
+              </svg>
+              Google
+            </button>
+          )}
         </form>
 
         <div className="mt-8 pt-6 border-t border-outline-variant/10 text-center space-y-4">
@@ -362,7 +479,7 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
             </p>
           )}
 
-          {mode === 'LOGIN' && formData.email === 'espinmais@gmail.com' && (
+          {mode === 'LOGIN' && (formData.email === 'espinmais@gmail.com' || formData.email === 'almoxarifado.sc@ventisol.com.br') && (
             <button 
               onClick={() => setMode('ADMIN_PANEL')}
               className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/30 hover:text-primary transition-colors"

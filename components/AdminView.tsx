@@ -3,8 +3,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { ShieldCheck, CheckCircle, XCircle, Loader2, Users, Factory, Plus, Trash2, Pencil, Star } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { ShieldCheck, CheckCircle, XCircle, Loader2, Users, Factory, Plus, Trash2, Pencil, Star, AlertCircle } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  orderBy,
+  onSnapshot 
+} from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
+import { migrateData } from '@/lib/migration-service';
 
 interface Profile {
   id: string;
@@ -49,16 +64,20 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
 
   const categories = ['Ventisol', 'Conferente', 'Bemplas', 'Recebimento'];
 
+  const [migrationStatus, setMigrationStatus] = useState<Record<string, string> | null>(null);
+  const [migrating, setMigrating] = useState(false);
+  const [migrationProgress, setMigrationProgress] = useState({ current: 0, total: 0, tableName: '' });
+  const [showConfirmMigrate, setShowConfirmMigrate] = useState(false);
+
   const fetchPendingUsers = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('status', 'PENDING')
-        .order('name');
-      
-      if (error) throw error;
-      if (data) setPendingUsers(data);
+      const q = query(collection(db, 'profiles'), where('status', '==', 'PENDING'), orderBy('name'));
+      const querySnapshot = await getDocs(q);
+      const users: Profile[] = [];
+      querySnapshot.forEach((doc) => {
+        users.push({ id: doc.id, ...doc.data() } as Profile);
+      });
+      setPendingUsers(users);
     } catch (err: any) {
       console.error('Error fetching pending users:', err);
     }
@@ -66,14 +85,13 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
 
   const fetchApprovedUsers = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('status', 'APPROVED')
-        .order('name');
-      
-      if (error) throw error;
-      if (data) setApprovedUsers(data);
+      const q = query(collection(db, 'profiles'), where('status', '==', 'APPROVED'), orderBy('name'));
+      const querySnapshot = await getDocs(q);
+      const users: Profile[] = [];
+      querySnapshot.forEach((doc) => {
+        users.push({ id: doc.id, ...doc.data() } as Profile);
+      });
+      setApprovedUsers(users);
     } catch (err: any) {
       console.error('Error fetching approved users:', err);
     }
@@ -109,8 +127,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
       allowed_groups: groupsArray
     };
 
-    // Only super admin can change admin flags
-    // Per request: "somente esse email [almoxarifado.sc@ventisol.com.br] poderá transformar outros emails em super admin"
     const canManageAdminRoles = currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br';
 
     if (canManageAdminRoles) {
@@ -118,52 +134,35 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
       updateData.is_super_admin = userFormData.is_super_admin;
     }
 
-    console.log('💾 Salvando perfil do usuário...', updateData);
-
-    const { error } = await supabase
-      .from('profiles')
-      .update(updateData)
-      .eq('id', editingUser.id);
-
-    if (!error) {
-      console.log('✅ Perfil atualizado com sucesso!');
+    try {
+      await updateDoc(doc(db, 'profiles', editingUser.id), updateData);
       setIsUserModalOpen(false);
       fetchApprovedUsers();
-      setTimeout(() => alert('Alterações salvas com sucesso!'), 500);
-    } else {
-      console.error('❌ Erro completo do Supabase:', error);
-      alert(`Erro ao salvar: ${error.message}${error.details ? ' - ' + error.details : ''}`);
+      alert('Alterações salvas com sucesso!');
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `profiles/${editingUser.id}`);
     }
   };
 
   const handleDeleteUser = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
-    
-    const { error } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', id);
-    
-    if (!error) fetchApprovedUsers();
+    try {
+      await deleteDoc(doc(db, 'profiles', id));
+      fetchApprovedUsers();
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.DELETE, `profiles/${id}`);
+    }
   };
 
   const fetchProductionLines = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('production_lines')
-        .select('*')
-        .order('name');
-      
-      if (error) {
-        console.error('Supabase Error Details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        throw error;
-      }
-      if (data) setProductionLines(data);
+      const q = query(collection(db, 'production_lines'), orderBy('name'));
+      const querySnapshot = await getDocs(q);
+      const lines: ProductionLine[] = [];
+      querySnapshot.forEach((doc) => {
+        lines.push({ id: doc.id, name: doc.data().name } as ProductionLine);
+      });
+      setProductionLines(lines);
     } catch (err: any) {
       console.error('Error fetching production lines:', err.message || err);
     }
@@ -171,14 +170,10 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
 
   const fetchSettings = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('key', 'company_logo')
-        .single();
-      
-      if (error && error.code !== 'PGRST116') throw error;
-      if (data) setLogoUrl(data.value);
+      const docSnap = await getDoc(doc(db, 'settings', 'company_logo'));
+      if (docSnap.exists()) {
+        setLogoUrl(docSnap.data().value);
+      }
     } catch (err: any) {
       console.error('Error fetching settings:', err);
     }
@@ -198,55 +193,45 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
   useEffect(() => {
     fetchData();
 
-    // Set up real-time subscriptions
-    const profilesChannel = supabase
-      .channel('realtime-profiles')
-      .on('postgres_changes', { event: '*', table: 'profiles', schema: 'public' }, () => {
-        fetchPendingUsers();
-        fetchApprovedUsers();
-      })
-      .subscribe();
+    // Set up real-time subscriptions with Firestore onSnapshot
+    const profilesListener = onSnapshot(collection(db, 'profiles'), () => {
+      fetchPendingUsers();
+      fetchApprovedUsers();
+    });
 
-    const linesChannel = supabase
-      .channel('realtime-admin-lines')
-      .on('postgres_changes', { event: '*', table: 'production_lines', schema: 'public' }, () => {
-        fetchProductionLines();
-      })
-      .subscribe();
+    const linesListener = onSnapshot(collection(db, 'production_lines'), () => {
+      fetchProductionLines();
+    });
 
-    const settingsChannel = supabase
-      .channel('realtime-admin-settings')
-      .on('postgres_changes', { event: '*', table: 'settings', schema: 'public' }, () => {
-        fetchSettings();
-      })
-      .subscribe();
+    const settingsListener = onSnapshot(collection(db, 'settings'), () => {
+      fetchSettings();
+    });
 
     return () => {
-      supabase.removeChannel(profilesChannel);
-      supabase.removeChannel(linesChannel);
-      supabase.removeChannel(settingsChannel);
+      profilesListener();
+      linesListener();
+      settingsListener();
     };
   }, [fetchData, fetchPendingUsers, fetchApprovedUsers, fetchProductionLines, fetchSettings]);
 
   const handleApprove = async (id: string) => {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ status: 'APPROVED' })
-      .eq('id', id);
-    
-    if (!error) {
+    try {
+      await updateDoc(doc(db, 'profiles', id), { status: 'APPROVED' });
       fetchPendingUsers();
       fetchApprovedUsers();
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
     }
   };
 
   const handleReject = async (id: string) => {
-    const { error } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', id);
-    
-    if (!error) fetchPendingUsers();
+    if (!confirm('Rejeitar e excluir este usuário?')) return;
+    try {
+      await deleteDoc(doc(db, 'profiles', id));
+      fetchPendingUsers();
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.DELETE, `profiles/${id}`);
+    }
   };
 
   const handleToggleAdmin = async (id: string, currentStatus: boolean) => {
@@ -255,15 +240,11 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
       alert('Você não tem permissão para alterar cargos administrativos.');
       return;
     }
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_admin: !currentStatus })
-      .eq('id', id);
-    
-    if (!error) {
+    try {
+      await updateDoc(doc(db, 'profiles', id), { is_admin: !currentStatus });
       fetchApprovedUsers();
-    } else {
-      alert('Erro ao alterar admin: ' + error.message);
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
     }
   };
 
@@ -273,49 +254,41 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
       alert('Você não tem permissão para alterar cargos de Super Admin.');
       return;
     }
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_super_admin: !currentStatus, is_admin: true })
-      .eq('id', id);
-    
-    if (!error) {
+    try {
+      await updateDoc(doc(db, 'profiles', id), { is_super_admin: !currentStatus, is_admin: true });
       fetchApprovedUsers();
-    } else {
-      alert('Erro ao alterar super admin: ' + error.message);
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
     }
   };
 
   const handleToggleViewer = async (id: string, currentStatus: boolean) => {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_viewer: !currentStatus })
-      .eq('id', id);
-    
-    if (!error) fetchApprovedUsers();
+    try {
+      await updateDoc(doc(db, 'profiles', id), { is_viewer: !currentStatus });
+      fetchApprovedUsers();
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
+    }
   };
 
   const handleUpdateGroups = async (id: string, groups: string) => {
     const groupsArray = groups.split(',').map(g => g.trim().toUpperCase()).filter(g => g);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ allowed_groups: groupsArray })
-      .eq('id', id);
-    
-    if (!error) fetchApprovedUsers();
+    try {
+      await updateDoc(doc(db, 'profiles', id), { allowed_groups: groupsArray });
+      fetchApprovedUsers();
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
+    }
   };
 
   const handleSaveLogo = async () => {
+    if (!logoUrl.trim()) return;
     setSavingLogo(true);
     try {
-      const { error } = await supabase
-        .from('settings')
-        .upsert({ key: 'company_logo', value: logoUrl }, { onConflict: 'key' });
-      
-      if (error) throw error;
+      await setDoc(doc(db, 'settings', 'company_logo'), { key: 'company_logo', value: logoUrl });
       alert('Logo atualizada com sucesso!');
     } catch (err: any) {
-      console.error('Error saving logo:', err);
-      alert('Erro ao salvar logo.');
+      handleFirestoreError(err, OperationType.WRITE, 'settings/company_logo');
     } finally {
       setSavingLogo(false);
     }
@@ -327,23 +300,16 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
 
     try {
       if (editingLine) {
-        const { error } = await supabase
-          .from('production_lines')
-          .update({ name: newLineName.trim() })
-          .eq('id', editingLine.id);
-        if (error) throw error;
+        await updateDoc(doc(db, 'production_lines', editingLine.id), { name: newLineName.trim() });
       } else {
-        const { error } = await supabase
-          .from('production_lines')
-          .insert([{ name: newLineName.trim() }]);
-        if (error) throw error;
+        await setDoc(doc(collection(db, 'production_lines')), { name: newLineName.trim() });
       }
       
       setNewLineName('');
       setEditingLine(null);
       fetchProductionLines();
     } catch (err: any) {
-      console.error('Error saving production line:', err);
+      handleFirestoreError(err, editingLine ? OperationType.UPDATE : OperationType.CREATE, 'production_lines');
     }
   };
 
@@ -354,24 +320,46 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
 
   const handleDeleteLine = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('production_lines')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
+      await deleteDoc(doc(db, 'production_lines', id));
       fetchProductionLines();
     } catch (err: any) {
-      console.error('Error deleting production line:', err);
+      handleFirestoreError(err, OperationType.DELETE, `production_lines/${id}`);
     }
   };
 
   const handleToggleAutoAssign = async (id: string, currentStatus: boolean) => {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_auto_assign: !currentStatus })
-      .eq('id', id);
+    try {
+      await updateDoc(doc(db, 'profiles', id), { is_auto_assign: !currentStatus });
+      fetchApprovedUsers();
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
+    }
+  };
+
+  const handleMigrate = async () => {
+    console.log('Iniciando processo de migração...');
+    setMigrating(true);
+    setShowConfirmMigrate(false);
+    setMigrationStatus(null);
+    setMigrationProgress({ current: 0, total: 0, tableName: 'Iniciando...' });
     
-    if (!error) fetchApprovedUsers();
+    try {
+      console.log('Chamando migrateData com callback de progresso...');
+      const results = await migrateData((tableName, index, total) => {
+        console.log(`Progresso da Migração: ${tableName} (${index + 1}/${total})`);
+        setMigrationProgress({ current: index + 1, total, tableName });
+      });
+      
+      console.log('Migração finalizada com sucesso:', results);
+      setMigrationStatus(results);
+      setMigrationProgress(prev => ({ ...prev, tableName: 'Concluído!' }));
+      alert('Tabelas migradas com sucesso!');
+    } catch (err: any) {
+      console.error('Falha crítica na migração:', err);
+      alert('Erro na migração: ' + err.message);
+    } finally {
+      setMigrating(false);
+    }
   };
 
   if (loading) {
@@ -436,6 +424,81 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
                     <div className="w-12 h-12 bg-surface-container-lowest rounded-lg flex items-center justify-center overflow-hidden">
                       <img src={logoUrl} alt="Prévia da Logo" className="max-w-full max-h-full object-contain" />
                     </div>
+                  </div>
+                )}
+                {(currentIsSuperAdmin || currentUserEmail?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br' || currentUserEmail?.toLowerCase() === 'espinmais@gmail.com') && (
+                  <div className="mt-8 pt-8 border-t border-outline-variant/10">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-amber-600 flex items-center gap-2 mb-4">
+                      <AlertCircle className="w-4 h-4" />
+                      Migração de Dados (Legado)
+                    </h3>
+                    <p className="text-xs text-on-surface-variant mb-4">
+                      Transfira os dados existentes do Supabase para o Firebase. Use apenas uma vez para sincronizar as bases.
+                    </p>
+                    
+                    {!showConfirmMigrate && !migrating ? (
+                      <button 
+                        type="button"
+                        onClick={() => setShowConfirmMigrate(true)}
+                        className="w-full py-4 bg-amber-500/10 text-amber-600 rounded-2xl font-bold text-sm border border-amber-500/20 hover:bg-amber-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <ShieldCheck className="w-5 h-5" />
+                        Executar Migração Supabase ➔ Firebase
+                      </button>
+                    ) : showConfirmMigrate && !migrating ? (
+                      <div className="flex gap-2">
+                        <button 
+                          type="button"
+                          onClick={() => handleMigrate()}
+                          className="flex-1 py-4 bg-amber-500 text-white rounded-2xl font-bold text-sm hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                        >
+                          <ShieldCheck className="w-5 h-5" />
+                          Confirmar Migração
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setShowConfirmMigrate(false)}
+                          className="px-6 py-4 bg-surface-container-low text-on-surface rounded-2xl font-bold text-sm border border-outline-variant/20 hover:bg-surface-container-highest transition-all"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="w-full py-4 bg-amber-500/10 text-amber-600 rounded-2xl font-bold text-sm border border-amber-500/20 flex items-center justify-center gap-2">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Migrando: {migrationProgress.tableName}
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-[10px] font-bold text-amber-600 uppercase tracking-widest">
+                            <span>Progresso</span>
+                            <span>{Math.round((migrationProgress.current / migrationProgress.total) * 100)}%</span>
+                          </div>
+                          <div className="h-2 w-full bg-amber-500/10 rounded-full overflow-hidden border border-amber-500/20">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${(migrationProgress.current / migrationProgress.total) * 100}%` }}
+                              className="h-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                            />
+                          </div>
+                          <p className="text-[10px] text-on-surface-variant text-center">
+                            Tabela {migrationProgress.current} de {migrationProgress.total}...
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {migrationStatus && (
+                      <div className="mt-4 p-4 bg-surface rounded-xl text-[10px] font-mono space-y-1 max-h-40 overflow-y-auto border border-outline-variant/10">
+                        <p className="font-bold border-b border-outline-variant/10 pb-1 mb-2 text-on-surface">Resultado da Migração:</p>
+                        {Object.entries(migrationStatus).map(([table, result]) => (
+                          <div key={table} className={result.includes('Successfully') ? 'text-primary' : 'text-error'}>
+                            {table}: {result}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

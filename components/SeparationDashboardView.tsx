@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/firebase';
+import { collection, query, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
 
 interface OrderItem {
   code?: string;
@@ -52,30 +53,29 @@ export function SeparationDashboardView() {
 
   const fetchOrders = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('purchase_orders')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
+    try {
+      const q = query(collection(db, 'purchase_orders'), orderBy('created_at', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PurchaseOrder[];
       setOrders(data);
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     fetchOrders();
 
-    const channel = supabase
-      .channel('separation-dashboard')
-      .on('postgres_changes', { event: '*', table: 'purchase_orders', schema: 'public' }, () => {
-        fetchOrders();
-      })
-      .subscribe();
+    const unsubscribe = onSnapshot(collection(db, 'purchase_orders'), () => {
+      fetchOrders();
+    });
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return unsubscribe;
   }, []);
 
   const calculatePercentages = (items: OrderItem[]) => {

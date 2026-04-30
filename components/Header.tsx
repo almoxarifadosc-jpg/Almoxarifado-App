@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { LayoutGrid, Key, LogOut, X, Loader2, CheckCircle, Moon, Sun, Bell, BellOff, Menu as MenuIcon } from 'lucide-react';
 import Image from 'next/image';
-import { supabase } from '@/lib/supabase';
+import { updatePassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface HeaderProps {
@@ -47,11 +48,10 @@ export function Header({
     setMessage({ type: '', text: '' });
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
-      });
-
-      if (error) throw error;
+      const user = auth.currentUser;
+      if (!user) throw new Error('Usuário não autenticado.');
+      
+      await updatePassword(user, newPassword);
 
       setMessage({ type: 'success', text: 'Senha alterada com sucesso!' });
       setNewPassword('');

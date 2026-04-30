@@ -29,7 +29,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/firebase';
+import { collection, query, getDocs, onSnapshot } from 'firebase/firestore';
 
 interface OrderItem {
   code?: string;
@@ -70,29 +71,37 @@ export default function PerformanceView() {
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('purchase_orders')
-        .select('*');
+      const ordersSnap = await getDocs(collection(db, 'purchase_orders'));
+      const profilesSnap = await getDocs(collection(db, 'profiles'));
 
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, name, email');
+      const ordersData = ordersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as PurchaseOrder[];
+      const profilesData = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Profile[];
 
-      if (!ordersError && ordersData) setOrders(ordersData);
-      if (!profilesError && profilesData) setProfiles(profilesData);
+      setOrders(ordersData);
+      setProfiles(profilesData);
     } catch (err) {
       console.error('Error fetching performance data:', err);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+    const unsubOrders = onSnapshot(collection(db, 'purchase_orders'), () => {
+      fetchData();
+    });
+    const unsubProfiles = onSnapshot(collection(db, 'profiles'), () => {
+      fetchData();
+    });
+    return () => {
+      unsubOrders();
+      unsubProfiles();
+    };
+  }, []);
 
   const calculatePercentages = (items: OrderItem[]) => {
     if (!items || items.length === 0) return { separation: 0, conference: 0 };

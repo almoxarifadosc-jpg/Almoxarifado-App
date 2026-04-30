@@ -25,7 +25,24 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  orderBy,
+  onSnapshot,
+  limit,
+  serverTimestamp 
+} from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import SignatureCanvas from 'react-signature-canvas';
 import { sendGoogleChatNotification } from '@/lib/notifications';
 
@@ -112,26 +129,32 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
   const fetchOrders = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('purchase_orders')
-      .select('*')
-      .order('sequence', { ascending: true, nullsFirst: false });
-
-    if (!error && data) {
-      setOrders(data);
+    try {
+      const q = query(collection(db, 'purchase_orders'), orderBy('sequence', 'asc'));
+      const querySnapshot = await getDocs(q);
+      const ordersData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PurchaseOrder[];
+      setOrders(ordersData);
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const fetchProfiles = async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, name, email')
-      .eq('status', 'APPROVED')
-      .order('name');
-
-    if (!error && data) {
-      setProfiles(data);
+    try {
+      const q = query(collection(db, 'profiles'), where('status', '==', 'APPROVED'), orderBy('name'));
+      const querySnapshot = await getDocs(q);
+      const profilesData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Profile[];
+      setProfiles(profilesData);
+    } catch (err) {
+      console.error('Error fetching profiles:', err);
     }
   };
 
@@ -141,25 +164,18 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     setError(null);
     setSuccess(null);
 
-    // Inscrição em tempo real para OPs
-    const ordersChannel = supabase
-      .channel('sorting-orders')
-      .on('postgres_changes', { event: '*', table: 'purchase_orders', schema: 'public' }, () => {
-        fetchOrders();
-      })
-      .subscribe();
+    // Firebase onSnapshot subscriptions
+    const unsubOrders = onSnapshot(collection(db, 'purchase_orders'), () => {
+      fetchOrders();
+    });
 
-    // Inscrição em tempo real para Perfis
-    const profilesChannel = supabase
-      .channel('sorting-profiles')
-      .on('postgres_changes', { event: '*', table: 'profiles', schema: 'public' }, () => {
-        fetchProfiles();
-      })
-      .subscribe();
+    const unsubProfiles = onSnapshot(collection(db, 'profiles'), () => {
+      fetchProfiles();
+    });
 
     return () => {
-      supabase.removeChannel(ordersChannel);
-      supabase.removeChannel(profilesChannel);
+      unsubOrders();
+      unsubProfiles();
     };
   }, []);
 
@@ -203,22 +219,16 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
     setUploadingPhotos(true);
     try {
+      const storage = getStorage();
       const newUploads = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const fileExt = file.name.split('.').pop();
-        const fileName = `order_${editingOrder.id}_${Date.now()}_${i}.${fileExt}`;
+        const fileName = `orders/${editingOrder.id}/${Date.now()}_${i}.${fileExt}`;
+        const storageRef = ref(storage, fileName);
         
-        const { error } = await supabase.storage
-          .from('orders')
-          .upload(fileName, file);
-
-        if (error) throw error;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('orders')
-          .getPublicUrl(fileName);
-
+        await uploadBytes(storageRef, file);
+        const publicUrl = await getDownloadURL(storageRef);
         newUploads.push(publicUrl);
       }
       
@@ -288,50 +298,46 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
       if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
         const canvas = sigCanvas.current.getCanvas();
         const signatureDataUrl = canvas.toDataURL('image/png');
-        const blob = await (await fetch(signatureDataUrl)).blob();
-        const fileName = `signature_${editingOrder.id}_${Date.now()}.png`;
+        try {
+          const blob = await (await fetch(signatureDataUrl)).blob();
+          const fileName = `signature_${editingOrder.id}_${Date.now()}.png`;
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('orders')
-          .upload(fileName, blob, { contentType: 'image/png' });
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('orders')
+            .upload(fileName, blob, { contentType: 'image/png' });
 
-        if (uploadError) throw uploadError;
+          if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('orders')
-          .getPublicUrl(fileName);
-        
-        signatureUrl = publicUrl;
+          const { data: { publicUrl } } = supabase.storage
+            .from('orders')
+            .getPublicUrl(fileName);
+          
+          signatureUrl = publicUrl;
+        } catch (storageErr) {
+          console.warn('Fallback to Base64 signature due to storage error:', storageErr);
+          signatureUrl = signatureDataUrl;
+        }
       }
 
-      // 2. Update Database
-      const { error: dbError } = await supabase
-        .from('purchase_orders')
-        .update({
-          items: editingOrder.items,
-          status: 'Pendente',
-          signature_url: signatureUrl,
-          pis: editingOrder.pis || [],
-          observation: editingOrder.observation || '',
-          photos: editingOrder.photos || []
-        })
-        .eq('id', editingOrder.id);
+      // 2. Update Firestore
+      const orderRef = doc(db, 'purchase_orders', editingOrder.id);
+      await updateDoc(orderRef, {
+        items: editingOrder.items,
+        status: 'Pendente',
+        signature_url: signatureUrl || '',
+        pis: editingOrder.pis || [],
+        observation: editingOrder.observation || '',
+        photos: editingOrder.photos || [],
+        updated_at: serverTimestamp()
+      });
 
-      if (dbError) {
-        console.error('Erro na Atualização (Detalhes):', {
-          message: dbError.message,
-          details: dbError.details,
-          hint: dbError.hint
-        });
-        throw dbError;
-      }
-      await fetchOrders();
+      fetchOrders();
       setIsEditModalOpen(false);
       setEditingOrder(null);
       setSuccess('Separação salva com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(`Falha ao salvar: ${err.message}`);
+      handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${editingOrder.id}`);
     } finally {
       setIsProcessing(false);
     }
@@ -349,60 +355,43 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     setIsProcessing(true);
     setError(null);
     try {
-      console.log('Iniciando conferência para OP:', editingOrder.order_number);
-      // 2. Update Database - Just mark as conferred
-      const { error: dbError } = await supabase
-        .from('purchase_orders')
-        .update({
-          items: editingOrder.items,
-          conferred_by_id: currentUserId,
-          conferred_by_name: currentUserName,
-          conferred_at: new Date().toISOString(),
-          status: 'Processado',
-          pis: editingOrder.pis || [],
-          observation: editingOrder.observation || '',
-          photos: editingOrder.photos || []
-        })
-        .eq('id', editingOrder.id);
+      const orderRef = doc(db, 'purchase_orders', editingOrder.id);
+      await updateDoc(orderRef, {
+        items: editingOrder.items,
+        conferred_by_id: currentUserId,
+        conferred_by_name: currentUserName,
+        conferred_at: new Date().toISOString(),
+        status: 'Processado',
+        pis: editingOrder.pis || [],
+        observation: editingOrder.observation || '',
+        photos: editingOrder.photos || [],
+        updated_at: serverTimestamp()
+      });
 
-      if (dbError) {
-        console.error('Erro na Conferência (Detalhes):', {
-          message: dbError.message,
-          details: dbError.details,
-          hint: dbError.hint
-        });
-        throw dbError;
-      }
-      await fetchOrders();
+      fetchOrders();
       setIsEditModalOpen(false);
       setEditingOrder(null);
       setIsConferConfirming(false);
       setSuccess('OP Conferida com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(`Erro na conferência: ${err.message}`);
+      handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${editingOrder.id}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const signOrder = async () => {
-    console.log('Iniciando processo de assinatura...');
     const currentUserProfile = profiles.find(p => p.id === currentUserId);
     const effectiveUserName = currentUserName || currentUserProfile?.name || currentUserProfile?.email;
 
-    if (!editingOrder?.id) {
-      console.error('ID da ordem de edição não encontrado');
-      return;
-    }
+    if (!editingOrder?.id) return;
     if (!effectiveUserName) {
-      console.error('Nome do usuário atual não encontrado (prop e fallback)');
       setError("Erro: Usuário não identificado. Por favor, recarregue a página.");
       return;
     }
     
     if (!sigCanvas.current || sigCanvas.current.isEmpty()) {
-      console.warn('Canvas de assinatura está vazio');
       setError("Por favor, realize a assinatura antes de salvar.");
       return;
     }
@@ -410,62 +399,44 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     setIsProcessing(true);
     setError(null);
     try {
-      console.log('Capturando dados do canvas...');
       const canvas = sigCanvas.current.getCanvas();
       const signatureDataUrl = canvas.toDataURL('image/png');
-      const blob = await (await fetch(signatureDataUrl)).blob();
-      const fileName = `signature_${editingOrder.id}_${Date.now()}.png`;
+      let signatureUrl = signatureDataUrl;
 
-      console.log('Fazendo upload para o Supabase Storage (bucket: orders)...');
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('orders')
-        .upload(fileName, blob, { contentType: 'image/png' });
+      try {
+        const blob = await (await fetch(signatureDataUrl)).blob();
+        const fileName = `signature_${editingOrder.id}_${Date.now()}.png`;
 
-      if (uploadError) {
-        console.error('Erro no upload da assinatura:', uploadError);
-        throw uploadError;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('orders')
+          .upload(fileName, blob, { contentType: 'image/png' });
+
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage
+            .from('orders')
+            .getPublicUrl(fileName);
+          signatureUrl = publicUrl;
+        }
+      } catch (storageErr) {
+        console.warn('Signature storage error, using base64 fallback:', storageErr);
       }
 
-      console.log('Obtendo URL pública...');
-      const { data: { publicUrl } } = supabase.storage
-        .from('orders')
-        .getPublicUrl(fileName);
+      const orderRef = doc(db, 'purchase_orders', editingOrder.id);
+      await updateDoc(orderRef, {
+        signature_url: signatureUrl,
+        is_signed: true,
+        signed_at: new Date().toISOString(),
+        signed_by_name: effectiveUserName,
+        updated_at: serverTimestamp()
+      });
       
-      const signatureUrl = publicUrl;
-      console.log('URL da assinatura obtida:', signatureUrl);
-
-      // 2. Update Database
-      console.log('Atualizando registro da OP no banco de dados...');
-      const { error: dbError } = await supabase
-        .from('purchase_orders')
-        .update({
-          signature_url: signatureUrl,
-          is_signed: true,
-          signed_at: new Date().toISOString(),
-          signed_by_name: effectiveUserName
-        })
-        .eq('id', editingOrder.id);
-
-      if (dbError) {
-        const errorMsg = dbError.message || 'Erro desconhecido no banco de dados';
-        console.error('ERRO DETALHADO DB:', {
-          message: errorMsg,
-          details: dbError.details,
-          hint: dbError.hint,
-          code: dbError.code
-        });
-        throw new Error(errorMsg);
-      }
-      
-      console.log('Assinatura salva com sucesso. Atualizando lista...');
-      await fetchOrders();
+      fetchOrders();
       setIsEditModalOpen(false);
       setEditingOrder(null);
       setSuccess('Assinatura salva com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      console.error('Erro crítico em signOrder:', err);
-      setError(`Erro ao salvar assinatura: ${err.message}`);
+      handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${editingOrder.id}`);
     } finally {
       setIsProcessing(false);
     }
@@ -478,19 +449,11 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     try {
       const orderToClose = orders.find(o => o.id === orderId);
 
-      const { error } = await supabase
-        .from('purchase_orders')
-        .update({ status: 'Baixada' })
-        .eq('id', orderId);
-
-      if (error) {
-        console.error('Erro ao baixar OP (Detalhes):', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint
-        });
-        throw error;
-      }
+      const orderRef = doc(db, 'purchase_orders', orderId);
+      await updateDoc(orderRef, { 
+        status: 'Baixada',
+        updated_at: serverTimestamp()
+      });
 
       // Enviar notificação para o Google Chat
       if (orderToClose) {
@@ -502,14 +465,14 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         await sendGoogleChatNotification(message);
       }
 
-      await fetchOrders();
+      fetchOrders();
       setIsEditModalOpen(false);
       setEditingOrder(null);
       setIsBaixarConfirming(false);
       setSuccess('OP Baixada com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(`Erro ao baixar OP: ${err.message}`);
+      handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${orderId}`);
     } finally {
       setIsProcessing(false);
     }
@@ -519,38 +482,25 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     if (!assigningOrder?.id) return;
     setIsProcessing(true);
     try {
-      const { error: dbError } = await supabase
-        .from('purchase_orders')
-        .update({ assigned_users: userIds })
-        .eq('id', assigningOrder.id);
-
-      if (dbError) {
-        console.error('Erro ao atribuir usuários (Detalhes):', {
-          message: dbError.message,
-          details: dbError.details,
-          hint: dbError.hint
-        });
-        throw dbError;
-      }
-      await fetchOrders();
+      const orderRef = doc(db, 'purchase_orders', assigningOrder.id);
+      await updateDoc(orderRef, { 
+        assigned_users: userIds,
+        updated_at: serverTimestamp()
+      });
+      fetchOrders();
       setIsAssignModalOpen(false);
       setAssigningOrder(null);
       setSuccess('Usuários atribuídos com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(`Erro ao atribuir usuários: ${err.message}`);
+      handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${assigningOrder.id}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const revertOrder = async (orderId: string) => {
-    console.log('--- Iniciando Processo de Reversão ---');
-    console.log('ID da OP:', orderId);
-    console.log('Status isAdmin:', isAdmin);
-
     if (!isAdmin) {
-      console.warn('Falha: Usuário sem privilégios de administrador.');
       setError('Apenas administradores podem reverter OPs.');
       return;
     }
@@ -565,49 +515,28 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         throw new Error('Não é possível reverter uma OP com status "Baixada".');
       }
 
-      console.log('Resetando itens da OP...');
       const resetItems = (orderToRevert.items || []).map(item => ({
         ...item,
         is_conferred: false
       }));
 
-      console.log('Enviando atualização para o Supabase...');
-      const { data, error: dbError } = await supabase
-        .from('purchase_orders')
-        .update({ 
-          status: 'Pendente',
-          items: resetItems,
-          conferred_by_id: null,
-          conferred_by_name: null,
-          conferred_at: null,
-          signature_url: null
-        })
-        .eq('id', orderId)
-        .select();
+      const orderRef = doc(db, 'purchase_orders', orderId);
+      await updateDoc(orderRef, {
+        status: 'Pendente',
+        items: resetItems,
+        conferred_by_id: null,
+        conferred_by_name: null,
+        conferred_at: null,
+        signature_url: null,
+        updated_at: serverTimestamp()
+      });
 
-      if (dbError) {
-        console.error('Erro de Banco de Dados Detalhado:', {
-          message: dbError.message,
-          details: dbError.details,
-          hint: dbError.hint,
-          code: dbError.code
-        });
-        throw dbError;
-      }
-      
-      if (!data || data.length === 0) {
-        console.warn('Aviso: Nenhuma linha alterada no banco de dados.');
-        throw new Error('O registro não pôde ser atualizado. Verifique as permissões de banco.');
-      }
-
-      console.log('Reversão concluída com sucesso no banco.');
-      await fetchOrders();
+      fetchOrders();
       setSuccess('OP retornada para Pendente com sucesso!');
       setRevertingId(null);
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      console.error('ERRO CRÍTICO NA REVERSÃO:', err);
-      setError(`Erro na reversão: ${err.message}`);
+      handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${orderId}`);
     } finally {
       setIsProcessing(false);
     }
@@ -637,14 +566,14 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   });
 
   return (
-    <div className="px-2 py-6 md:p-8 max-w-[1600px] mx-auto">
+    <div className="px-2 py-3 md:py-8 md:p-8 max-w-[1600px] mx-auto">
       <AnimatePresence>
         {success && (
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="mb-8 p-4 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center gap-3 border border-emerald-500/20"
+            className="mb-4 md:mb-8 p-4 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center gap-3 border border-emerald-500/20"
           >
             <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
             <p className="text-sm font-bold">{success}</p>
@@ -652,17 +581,17 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         )}
       </AnimatePresence>
 
-      <div className="mb-8">
-        <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight">Separação de OPs</h2>
-        <p className="text-on-surface-variant font-medium">Gerencie a separação física dos materiais importados.</p>
+      <div className="mb-4 md:mb-8">
+        <h2 className="text-2xl md:text-3xl font-headline font-black text-on-surface tracking-tight">Separação de OPs</h2>
+        <p className="text-on-surface-variant font-medium text-sm md:text-base">Gerencie a separação física dos materiais importados.</p>
       </div>
 
-      <div className="bg-surface-container-low p-2 rounded-2xl mb-8 border border-outline-variant/10 flex items-center gap-3">
+      <div className="bg-surface-container-low p-1 md:p-2 rounded-2xl mb-4 md:mb-8 border border-outline-variant/10 flex items-center gap-3">
         <div className="relative flex-1">
           <input 
             type="text"
             placeholder="Buscar por OP ou Produto..."
-            className="w-full bg-transparent text-sm p-3 pl-10 outline-none"
+            className="w-full bg-transparent text-sm p-2 md:p-3 pl-10 outline-none"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
           />

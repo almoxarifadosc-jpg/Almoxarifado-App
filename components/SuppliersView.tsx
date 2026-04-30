@@ -17,7 +17,20 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/firebase';
+import { 
+  collection, 
+  query, 
+  orderBy, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  onSnapshot, 
+  serverTimestamp 
+} from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
 
 interface Supplier {
   id: string;
@@ -54,19 +67,27 @@ export function SuppliersView({ isAdmin }: SuppliersViewProps) {
 
   const fetchSuppliers = async () => {
     setLoading(true);
-    const { data, error: fetchError } = await supabase
-      .from('suppliers')
-      .select('*')
-      .order('name');
-    
-    if (!fetchError && data) {
+    try {
+      const q = query(collection(db, 'suppliers'), orderBy('name'));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Supplier[];
       setSuppliers(data);
+    } catch (err: any) {
+      console.error('Error fetching suppliers:', err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     fetchSuppliers();
+    const unsubscribe = onSnapshot(collection(db, 'suppliers'), () => {
+      fetchSuppliers();
+    });
+    return unsubscribe;
   }, []);
 
   const formatCNPJ = (value: string) => {
@@ -141,22 +162,19 @@ export function SuppliersView({ isAdmin }: SuppliersViewProps) {
 
     try {
       if (editingSupplier) {
-        const { error: updateError } = await supabase
-          .from('suppliers')
-          .update(formData)
-          .eq('id', editingSupplier.id);
-        if (updateError) throw updateError;
+        const docRef = doc(db, 'suppliers', editingSupplier.id);
+        await updateDoc(docRef, formData);
       } else {
-        const { error: insertError } = await supabase
-          .from('suppliers')
-          .insert([formData]);
-        if (insertError) throw insertError;
+        await addDoc(collection(db, 'suppliers'), {
+          ...formData,
+          created_at: serverTimestamp()
+        });
       }
 
       setIsModalOpen(false);
       fetchSuppliers();
     } catch (err: any) {
-      setError(err.message);
+      handleFirestoreError(err, editingSupplier ? OperationType.UPDATE : OperationType.CREATE, `suppliers/${editingSupplier?.id || ''}`);
     } finally {
       setSaving(false);
     }
@@ -165,15 +183,12 @@ export function SuppliersView({ isAdmin }: SuppliersViewProps) {
   const handleDelete = async () => {
     if (!supplierToDelete) return;
     try {
-      const { error: deleteError } = await supabase
-        .from('suppliers')
-        .delete()
-        .eq('id', supplierToDelete);
-      if (deleteError) throw deleteError;
+      const docRef = doc(db, 'suppliers', supplierToDelete);
+      await deleteDoc(docRef);
       setIsDeleteModalOpen(false);
       fetchSuppliers();
     } catch (err: any) {
-      alert('Erro ao excluir fornecedor: ' + err.message);
+      handleFirestoreError(err, OperationType.DELETE, `suppliers/${supplierToDelete}`);
     }
   };
 

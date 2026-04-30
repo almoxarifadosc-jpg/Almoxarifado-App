@@ -23,7 +23,24 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  onSnapshot, 
+  serverTimestamp,
+  Timestamp
+} from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { supabase } from '@/lib/supabase'; // Keeping for storage only
 
 interface Receipt {
   id: string;
@@ -150,24 +167,19 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
 
     try {
       setUploading(true);
+      const storage = getStorage();
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `receipt-images/${fileName}`;
+      const storageRef = ref(storage, filePath);
 
-      const { error: uploadError } = await supabase.storage
-        .from('receipts')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('receipts')
-        .getPublicUrl(filePath);
+      await uploadBytes(storageRef, file);
+      const publicUrl = await getDownloadURL(storageRef);
 
       setFormData(prev => ({ ...prev, image_url: publicUrl }));
     } catch (error: any) {
       console.error('Erro no upload:', error.message);
-      alert('Erro ao fazer upload da imagem. Verifique se o bucket "receipts" existe no seu Supabase Storage.');
+      alert('Erro ao fazer upload da imagem.');
     } finally {
       setUploading(false);
     }
@@ -179,19 +191,14 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
 
     try {
       setUploadingDivergence(true);
+      const storage = getStorage();
       const fileExt = file.name.split('.').pop();
       const fileName = `div-${Math.random()}.${fileExt}`;
       const filePath = `divergence-images/${fileName}`;
+      const storageRef = ref(storage, filePath);
 
-      const { error: uploadError } = await supabase.storage
-        .from('receipts')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('receipts')
-        .getPublicUrl(filePath);
+      await uploadBytes(storageRef, file);
+      const publicUrl = await getDownloadURL(storageRef);
 
       setDivergenceModal(prev => ({ ...prev, photoUrl: publicUrl }));
     } catch (error: any) {
@@ -204,42 +211,64 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
 
   const fetchReceipts = async (showLoading = true) => {
     if (showLoading) setLoading(true);
-    const { data, error } = await supabase
-      .from('receipts')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (!error && data) {
+    try {
+      const q = query(collection(db, 'receipts'), orderBy('created_at', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Receipt[];
       setReceipts(data);
+    } catch (err) {
+      console.error('Error fetching receipts:', err);
+    } finally {
+      if (showLoading) setLoading(false);
     }
-    if (showLoading) setLoading(false);
   };
 
   const fetchSuppliers = async () => {
-    const { data } = await supabase.from('suppliers').select('id, name, cnpj, is_driver').order('name');
-    if (data) setDbSuppliers(data);
+    try {
+      const q = query(collection(db, 'suppliers'), orderBy('name'));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Supplier[];
+      setDbSuppliers(data);
+    } catch (err) {
+      console.error('Error fetching suppliers:', err);
+    }
   };
 
   const fetchLoadTypes = async () => {
-    const { data } = await supabase.from('load_types').select('*').order('name');
-    if (data) setLoadTypes(data);
+    try {
+      const q = query(collection(db, 'load_types'), orderBy('name'));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as LoadType[];
+      setLoadTypes(data);
+    } catch (err) {
+      console.error('Error fetching load types:', err);
+    }
   };
 
   const saveLoadType = async () => {
     if (!newLoadType.trim()) return;
     setSavingLoadType(true);
     try {
-      const { error } = await supabase.from('load_types').insert([{ 
+      await addDoc(collection(db, 'load_types'), { 
         name: newLoadType.trim(),
-        color: newLoadTypeColor 
-      }]);
-      if (error) throw error;
+        color: newLoadTypeColor,
+        created_at: serverTimestamp()
+      });
       setNewLoadType('');
       setNewLoadTypeColor('#3b82f6');
       setIsLoadTypeModalOpen(false);
       fetchLoadTypes();
     } catch (err: any) {
-      alert('Erro ao salvar tipo de carga: ' + err.message);
+      handleFirestoreError(err, OperationType.CREATE, 'load_types');
     } finally {
       setSavingLoadType(false);
     }
@@ -250,15 +279,22 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
     fetchSuppliers();
     fetchLoadTypes();
 
-    const channel = supabase
-      .channel('receipts-realtime')
-      .on('postgres_changes', { event: '*', table: 'receipts', schema: 'public' }, () => {
-        fetchReceipts(false);
-      })
-      .subscribe();
+    const unsubReceipts = onSnapshot(collection(db, 'receipts'), () => {
+      fetchReceipts(false);
+    });
+
+    const unsubSuppliers = onSnapshot(collection(db, 'suppliers'), () => {
+      fetchSuppliers();
+    });
+
+    const unsubLoadTypes = onSnapshot(collection(db, 'load_types'), () => {
+      fetchLoadTypes();
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      unsubReceipts();
+      unsubSuppliers();
+      unsubLoadTypes();
     };
   }, []);
 
@@ -309,18 +345,14 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
         throw new Error('Selecione um Fornecedor.');
       }
 
-      let error;
-
       if (editingReceipt) {
-        const { error: updateError } = await supabase
-          .from('receipts')
-          .update({ 
-            ...formData, 
-            invoice_count: formData.invoices.length,
-            updated_by_name: userName 
-          })
-          .eq('id', editingReceipt.id);
-        error = updateError;
+        const docRef = doc(db, 'receipts', editingReceipt.id);
+        await updateDoc(docRef, { 
+          ...formData, 
+          invoice_count: formData.invoices.length,
+          updated_by_name: userName || 'Usuário',
+          updated_at: serverTimestamp()
+        });
       } else {
         // Generate sequential load_id
         const nextLoadNum = receipts.length > 0 
@@ -331,29 +363,25 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
           : 1;
         const load_id = nextLoadNum.toString().padStart(4, '0');
 
-        const { error: insertError } = await supabase.from('receipts').insert([
-          { 
-            ...formData, 
-            load_id,
-            invoice_number: formData.invoices[0] || 'S/N',
-            supplier_type: 'Externo', // Default value to satisfy DB constraint
-            invoice_count: formData.invoices.length,
-            status: 'Pendente', 
-            author_id: currentUserId,
-            updated_by_name: userName,
-            status_history: {
-          'Pendente': { 
-            at: new Date().toISOString(), 
-            by: userName || 'Usuário',
-            by_id: currentUserId
+        await addDoc(collection(db, 'receipts'), { 
+          ...formData, 
+          load_id,
+          invoice_number: formData.invoices[0] || 'S/N',
+          supplier_type: 'Externo', // Default value
+          invoice_count: formData.invoices.length,
+          status: 'Pendente', 
+          author_id: currentUserId,
+          updated_by_name: userName || 'Usuário',
+          created_at: serverTimestamp(),
+          status_history: {
+            'Pendente': { 
+              at: new Date().toISOString(), 
+              by: userName || 'Usuário',
+              by_id: currentUserId
+            }
           }
-        }
-          }
-        ]);
-        error = insertError;
+        });
       }
-
-      if (error) throw error;
 
       setIsModalOpen(false);
       setEditingReceipt(null);
@@ -368,17 +396,13 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
       });
       fetchReceipts(false);
     } catch (err: any) {
-      console.error('Erro ao salvar:', err.message);
-      setFormError(err.message === 'new row violates row-level security policy for table "receipts"' 
-        ? 'Erro de permissão: Você não tem autorização para realizar esta ação.' 
-        : `Erro ao salvar: ${err.message}`);
+      handleFirestoreError(err, editingReceipt ? OperationType.UPDATE : OperationType.CREATE, `receipts/${editingReceipt?.id || ''}`);
     } finally {
       setSaving(false);
     }
   };
 
   const updateStatus = async (id: string, newStatus: Receipt['status']) => {
-    // Se for divergente, abre o modal em vez de atualizar direto
     if (newStatus === 'Divergente') {
       setDivergenceModal({
         isOpen: true,
@@ -410,28 +434,17 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
       [newStatus]: { at: now, by: userName || 'Usuário', by_id: currentUserId }
     };
     
-    // Optimistic update
-    setReceipts(prev => prev.map(r => r.id === id ? { 
-      ...r, 
-      status: newStatus, 
-      updated_by_name: userName,
-      updated_at: now,
-      status_history: newHistory
-    } : r));
-    
-    const { error } = await supabase
-      .from('receipts')
-      .update({ 
+    try {
+      const docRef = doc(db, 'receipts', id);
+      await updateDoc(docRef, { 
         status: newStatus,
-        updated_by_name: userName,
-        updated_at: now,
+        updated_by_name: userName || 'Usuário',
+        updated_at: serverTimestamp(),
         status_history: newHistory
-      })
-      .eq('id', id);
-    
-    if (error) {
-      console.error('Erro ao atualizar status:', error.message);
+      });
       fetchReceipts(false);
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `receipts/${id}`);
     }
   };
 
@@ -453,34 +466,20 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
 
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('receipts')
-        .update({
-          status: newStatus,
-          divergence_observation: divergenceModal.observation,
-          divergence_photo_url: divergenceModal.photoUrl,
-          updated_by_name: userName,
-          updated_at: now,
-          status_history: newHistory
-        })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      setReceipts(prev => prev.map(r => r.id === id ? { 
-        ...r, 
+      const docRef = doc(db, 'receipts', id);
+      await updateDoc(docRef, {
         status: newStatus,
         divergence_observation: divergenceModal.observation,
         divergence_photo_url: divergenceModal.photoUrl,
-        updated_by_name: userName,
-        updated_at: now,
+        updated_by_name: userName || 'Usuário',
+        updated_at: serverTimestamp(),
         status_history: newHistory
-      } : r));
+      });
 
       setDivergenceModal({ isOpen: false, receiptId: null, observation: '', photoUrl: '' });
       fetchReceipts(false);
     } catch (err: any) {
-      alert('Erro ao salvar divergência: ' + err.message);
+      handleFirestoreError(err, OperationType.UPDATE, `receipts/${id}`);
     } finally {
       setSaving(false);
     }
@@ -488,12 +487,13 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
 
   const deleteReceipt = async () => {
     if (!deleteModal.id) return;
-    const { error } = await supabase.from('receipts').delete().eq('id', deleteModal.id);
-    if (!error) {
+    try {
+      const docRef = doc(db, 'receipts', deleteModal.id);
+      await deleteDoc(docRef);
       setDeleteModal({ isOpen: false, id: null });
       fetchReceipts(false);
-    } else {
-      console.error('Erro ao excluir:', error.message);
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.DELETE, `receipts/${deleteModal.id}`);
     }
   };
 

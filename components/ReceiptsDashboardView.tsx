@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/firebase';
+import { collection, query, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
 import { 
   BarChart, 
   Bar, 
@@ -51,22 +52,30 @@ export function ReceiptsDashboardView() {
     return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
   });
 
-  useEffect(() => {
-    fetchReceipts();
-  }, []);
-
   const fetchReceipts = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('receipts')
-      .select('*')
-      .order('created_at', { ascending: true });
-    
-    if (!error && data) {
+    try {
+      const q = query(collection(db, 'receipts'), orderBy('created_at', 'asc'));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Receipt[];
       setReceipts(data);
+    } catch (err) {
+      console.error('Error fetching receipts:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
+
+  useEffect(() => {
+    fetchReceipts();
+    const unsubscribe = onSnapshot(collection(db, 'receipts'), () => {
+      fetchReceipts();
+    });
+    return unsubscribe;
+  }, []);
 
   const filteredData = useMemo(() => {
     const start = new Date(startDate);
