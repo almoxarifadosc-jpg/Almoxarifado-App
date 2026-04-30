@@ -108,7 +108,7 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
         }
       }
 
-      if (profile.status === 'PENDING') {
+      if (profile && profile.status === 'PENDING') {
         setError('Seu cadastro ainda não foi aprovado pelo administrador.');
         await signOut(auth);
         return;
