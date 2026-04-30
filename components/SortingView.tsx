@@ -21,7 +21,8 @@ import {
   Eraser,
   Pen,
   Camera,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -104,6 +105,15 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
+  const [opFilter, setOpFilter] = useState('');
+  const [startDate, setStartDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'EDIT' | 'SIGN' | 'REVIEW'>('EDIT');
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
@@ -558,11 +568,25 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
     if (!canSee) return false;
 
-    // 2. Filtro por busca de texto
-    return (
-      o.order_number.toLowerCase().includes(filterText.toLowerCase()) ||
-      o.supplier_name.toLowerCase().includes(filterText.toLowerCase())
-    );
+    // 2. Filtro por busca de texto (Produto/Fornecedor)
+    const matchText = filterText === '' || 
+      o.supplier_name.toLowerCase().includes(filterText.toLowerCase()) ||
+      o.items?.some(item => item.description?.toLowerCase().includes(filterText.toLowerCase()));
+
+    // 3. Filtro específico de OP
+    const matchOP = opFilter === '' || o.order_number.toLowerCase().includes(opFilter.toLowerCase());
+
+    // 4. Filtro de data
+    let matchDate = true;
+    if (o.date) {
+      const orderDate = o.date.split('T')[0];
+      matchDate = (!startDate || orderDate >= startDate) && (!endDate || orderDate <= endDate);
+    } else {
+      // Se não tem data, mostramos se os filtros estão vazios ou se a data inicial/final não restringe
+      matchDate = !startDate && !endDate;
+    }
+
+    return matchText && matchOP && matchDate;
   });
 
   return (
@@ -586,16 +610,78 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         <p className="text-on-surface-variant font-medium text-sm md:text-base">Gerencie a separação física dos materiais importados.</p>
       </div>
 
-      <div className="bg-surface-container-low p-1 md:p-2 rounded-2xl mb-4 md:mb-8 border border-outline-variant/10 flex items-center gap-3">
-        <div className="relative flex-1">
-          <input 
-            type="text"
-            placeholder="Buscar por OP ou Produto..."
-            className="w-full bg-transparent text-sm p-2 md:p-3 pl-10 outline-none"
-            value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-          />
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+      <div className="bg-surface-container-low p-5 rounded-3xl mb-8 border border-outline-variant/10 shadow-sm space-y-5">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+          <div className="relative md:col-span-5">
+            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2 block ml-1 text-opacity-70">Buscar Item ou Fornecedor</label>
+            <div className="relative group">
+              <input 
+                type="text"
+                placeholder="Ex: Descrição, material..."
+                className="w-full bg-surface-container-high/50 rounded-2xl text-sm p-3.5 pl-11 outline-none border border-outline-variant/20 focus:border-primary/50 transition-all font-medium placeholder:text-on-surface-variant/40"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
+              <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" />
+            </div>
+          </div>
+
+          <div className="relative md:col-span-3">
+            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2 block ml-1 text-opacity-70">Número da OP</label>
+            <div className="relative group">
+              <input 
+                type="text"
+                placeholder="Ex: 56789"
+                className="w-full bg-surface-container-high/50 rounded-2xl text-sm p-3.5 pl-11 outline-none border border-outline-variant/20 focus:border-primary/50 transition-all font-medium placeholder:text-on-surface-variant/40"
+                value={opFilter}
+                onChange={(e) => setOpFilter(e.target.value)}
+              />
+              <FileText className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" />
+            </div>
+          </div>
+
+          <div className="md:col-span-4 flex items-end gap-3">
+            <div className="flex-1">
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2 block ml-1 text-opacity-70">Data Inicial</label>
+              <div className="relative group">
+                <input 
+                  type="date"
+                  className="w-full bg-surface-container-high/50 rounded-2xl text-sm p-3.5 pl-11 outline-none border border-outline-variant/20 focus:border-primary/50 transition-all font-medium"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <Calendar className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2 block ml-1 text-opacity-70">Data Final</label>
+              <div className="relative group">
+                <input 
+                  type="date"
+                  className="w-full bg-surface-container-high/50 rounded-2xl text-sm p-3.5 pl-11 outline-none border border-outline-variant/20 focus:border-primary/50 transition-all font-medium"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+                <Calendar className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" />
+              </div>
+            </div>
+            
+            {(filterText || opFilter || startDate || endDate) && (
+              <button 
+                onClick={() => {
+                  setFilterText('');
+                  setOpFilter('');
+                  const today = new Date().toISOString().split('T')[0];
+                  setStartDate(today);
+                  setEndDate(today);
+                }}
+                className="p-3.5 bg-surface-container-high hover:bg-surface-container-highest text-error rounded-2xl transition-colors border border-outline-variant/20 shadow-sm active:scale-95"
+                title="Limpar Filtros"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

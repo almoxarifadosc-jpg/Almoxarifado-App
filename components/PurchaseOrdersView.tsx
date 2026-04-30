@@ -26,6 +26,7 @@ import {
   collection, 
   query, 
   orderBy, 
+  where,
   getDocs, 
   addDoc, 
   updateDoc, 
@@ -72,6 +73,15 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
+  const [opFilter, setOpFilter] = useState('');
+  const [startDate, setStartDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
   const [orderSequence, setOrderSequence] = useState<string>('');
@@ -407,10 +417,29 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
     }
   };
 
-  const filteredOrders = orders.filter(o => 
-    o.order_number.toLowerCase().includes(filterText.toLowerCase()) ||
-    o.supplier_name.toLowerCase().includes(filterText.toLowerCase())
-  );
+  const filteredOrders = orders.filter(o => {
+    const searchLower = filterText.toLowerCase();
+    
+    // Busca no fornecedor ou nos produtos (itens)
+    const matchText = filterText === '' || 
+      o.supplier_name?.toLowerCase().includes(searchLower) ||
+      o.items?.some(item => item.description?.toLowerCase().includes(searchLower));
+      
+    // Filtro específico de OP
+    const matchOP = opFilter === '' || o.order_number?.toLowerCase().includes(opFilter.toLowerCase());
+    
+    // Filtro de data
+    let matchDate = true;
+    if (o.date) {
+      const orderDate = o.date.split('T')[0];
+      matchDate = (!startDate || orderDate >= startDate) && (!endDate || orderDate <= endDate);
+    } else {
+      // Se não tem data, só mostramos se os filtros de data estiverem vazios
+      matchDate = !startDate && !endDate;
+    }
+    
+    return matchText && matchOP && matchDate;
+  });
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -420,33 +449,34 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="mb-8 p-4 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center gap-3 border border-emerald-500/20"
+            className="fixed top-24 right-8 z-50 p-4 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center gap-3 border border-emerald-500/20 backdrop-blur-md shadow-2xl"
           >
             <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
             <p className="text-sm font-bold">{success}</p>
           </motion.div>
         )}
+        {error && !isModalOpen && !isEditModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mb-8 p-4 bg-error/10 text-error rounded-2xl flex items-center justify-between gap-3 border border-error/20"
+          >
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <p className="text-sm font-bold">{error}</p>
+            </div>
+            <button onClick={() => setError(null)} className="p-1 hover:bg-error/20 rounded-lg transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
       </AnimatePresence>
 
-      {error && !isModalOpen && !isEditModalOpen && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8 p-4 bg-error/10 text-error rounded-2xl flex items-center justify-between gap-3 border border-error/20"
-        >
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p className="text-sm font-bold">{error}</p>
-          </div>
-          <button onClick={() => setError(null)} className="p-1 hover:bg-error/20 rounded-lg transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </motion.div>
-      )}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight">Importação de OPs por PDF</h2>
-          <p className="text-on-surface-variant font-medium">Importação de PDFs com processamento inteligente.</p>
+          <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight">Separação de OPs</h2>
+          <p className="text-on-surface-variant font-medium">Controle e separação de ordens de produção.</p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
@@ -457,16 +487,78 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
         </button>
       </div>
 
-      <div className="bg-surface-container-low p-2 rounded-2xl mb-8 border border-outline-variant/10 flex items-center gap-3">
-        <div className="relative flex-1">
-          <input 
-            type="text"
-            placeholder="Buscar por número ou produto..."
-            className="w-full bg-transparent text-sm p-3 pl-10 outline-none"
-            value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-          />
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+      <div className="bg-surface-container-low p-5 rounded-3xl mb-8 border border-outline-variant/10 shadow-sm space-y-5">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+          <div className="relative md:col-span-5">
+            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2 block ml-1 text-opacity-70">Buscar Item ou Fornecedor</label>
+            <div className="relative group">
+              <input 
+                type="text"
+                placeholder="Ex: Descrição, material..."
+                className="w-full bg-surface-container-high/50 rounded-2xl text-sm p-3.5 pl-11 outline-none border border-outline-variant/20 focus:border-primary/50 transition-all font-medium placeholder:text-on-surface-variant/40"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
+              <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" />
+            </div>
+          </div>
+
+          <div className="relative md:col-span-3">
+            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2 block ml-1 text-opacity-70">Número da OP</label>
+            <div className="relative group">
+              <input 
+                type="text"
+                placeholder="Ex: 56789"
+                className="w-full bg-surface-container-high/50 rounded-2xl text-sm p-3.5 pl-11 outline-none border border-outline-variant/20 focus:border-primary/50 transition-all font-medium placeholder:text-on-surface-variant/40"
+                value={opFilter}
+                onChange={(e) => setOpFilter(e.target.value)}
+              />
+              <FileText className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" />
+            </div>
+          </div>
+
+          <div className="md:col-span-4 flex items-end gap-3">
+            <div className="flex-1">
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2 block ml-1 text-opacity-70">Data Inicial</label>
+              <div className="relative group">
+                <input 
+                  type="date"
+                  className="w-full bg-surface-container-high/50 rounded-2xl text-sm p-3.5 pl-11 outline-none border border-outline-variant/20 focus:border-primary/50 transition-all font-medium"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <Calendar className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2 block ml-1 text-opacity-70">Data Final</label>
+              <div className="relative group">
+                <input 
+                  type="date"
+                  className="w-full bg-surface-container-high/50 rounded-2xl text-sm p-3.5 pl-11 outline-none border border-outline-variant/20 focus:border-primary/50 transition-all font-medium"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+                <Calendar className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" />
+              </div>
+            </div>
+            
+            {(filterText || opFilter || startDate || endDate) && (
+              <button 
+                onClick={() => {
+                  setFilterText('');
+                  setOpFilter('');
+                  const today = new Date().toISOString().split('T')[0];
+                  setStartDate(today);
+                  setEndDate(today);
+                }}
+                className="p-3.5 bg-surface-container-high hover:bg-surface-container-highest text-error rounded-2xl transition-colors border border-outline-variant/20 shadow-sm active:scale-95"
+                title="Limpar Filtros"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
