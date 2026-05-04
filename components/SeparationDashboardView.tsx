@@ -88,7 +88,8 @@ export function SeparationDashboardView() {
 
   const calculatePercentages = (items: OrderItem[]) => {
     if (!items || items.length === 0) return { separation: 0, conference: 0 };
-    const separatedCount = items.filter(i => (i.quantity || 0) > 0).length;
+    // Consideramos separado se a quantidade não for nula (mesmo que seja 0, indica que foi processado)
+    const separatedCount = items.filter(i => i.quantity !== null).length;
     const conferredCount = items.filter(i => i.is_conferred).length;
     
     return {

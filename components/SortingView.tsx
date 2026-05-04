@@ -292,7 +292,8 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
   const calculatePercentages = (items: OrderItem[]) => {
     if (!items || items.length === 0) return { separation: 0, conference: 0 };
-    const separatedCount = items.filter(i => (i.quantity || 0) > 0).length;
+    // Consideramos separado se a quantidade não for nula (mesmo que seja 0, indica que foi processado)
+    const separatedCount = items.filter(i => i.quantity !== null).length;
     const conferredCount = items.filter(i => i.is_conferred).length;
     
     return {
@@ -384,7 +385,13 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
       setSuccess('OP Conferida com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${editingOrder.id}`);
+      console.error("Erro ao conferir OP:", err);
+      setError("Erro ao salvar conferência: " + (err.message || String(err)));
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${editingOrder.id}`);
+      } catch (e) {
+        // Ignoramos o throw para manter estado do modal aberto com erro
+      }
     } finally {
       setIsProcessing(false);
     }
