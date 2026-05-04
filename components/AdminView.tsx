@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { ShieldCheck, CheckCircle, XCircle, Loader2, Users, Factory, Plus, Trash2, Pencil, Star, AlertCircle } from 'lucide-react';
-import { db } from '@/lib/firebase';
+import { KeyRound, ShieldCheck, CheckCircle, XCircle, Loader2, Users, Factory, Plus, Trash2, Pencil, Star, AlertCircle } from 'lucide-react';
+import { auth, db } from '@/lib/firebase';
 import { 
   collection, 
   query, 
@@ -18,6 +18,7 @@ import {
   orderBy,
   onSnapshot 
 } from 'firebase/firestore';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
 import { migrateData } from '@/lib/migration-service';
 
@@ -100,11 +101,11 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
   const handleEditUser = (user: Profile) => {
     setEditingUser(user);
     setUserFormData({
-      name: user.name,
-      is_admin: user.is_admin,
-      is_super_admin: user.is_super_admin,
-      is_viewer: user.is_viewer,
-      is_conferente: user.is_conferente,
+      name: user.name || '',
+      is_admin: user.is_admin || false,
+      is_super_admin: user.is_super_admin || false,
+      is_viewer: user.is_viewer || false,
+      is_conferente: user.is_conferente || false,
       is_auto_assign: user.is_auto_assign || false,
       category: user.category || 'Ventisol',
       allowed_groups: user.allowed_groups?.join(', ') || ''
@@ -324,6 +325,16 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
       fetchProductionLines();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.DELETE, `production_lines/${id}`);
+    }
+  };
+
+  const handleResetPassword = async (email: string) => {
+    if (!confirm(`Enviar e-mail de redefinição de senha para ${email}?`)) return;
+    try {
+      await sendPasswordResetEmail(auth, email);
+      alert('E-mail de redefinição enviado com sucesso! O usuário receberá um link para criar uma nova senha.');
+    } catch (err: any) {
+      alert('Erro ao enviar e-mail: ' + (err.message || 'Erro desconhecido'));
     }
   };
 
@@ -609,6 +620,13 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
                       </div>
                     </div>
                     <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleResetPassword(user.email)}
+                        className="p-2 text-amber-500 hover:bg-amber-500/10 rounded-xl transition-colors"
+                        title="Resetar Senha"
+                      >
+                        <KeyRound className="w-5 h-5" />
+                      </button>
                       <button 
                         onClick={() => handleEditUser(user)}
                         className="p-2 text-primary hover:bg-primary/10 rounded-xl transition-colors"

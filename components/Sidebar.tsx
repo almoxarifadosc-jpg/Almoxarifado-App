@@ -36,6 +36,15 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
 
   const sections = [
     {
+      title: 'OPs',
+      items: ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente') ? [
+        { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText },
+        { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
+        { id: 'SEPARATION_DASHBOARD' as View, label: 'Painel de Separação', icon: LayoutDashboard },
+        { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 },
+      ] : []
+    },
+    {
       title: 'Ventisol',
       items: [
         { id: 'OPERATIONS' as View, label: 'Ordens de Prod.', icon: Network },
@@ -56,15 +65,6 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
         { id: 'RECEIPTS_DASHBOARD' as View, label: 'Dash Rec.', icon: LayoutDashboard },
         { id: 'SUPPLIERS' as View, label: 'Fornecedores', icon: Users },
       ].filter(() => !isViewer)
-    },
-    {
-      title: 'Em desenvolvimento',
-      items: ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente') ? [
-        { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText },
-        { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
-        { id: 'SEPARATION_DASHBOARD' as View, label: 'Painel de Separação', icon: LayoutDashboard },
-        { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 },
-      ] : []
     },
     {
       title: 'Admin',

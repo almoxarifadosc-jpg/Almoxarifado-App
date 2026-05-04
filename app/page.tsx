@@ -49,7 +49,7 @@ export interface NewsPost {
 export default function Page() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [authSession, setAuthSession] = useState<any>(null);
-  const [currentView, setCurrentView] = useState<View>('OPERATIONS');
+  const [currentView, setCurrentView] = useState<View>('SORTING');
   const [newsPosts, setNewsPosts] = useState<NewsPost[]>([]);
   const [newsFilter, setNewsFilter] = useState('');
   const [operations, setOperations] = useState<Operation[]>([]);

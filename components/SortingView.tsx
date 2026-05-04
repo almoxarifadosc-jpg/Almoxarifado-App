@@ -108,11 +108,17 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   const [opFilter, setOpFilter] = useState('');
   const [startDate, setStartDate] = useState(() => {
     const today = new Date();
-    return today.toISOString().split('T')[0];
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   });
   const [endDate, setEndDate] = useState(() => {
     const today = new Date();
-    return today.toISOString().split('T')[0];
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'EDIT' | 'SIGN' | 'REVIEW'>('EDIT');
@@ -658,9 +664,13 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                 onClick={() => {
                   setFilterText('');
                   setOpFilter('');
-                  const today = new Date().toISOString().split('T')[0];
-                  setStartDate(today);
-                  setEndDate(today);
+                  const today = new Date();
+                  const y = today.getFullYear();
+                  const m = String(today.getMonth() + 1).padStart(2, '0');
+                  const d = String(today.getDate()).padStart(2, '0');
+                  const dateStr = `${y}-${m}-${d}`;
+                  setStartDate(dateStr);
+                  setEndDate(dateStr);
                 }}
                 className="p-3.5 bg-surface-container-high hover:bg-surface-container-highest text-error rounded-2xl transition-colors border border-outline-variant/20 shadow-sm active:scale-95"
                 title="Limpar Filtros"

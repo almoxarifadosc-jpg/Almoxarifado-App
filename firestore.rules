@@ -39,6 +39,7 @@ service cloud.firestore {
       );
       allow update: if (isSignedIn() && isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'category', 'allowed_groups']))
         || isAdmin();
+      allow delete: if isAdmin();
     }
 
     // 2. Operations
