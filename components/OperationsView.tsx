@@ -208,21 +208,20 @@ export function OperationsView({
     return `${year}-${month}-${day}`;
   };
 
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return formatToISODate(d);
-  });
-  const [endDate, setEndDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 7);
-    return formatToISODate(d);
-  });
+  const [startDate, setStartDate] = useState(() => formatToISODate(new Date()));
+  const [endDate, setEndDate] = useState(() => formatToISODate(new Date()));
   const [filterOP, setFilterOP] = useState('');
 
-  const parseDate = (dateStr: string) => {
-    const [day, month, year] = dateStr.split('/').map(Number);
-    return new Date(year, month - 1, day);
+  const parseAnyDate = (dateStr: string) => {
+    if (!dateStr) return new Date(NaN);
+    if (dateStr.includes('/')) {
+      const [day, month, year] = dateStr.split('/').map(Number);
+      return new Date(year, month - 1, day);
+    } else if (dateStr.includes('-')) {
+      const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+    return new Date(dateStr);
   };
 
   const parseISODate = (isoStr: string) => {
@@ -285,13 +284,16 @@ export function OperationsView({
   const filteredOperations = operations.filter(op => {
     const matchesOP = op.id.toLowerCase().includes(filterOP.toLowerCase());
     
-    const opDate = parseDate(op.date);
+    const opDate = parseAnyDate(op.date);
+
+    if (isNaN(opDate.getTime())) return false;
+
     const start = parseISODate(startDate);
     start.setHours(0, 0, 0, 0);
     const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);
 
-    const matchesDate = (opDate >= start && opDate <= end) || (!op.isCompleted && opDate < start);
+    const matchesDate = (opDate >= start && opDate <= end);
     return matchesOP && matchesDate;
   }).sort((a, b) => {
     if (a.isAtrasada && !b.isAtrasada) return -1;
@@ -304,7 +306,7 @@ export function OperationsView({
   });
 
   const opsInSelectedRange = operations.filter(op => {
-    const opDate = parseDate(op.date);
+    const opDate = parseAnyDate(op.date);
     const start = parseISODate(startDate);
     start.setHours(0, 0, 0, 0);
     const end = parseISODate(endDate);
@@ -336,7 +338,7 @@ export function OperationsView({
 
   const totalPendingOutsideFilter = operations.filter(op => {
     if (op.isCompleted) return false;
-    const opDate = parseDate(op.date);
+    const opDate = parseAnyDate(op.date);
     const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);
     // Only future pending OPs are "outside" now, since past pending are included
@@ -351,7 +353,7 @@ export function OperationsView({
 
   const alertsCount = filteredOperations.filter(op => {
     if (op.isCompleted) return false;
-    const opDate = parseDate(op.date);
+    const opDate = parseAnyDate(op.date);
     return opDate < today;
   }).length;
   return (
@@ -463,10 +465,11 @@ export function OperationsView({
           </div>
           <button 
             onClick={() => {
-              const allDates = operations.map(op => parseDate(op.date));
-              if (allDates.length > 0) {
-                const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
-                const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
+              const allDates = operations.map(op => parseAnyDate(op.date));
+              const validDates = allDates.filter(d => !isNaN(d.getTime()));
+              if (validDates.length > 0) {
+                const minDate = new Date(Math.min(...validDates.map(d => d.getTime())));
+                const maxDate = new Date(Math.max(...validDates.map(d => d.getTime())));
                 setStartDate(formatToISODate(minDate));
                 setEndDate(formatToISODate(maxDate));
               }

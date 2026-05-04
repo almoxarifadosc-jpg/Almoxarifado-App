@@ -25,10 +25,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { Operation } from '@/app/page';
 
-// Helper to parse DD/MM/YYYY or ISO strings
-const parseOpDate = (dateStr: string) => {
+// Helper to parse various date formats
+const parseAnyDate = (dateStr: string) => {
+  if (!dateStr) return new Date(NaN);
   if (dateStr.includes('/')) {
     const [day, month, year] = dateStr.split('/').map(Number);
+    return new Date(year, month - 1, day);
+  } else if (dateStr.includes('-')) {
+    const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
     return new Date(year, month - 1, day);
   }
   return new Date(dateStr);
@@ -64,7 +68,7 @@ export function DashboardView({ operations }: DashboardViewProps) {
     end.setHours(23, 59, 59, 999);
 
     const filtered = operations.filter(op => {
-      const opDate = parseOpDate(op.date);
+      const opDate = parseAnyDate(op.date);
       if (isNaN(opDate.getTime())) return false;
       const isInRange = opDate >= start && opDate <= end;
       return isInRange;
@@ -81,7 +85,7 @@ export function DashboardView({ operations }: DashboardViewProps) {
     // Calculate daily average (Mon-Fri only)
     const opsByDay: { [key: string]: number } = {};
     filteredData.forEach(op => {
-      const d = parseOpDate(op.date);
+      const d = parseAnyDate(op.date);
       if (isNaN(d.getTime())) return;
       const dayOfWeek = d.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
       if (dayOfWeek >= 1 && dayOfWeek <= 5) {
@@ -132,7 +136,7 @@ export function DashboardView({ operations }: DashboardViewProps) {
     // Initialize all months of current year
     const monthsData = monthNames.map((name, index) => {
       const total = operations.filter(op => {
-        const d = parseOpDate(op.date);
+        const d = parseAnyDate(op.date);
         if (isNaN(d.getTime())) return false;
         return d.getMonth() === index && d.getFullYear() === currentYear;
       }).length;
@@ -150,7 +154,7 @@ export function DashboardView({ operations }: DashboardViewProps) {
     const dayCounts = new Array(7).fill(0);
     
     filteredData.forEach(op => {
-      const d = parseOpDate(op.date);
+      const d = parseAnyDate(op.date);
       if (!isNaN(d.getTime())) {
         dayCounts[d.getDay()]++;
       }
@@ -169,7 +173,7 @@ export function DashboardView({ operations }: DashboardViewProps) {
 
     const weekCounts: { [key: number]: number } = {};
     filteredData.forEach(op => {
-      const d = parseOpDate(op.date);
+      const d = parseAnyDate(op.date);
       if (!isNaN(d.getTime())) {
         const weekNum = getWeekOfMonth(d);
         weekCounts[weekNum] = (weekCounts[weekNum] || 0) + 1;

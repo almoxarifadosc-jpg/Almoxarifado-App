@@ -44,11 +44,19 @@ interface PurchaseOrder {
 export function SeparationDashboardView() {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  // Helper to get YYYY-MM-DD in local time
+  const formatToISODate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [startDate, setStartDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
+    return formatToISODate(new Date());
   });
   const [endDate, setEndDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
+    return formatToISODate(new Date());
   });
 
   const fetchOrders = async () => {
@@ -89,15 +97,59 @@ export function SeparationDashboardView() {
     };
   };
 
+  const parseAnyDate = (rawDate: any): Date | null => {
+    if (!rawDate) return null;
+    let d: Date;
+    
+    try {
+      if (typeof rawDate === 'object' && 'seconds' in rawDate) {
+        // Handle Firestore Timestamp
+        d = (rawDate as any).toDate();
+      } else if (typeof rawDate === 'string') {
+        if (rawDate.includes('/')) {
+          // Robust DD/MM/YYYY parsing
+          const parts = rawDate.split(' ')[0].split('/');
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10);
+          const year = parseInt(parts[2], 10);
+          d = new Date(year, month - 1, day, 0, 0, 0, 0);
+        } else if (rawDate.includes('-')) {
+          // Robust YYYY-MM-DD parsing
+          const parts = rawDate.split('T')[0].split('-');
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10);
+          const day = parseInt(parts[2], 10);
+          d = new Date(year, month - 1, day, 0, 0, 0, 0);
+        } else {
+          d = new Date(rawDate);
+        }
+      } else if (typeof rawDate === 'number') {
+        d = new Date(rawDate);
+      } else {
+        d = new Date(rawDate);
+      }
+      
+      return isNaN(d.getTime()) ? null : d;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const parseISODate = (isoStr: string) => {
+    const [year, month, day] = isoStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
-      const orderDate = new Date(order.date || order.created_at);
+      const orderDate = parseAnyDate(order.date || order.created_at);
+      if (!orderDate) return false;
       
-      const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
-      const start = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
+      const start = parseISODate(startDate);
+      start.setHours(0, 0, 0, 0);
       
-      const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
-      const end = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
+      const end = parseISODate(endDate);
+      end.setHours(23, 59, 59, 999);
       
       return orderDate >= start && orderDate <= end;
     });
@@ -233,9 +285,9 @@ export function SeparationDashboardView() {
                       <Calendar className="w-3 h-3 text-primary" />
                       <span className="text-xs font-bold">
                         {(() => {
-                          const dateToParse = order.date || order.created_at;
-                          const [y, m, d] = dateToParse.split('T')[0].split('-').map(Number);
-                          return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+                          const d = parseAnyDate(order.date || order.created_at);
+                          if (!d) return 'N/A';
+                          return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
                         })()}
                       </span>
                     </div>

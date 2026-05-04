@@ -63,6 +63,9 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     allowed_groups: '' 
   });
 
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
+
   const categories = ['Ventisol', 'Conferente', 'Bemplas', 'Recebimento'];
 
   const [migrationStatus, setMigrationStatus] = useState<Record<string, string> | null>(null);
@@ -121,9 +124,9 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     
     const updateData: any = {
       name: userFormData.name,
-      is_viewer: userFormData.is_viewer,
-      is_conferente: userFormData.is_conferente,
-      is_auto_assign: userFormData.is_auto_assign,
+      is_viewer: Boolean(userFormData.is_viewer),
+      is_conferente: Boolean(userFormData.is_conferente),
+      is_auto_assign: Boolean(userFormData.is_auto_assign),
       category: userFormData.category,
       allowed_groups: groupsArray
     };
@@ -131,8 +134,8 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     const canManageAdminRoles = currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br';
 
     if (canManageAdminRoles) {
-      updateData.is_admin = userFormData.is_admin;
-      updateData.is_super_admin = userFormData.is_super_admin;
+      updateData.is_admin = Boolean(userFormData.is_admin);
+      updateData.is_super_admin = Boolean(userFormData.is_super_admin);
     }
 
     try {
@@ -146,12 +149,26 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
   };
 
   const handleDeleteUser = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
+    setUserToDelete(id);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
     try {
-      await deleteDoc(doc(db, 'profiles', id));
+      await deleteDoc(doc(db, 'profiles', userToDelete));
+      alert('Usuário excluído com sucesso!');
+      setIsDeleteModalOpen(false);
+      setUserToDelete(null);
       fetchApprovedUsers();
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.DELETE, `profiles/${id}`);
+      console.error('Delete error:', err);
+      try {
+        handleFirestoreError(err, OperationType.DELETE, `profiles/${userToDelete}`);
+      } catch (firestoreErr: any) {
+        const errorData = JSON.parse(firestoreErr.message);
+        alert(`Erro ao excluir: ${errorData.error}`);
+      }
     }
   };
 
@@ -861,6 +878,42 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete User Confirmation Modal */}
+      <AnimatePresence>
+        {isDeleteModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface rounded-[40px] p-10 w-full max-w-sm shadow-2xl border border-outline-variant/20 text-center"
+            >
+              <div className="w-20 h-20 bg-error/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                <Trash2 className="w-10 h-10 text-error" />
+              </div>
+              <h3 className="text-2xl font-headline font-black mb-3 text-on-surface">Confirmar Exclusão</h3>
+              <p className="text-on-surface-variant text-sm font-medium leading-relaxed mb-10">
+                Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.
+              </p>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  className="flex-1 py-4 rounded-2xl border border-outline-variant/30 font-bold text-sm hover:bg-surface-container-low transition-all active:scale-[0.98]"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={confirmDeleteUser}
+                  className="flex-1 py-4 rounded-2xl bg-error text-white font-bold text-sm shadow-lg shadow-error/20 hover:brightness-110 transition-all active:scale-[0.98]"
+                >
+                  Excluir
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

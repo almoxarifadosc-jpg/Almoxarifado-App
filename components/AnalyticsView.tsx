@@ -22,9 +22,16 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
   const [startDate, setStartDate] = React.useState(formatToISODate(new Date()));
   const [endDate, setEndDate] = React.useState(formatToISODate(new Date()));
 
-  const parseDate = (dateStr: string) => {
-    const [day, month, year] = dateStr.split('/').map(Number);
-    return new Date(year, month - 1, day);
+  const parseAnyDate = (dateStr: string) => {
+    if (!dateStr) return new Date(NaN);
+    if (dateStr.includes('/')) {
+      const [day, month, year] = dateStr.split('/').map(Number);
+      return new Date(year, month - 1, day);
+    } else if (dateStr.includes('-')) {
+      const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+    return new Date(dateStr);
   };
 
   const parseISODate = (isoStr: string) => {
@@ -33,14 +40,16 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
   };
 
   const filteredOps = operations.filter(op => {
-    const opDate = parseDate(op.date);
+    const opDate = parseAnyDate(op.date);
+    if (isNaN(opDate.getTime())) return false;
+
     const start = parseISODate(startDate);
     start.setHours(0, 0, 0, 0);
     const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);
 
-    // Include OPs in range OR pending OPs from the past
-    return (opDate >= start && opDate <= end) || (!op.isCompleted && opDate < start);
+    // Strictly match the date range
+    return opDate >= start && opDate <= end;
   }).sort((a, b) => {
     if (a.isAtrasada && !b.isAtrasada) return -1;
     if (!a.isAtrasada && b.isAtrasada) return 1;
@@ -53,7 +62,7 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
 
   const totalPendingOutsideFilter = operations.filter(op => {
     if (op.isCompleted) return false;
-    const opDate = parseDate(op.date);
+    const opDate = parseAnyDate(op.date);
     const end = parseISODate(endDate);
     end.setHours(23, 59, 59, 999);
     // Only future pending OPs are "outside" now, since past pending are included
@@ -147,10 +156,11 @@ export function AnalyticsView({ operations }: AnalyticsViewProps) {
           </div>
           <button 
             onClick={() => {
-              const allDates = operations.map(op => parseDate(op.date));
-              if (allDates.length > 0) {
-                const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
-                const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
+              const allDates = operations.map(op => parseAnyDate(op.date));
+              const validDates = allDates.filter(d => !isNaN(d.getTime()));
+              if (validDates.length > 0) {
+                const minDate = new Date(Math.min(...validDates.map(d => d.getTime())));
+                const maxDate = new Date(Math.max(...validDates.map(d => d.getTime())));
                 setStartDate(formatToISODate(minDate));
                 setEndDate(formatToISODate(maxDate));
               }

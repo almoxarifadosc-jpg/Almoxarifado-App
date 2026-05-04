@@ -44,13 +44,24 @@ export function ReceiptsDashboardView() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState<string>(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().split('T')[0];
+    return new Date().toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState<string>(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    return new Date().toISOString().split('T')[0];
   });
+
+  const parseAnyDate = (dateVal: any) => {
+    if (!dateVal) return new Date(NaN);
+    if (typeof dateVal === 'object' && dateVal.seconds) return dateVal.toDate();
+    if (typeof dateVal === 'string') {
+      if (dateVal.includes('/')) {
+        const [day, month, year] = dateVal.split('/').map(Number);
+        return new Date(year, month - 1, day);
+      }
+      return new Date(dateVal);
+    }
+    return new Date(dateVal);
+  };
 
   const fetchReceipts = async () => {
     setLoading(true);
@@ -84,7 +95,7 @@ export function ReceiptsDashboardView() {
     end.setHours(23, 59, 59, 999);
 
     return receipts.filter(r => {
-      const d = new Date(r.created_at);
+      const d = parseAnyDate(r.created_at);
       return d >= start && d <= end;
     });
   }, [receipts, startDate, endDate]);
@@ -104,7 +115,8 @@ export function ReceiptsDashboardView() {
     const months: Record<string, { month: string; intercompany: number; externo: number }> = {};
     
     filteredData.forEach(r => {
-      const date = new Date(r.created_at);
+      const date = parseAnyDate(r.created_at);
+      if (isNaN(date.getTime())) return;
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const label = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
       
