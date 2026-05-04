@@ -33,6 +33,7 @@ service cloud.firestore {
     // 1. Profiles
     match /profiles/{userId} {
       allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
       allow create: if isSignedIn() && (
         (isOwner(userId) && isValidProfile(incoming()) && incoming().status == 'PENDING')
         || isAdmin()
@@ -48,7 +49,7 @@ service cloud.firestore {
         && data.id is string && data.line is string && data.quantity is number;
     }
     match /operations/{opId} {
-      allow read: if isApproved();
+      allow read: if isApproved() || isAdmin();
       allow create: if isAdmin() && isValidOperation(incoming());
       allow update: if (isAdmin() || (isApproved() && incoming().diff(existing()).affectedKeys().hasOnly(['steps', 'progress', 'is_completed'])))
         && isValidOperation(incoming());
@@ -57,13 +58,13 @@ service cloud.firestore {
 
     // 3. News Posts
     match /news_posts/{newsId} {
-      allow read: if isApproved();
+      allow read: if isApproved() || isAdmin();
       allow write: if isAdmin();
     }
 
     // 4. Production Lines
     match /production_lines/{lineId} {
-      allow read: if isApproved();
+      allow read: if isApproved() || isAdmin();
       allow write: if isAdmin();
     }
 
@@ -75,19 +76,19 @@ service cloud.firestore {
 
     // 6. Suppliers & Load Types
     match /suppliers/{sId} {
-      allow read: if isApproved();
+      allow read: if isApproved() || isAdmin();
       allow write: if isAdmin();
     }
     match /load_types/{tId} {
-      allow read: if isApproved();
+      allow read: if isApproved() || isAdmin();
       allow write: if isAdmin();
     }
 
     // 7. Receipts
     match /receipts/{rId} {
-      allow read: if isApproved();
+      allow read: if isApproved() || isAdmin();
       allow create: if (isApproved() && incoming().author_id == request.auth.uid) || isAdmin();
-      allow update: if isApproved() && (
+      allow update: if (isApproved() || isAdmin()) && (
         isAdmin() || 
         (existing().status != 'Concluído' && (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updated_at', 'updated_by_name', 'status_history', 'divergence_observation', 'divergence_photo_url'])))
       );
@@ -96,9 +97,9 @@ service cloud.firestore {
 
     // 8. Purchase Orders
     match /purchase_orders/{pId} {
-      allow read: if isApproved();
+      allow read: if isApproved() || isAdmin();
       allow create: if isAdmin();
-      allow update: if isApproved() && (
+      allow update: if (isApproved() || isAdmin()) && (
         isAdmin() ||
         (existing().status != 'Baixada' && (
           // Action: Assign

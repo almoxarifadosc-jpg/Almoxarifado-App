@@ -36,14 +36,13 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { GoogleGenAI, Type } from "@google/genai";
 
 interface OrderItem {
   code?: string;
   description: string;
   planned_quantity: number; // Quantidade original do PDF
-  quantity: number;         // Quantidade editada (separada)
+  quantity: number | null;         // Quantidade editada (separada)
   unitPrice?: number;
   totalPrice?: number;
   collector_name?: string;
@@ -69,6 +68,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
@@ -113,10 +113,22 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
   };
 
   useEffect(() => {
-    fetchOrders();
-    const unsubscribe = onSnapshot(collection(db, 'purchase_orders'), () => {
-      fetchOrders();
+    // Escuta em tempo real usando onSnapshot diretamente no estado
+    setLoading(true);
+    const q = query(collection(db, 'purchase_orders'), orderBy('sequence', 'asc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PurchaseOrder[];
+      setOrders(data);
+      setLoading(false);
+    }, (err) => {
+      console.error('Error in onSnapshot:', err);
+      setLoading(false);
     });
+
     return unsubscribe;
   }, []);
 
@@ -225,11 +237,11 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
         throw lastError || new Error("Falha ao processar PDF.");
       }
       
-      // Garantir que 'quantity' (Separad) comece zerado para conferência
+      // Garantir que 'quantity' (Separad) comece nulo para conferência
       if (result.items) {
         result.items = result.items.map((item: any) => ({
           ...item,
-          quantity: 0
+          quantity: null
         }));
       }
       
@@ -337,16 +349,24 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
       setSuccess('Conferência salva com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${editingOrder.id}`);
+      console.error("Erro ao atualizar pedido:", err);
+      setError(err.message || "Erro desconhecido ao atualizar pedido.");
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${editingOrder.id}`);
+      } catch (e) {
+        // Ignoramos
+      }
     } finally {
       setIsProcessing(false);
     }
   };
 
   const saveOrder = async () => {
-    if (!extractedData || !selectedFile) return;
+    if (!extractedData) return;
 
+    console.log("Iniciando salvamento de pedido...");
     setIsProcessing(true);
+    setProcessingStatus("Verificando duplicidade...");
     setError(null);
     try {
       // 1. Verificação de duplicidade por número de OP
@@ -357,66 +377,71 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
         throw new Error(`A OP #${extractedData.order_number} já foi importada anteriormente.`);
       }
 
-      // 2. Upload PDF to Firebase Storage
-      const storage = getStorage();
-      // Normalize filename to remove accents and special characters
-      const normalizedName = selectedFile.name
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-zA-Z0-9.-]/g, '_');
-        
-      const fileName = `orders/${Date.now()}_${normalizedName}`;
-      const storageRef = ref(storage, fileName);
-
-      await uploadBytes(storageRef, selectedFile);
-      const publicUrl = await getDownloadURL(storageRef);
-
-      // 3. Save to Database
+      // 2. Save to Database
+      setProcessingStatus("Salvando no banco de dados...");
       const finalItems = extractedData.items?.map(item => ({
         ...item,
-        quantity: 0 // Incializa quantidades como vazias (zero) para edição posterior
+        quantity: null 
       })) || [];
 
       const today = new Date();
       const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
       // Buscar usuários marcados para atribuição automática
-      const profilesQuery = query(collection(db, 'profiles'), where('is_auto_assign', '==', true));
-      const profilesSnap = await getDocs(profilesQuery);
-      const autoAssignIds = profilesSnap.docs.map(doc => doc.id);
+      let autoAssignIds: string[] = [];
+      try {
+        const profilesQuery = query(collection(db, 'profiles'), where('is_auto_assign', '==', true));
+        const profilesSnap = await getDocs(profilesQuery);
+        autoAssignIds = profilesSnap.docs.map(doc => doc.id);
+      } catch (profileErr) {
+        console.warn("Aviso: Falha ao buscar auto-atribuição.", profileErr);
+      }
 
       await addDoc(collection(db, 'purchase_orders'), {
         ...extractedData,
-        date: dateStr, // Salva yyyy-mm-dd local
+        date: dateStr, 
         items: finalItems,
-        pdf_url: publicUrl,
         status: 'Pendente',
         sequence: orderSequence ? parseInt(orderSequence) : null,
         assigned_users: autoAssignIds,
         created_at: serverTimestamp()
       });
 
-      fetchOrders();
+      console.log("Sucesso! Limpando estados...");
       setIsModalOpen(false);
       setExtractedData(null);
       setSelectedFile(null);
       setOrderSequence('');
+      
+      setSuccess('Dados importados com sucesso!');
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.CREATE, 'purchase_orders');
+      console.error("Erro ao salvar pedido:", err);
+      setError(err.message || "Erro desconhecido ao salvar pedido.");
     } finally {
       setIsProcessing(false);
+      setProcessingStatus(null);
     }
   };
 
   const deleteOrder = async (id: string) => {
     setIsProcessing(true);
+    setError(null);
     try {
       const orderRef = doc(db, 'purchase_orders', id);
       await deleteDoc(orderRef);
       fetchOrders();
       setOrderToDelete(null);
+      setSuccess('Pedido removido com sucesso!');
+      setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.DELETE, `purchase_orders/${id}`);
+      console.error("Erro ao deletar pedido:", err);
+      setError(err.message || "Erro desconhecido ao deletar pedido.");
+      try {
+        handleFirestoreError(err, OperationType.DELETE, `purchase_orders/${id}`);
+      } catch (e) {
+        // Ignoramos
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -893,8 +918,17 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                           disabled={isProcessing || !orderSequence}
                           className="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-xl shadow-primary/20 hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:grayscale"
                         >
-                          {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle2 className="w-6 h-6" />}
-                          Confirmar e Salvar Pedido
+                          {isProcessing ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-6 h-6 animate-spin" />
+                              <span>{processingStatus || 'Processando...'}</span>
+                            </div>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-6 h-6" />
+                              <span>Confirmar e Salvar Pedido</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>

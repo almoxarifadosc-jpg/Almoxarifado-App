@@ -39,7 +39,6 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface Receipt {
   id: string;
@@ -166,19 +165,10 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
 
     try {
       setUploading(true);
-      const storage = getStorage();
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `receipt-images/${fileName}`;
-      const storageRef = ref(storage, filePath);
-
-      await uploadBytes(storageRef, file);
-      const publicUrl = await getDownloadURL(storageRef);
-
-      setFormData(prev => ({ ...prev, image_url: publicUrl }));
+      console.warn("Storage desativado: Fotos não serão salvas no momento.");
+      alert('O upload de imagens requer um plano pago do Firebase. No momento, o sistema processará apenas os dados de texto.');
     } catch (error: any) {
-      console.error('Erro no upload:', error.message);
-      alert('Erro ao fazer upload da imagem.');
+      console.error('Erro no processamento da imagem:', error.message);
     } finally {
       setUploading(false);
     }
@@ -190,19 +180,10 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
 
     try {
       setUploadingDivergence(true);
-      const storage = getStorage();
-      const fileExt = file.name.split('.').pop();
-      const fileName = `div-${Math.random()}.${fileExt}`;
-      const filePath = `divergence-images/${fileName}`;
-      const storageRef = ref(storage, filePath);
-
-      await uploadBytes(storageRef, file);
-      const publicUrl = await getDownloadURL(storageRef);
-
-      setDivergenceModal(prev => ({ ...prev, photoUrl: publicUrl }));
+      console.warn("Storage desativado: Fotos não serão salvas no momento.");
+      alert('O upload de imagens de divergência requer um plano pago do Firebase.');
     } catch (error: any) {
-      console.error('Erro no upload da divergência:', error.message);
-      alert('Erro ao fazer upload da imagem de divergência.');
+      console.error('Erro no processamento da divergência:', error.message);
     } finally {
       setUploadingDivergence(false);
     }

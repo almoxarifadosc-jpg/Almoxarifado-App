@@ -43,7 +43,6 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import SignatureCanvas from 'react-signature-canvas';
 import { sendGoogleChatNotification } from '@/lib/notifications';
 
@@ -124,14 +123,9 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   const [modalMode, setModalMode] = useState<'EDIT' | 'SIGN' | 'REVIEW'>('EDIT');
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
   const handleOpenOrder = (order: PurchaseOrder) => {
-    const preparedOrder = {
-      ...order,
-      items: order.items.map(item => ({
-        ...item,
-        quantity: item.quantity === 0 ? null : item.quantity
-      }))
-    };
-    setEditingOrder(preparedOrder);
+    // Agora que inicializamos com null no DB, não precisamos converter 0 para null.
+    // O null representa "não processado", enquanto 0 é um valor de separação válido.
+    setEditingOrder({ ...order });
   };
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [assigningOrder, setAssigningOrder] = useState<PurchaseOrder | null>(null);
@@ -175,18 +169,33 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   };
 
   useEffect(() => {
-    fetchOrders();
-    fetchProfiles();
-    setError(null);
-    setSuccess(null);
-
-    // Firebase onSnapshot subscriptions
-    const unsubOrders = onSnapshot(collection(db, 'purchase_orders'), () => {
-      fetchOrders();
+    // Escuta em tempo real usando onSnapshot
+    setLoading(true);
+    
+    // Obter perfis
+    const qProfiles = query(collection(db, 'profiles'), where('status', '==', 'APPROVED'), orderBy('name'));
+    const unsubProfiles = onSnapshot(qProfiles, (snapshot) => {
+      const profilesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Profile[];
+      setProfiles(profilesData);
+    }, (err) => {
+      console.error('Error fetching profiles in real-time:', err);
     });
 
-    const unsubProfiles = onSnapshot(collection(db, 'profiles'), () => {
-      fetchProfiles();
+    // Obter Pedidos
+    const qOrders = query(collection(db, 'purchase_orders'), orderBy('sequence', 'asc'));
+    const unsubOrders = onSnapshot(qOrders, (snapshot) => {
+      const ordersData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PurchaseOrder[];
+      setOrders(ordersData);
+      setLoading(false);
+    }, (err) => {
+      console.error('Error fetching orders in real-time:', err);
+      setLoading(false);
     });
 
     return () => {
@@ -235,23 +244,11 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
     setUploadingPhotos(true);
     try {
-      const storage = getStorage();
-      const newUploads = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const fileExt = file.name.split('.').pop();
-        const fileName = `orders/${editingOrder.id}/${Date.now()}_${i}.${fileExt}`;
-        const storageRef = ref(storage, fileName);
-        
-        await uploadBytes(storageRef, file);
-        const publicUrl = await getDownloadURL(storageRef);
-        newUploads.push(publicUrl);
-      }
-      
-      const existingPhotos = editingOrder.photos || [];
-      setEditingOrder({ ...editingOrder, photos: [...existingPhotos, ...newUploads] });
+      console.warn("Storage desativado: Fotos não serão salvas no momento.");
+      setError("O upload de fotos requer um plano pago do Firebase. Por enquanto, as fotos não podem ser salvas.");
+      setTimeout(() => setError(null), 5000);
     } catch (err: any) {
-      setError(`Erro ao carregar fotos: ${err.message}`);
+      setError(`Erro ao processar fotos: ${err.message}`);
     } finally {
       setUploadingPhotos(false);
     }
@@ -292,8 +289,9 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
   const calculatePercentages = (items: OrderItem[]) => {
     if (!items || items.length === 0) return { separation: 0, conference: 0 };
-    // Consideramos separado se a quantidade não for nula (mesmo que seja 0, indica que foi processado)
-    const separatedCount = items.filter(i => i.quantity !== null).length;
+    // Consideramos separado se a quantidade não for nula (foi preenchida pelo usuário)
+    // E maior ou igual a zero (conforme solicitado pelo usuário)
+    const separatedCount = items.filter(i => i.quantity !== null && i.quantity >= 0).length;
     const conferredCount = items.filter(i => i.is_conferred).length;
     
     return {
@@ -311,22 +309,9 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     try {
       let signatureUrl = editingOrder.signature_url;
 
-      // 1. Upload Signature if drawn
+      // 1. Uso de Assinatura via Base64 diretamente
       if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
-        const canvas = sigCanvas.current.getCanvas();
-        const signatureDataUrl = canvas.toDataURL('image/png');
-        try {
-          const blob = await (await fetch(signatureDataUrl)).blob();
-          const fileName = `signatures/signature_${editingOrder.id}_${Date.now()}.png`;
-          const storage = getStorage();
-          const storageRef = ref(storage, fileName);
-          
-          await uploadBytes(storageRef, blob);
-          signatureUrl = await getDownloadURL(storageRef);
-        } catch (storageErr) {
-          console.warn('Fallback to Base64 signature due to storage error:', storageErr);
-          signatureUrl = signatureDataUrl;
-        }
+        signatureUrl = sigCanvas.current.getCanvas().toDataURL('image/png');
       }
 
       // 2. Update Firestore
@@ -341,13 +326,18 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         updated_at: serverTimestamp()
       });
 
-      fetchOrders();
       setIsEditModalOpen(false);
       setEditingOrder(null);
       setSuccess('Separação salva com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${editingOrder.id}`);
+      console.error("Erro ao atualizar OP:", err);
+      setError("Erro ao salvar alterações: " + (err.message || String(err)));
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${editingOrder.id}`);
+      } catch (e) {
+        // Ignoramos
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -415,20 +405,9 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     setIsProcessing(true);
     setError(null);
     try {
-      const canvas = sigCanvas.current.getCanvas();
-      const signatureDataUrl = canvas.toDataURL('image/png');
-      let signatureUrl = signatureDataUrl;
-
-      try {
-        const blob = await (await fetch(signatureDataUrl)).blob();
-        const fileName = `signatures/signature_${editingOrder.id}_${Date.now()}.png`;
-        const storage = getStorage();
-        const storageRef = ref(storage, fileName);
-
-        await uploadBytes(storageRef, blob);
-        signatureUrl = await getDownloadURL(storageRef);
-      } catch (storageErr) {
-        console.warn('Signature storage error, using base64 fallback:', storageErr);
+      let signatureUrl = "";
+      if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
+        signatureUrl = sigCanvas.current.getCanvas().toDataURL('image/png');
       }
 
       const orderRef = doc(db, 'purchase_orders', editingOrder.id);
@@ -440,13 +419,18 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         updated_at: serverTimestamp()
       });
       
-      fetchOrders();
       setIsEditModalOpen(false);
       setEditingOrder(null);
       setSuccess('Assinatura salva com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${editingOrder.id}`);
+      console.error("Erro ao salvar assinatura:", err);
+      setError("Erro ao salvar assinatura: " + (err.message || String(err)));
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${editingOrder.id}`);
+      } catch (e) {
+        // Ignoramos
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -1214,11 +1198,13 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                               <span className="md:hidden text-[9px] font-black uppercase text-on-surface-variant/40 mb-1">Dif.</span>
                               <span className={cn(
                                 "text-sm md:text-xs font-black px-2 py-0.5 rounded-md",
-                                (item.planned_quantity - (item.quantity ?? 0)) === 0 
-                                  ? "bg-emerald-500/10 text-emerald-500" 
-                                  : "bg-amber-500/10 text-amber-500"
+                                item.quantity === null 
+                                  ? "bg-surface-container-high text-on-surface-variant/30"
+                                  : (item.planned_quantity - (item.quantity ?? 0)) === 0 
+                                    ? "bg-emerald-500/10 text-emerald-500" 
+                                    : "bg-amber-500/10 text-amber-500"
                               )}>
-                                {item.planned_quantity - (item.quantity ?? 0)}
+                                {item.quantity === null ? '-' : item.planned_quantity - (item.quantity ?? 0)}
                               </span>
                             </div>
                           </div>
