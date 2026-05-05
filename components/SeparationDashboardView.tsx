@@ -41,6 +41,9 @@ interface PurchaseOrder {
   items: OrderItem[];
   status: 'Pendente' | 'Separada' | 'Conferida' | 'Recusado' | 'Baixada';
   is_signed?: boolean;
+  signature_url?: string | null;
+  signed_by_name?: string | null;
+  signed_at?: string | null;
   created_at: string;
 }
 
