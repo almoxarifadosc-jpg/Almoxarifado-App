@@ -275,7 +275,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   };
 
   const handleToggleItemConferred = (index: number) => {
-    if (!editingOrder || !isConferente) return;
+    if (!editingOrder || (!isConferente && !isAdmin && !isSuperAdmin)) return;
     setEditingOrder(prev => {
       if (!prev) return null;
       const newItems = [...(prev.items || [])];
@@ -1203,7 +1203,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                               <span className="md:hidden text-[9px] font-black uppercase text-on-surface-variant/40 mb-1">Sep.</span>
                               <input 
                                 type="number"
-                                disabled={editingOrder.status !== 'Pendente'}
+                                disabled={editingOrder.status === 'Baixada'}
                                 className={cn(
                                   "w-14 md:w-16 bg-surface-container-high md:bg-surface-container-low text-center font-black p-2 rounded-xl outline-none focus:ring-2 ring-primary/30 text-sm disabled:opacity-50",
                                   item.quantity !== null && (item.quantity as number) < item.planned_quantity && "ring-2 ring-error/50 text-error bg-error/5"
@@ -1219,11 +1219,11 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                                 "text-sm md:text-xs font-black px-2 py-0.5 rounded-md",
                                 item.quantity === null 
                                   ? "bg-surface-container-high text-on-surface-variant/30"
-                                  : (item.planned_quantity - (item.quantity ?? 0)) === 0 
+                                  : ((item.quantity ?? 0) - item.planned_quantity) >= 0 
                                     ? "bg-emerald-500/10 text-emerald-500" 
                                     : "bg-amber-500/10 text-amber-500"
                               )}>
-                                {item.quantity === null ? '-' : item.planned_quantity - (item.quantity ?? 0)}
+                                {item.quantity === null ? '-' : (item.quantity ?? 0) - item.planned_quantity}
                               </span>
                             </div>
                           </div>
@@ -1232,14 +1232,14 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                           <div className="flex justify-center">
                             <button 
                               onClick={() => handleToggleItemConferred(idx)}
-                              disabled={!isConferente || editingOrder.status !== 'Pendente'}
+                              disabled={(!isConferente && !isAdmin && !isSuperAdmin) || editingOrder.status === 'Baixada'}
                               className={cn(
                                 "w-8 h-8 rounded-full flex items-center justify-center transition-all",
                                 item.is_conferred 
                                   ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
                                   : "bg-surface-container-high text-on-surface-variant/30 hover:bg-emerald-500/10 hover:text-emerald-500 border border-outline-variant/10"
                               )}
-                              title={isConferente ? "Alternar Conferência" : "Apenas conferentes"}
+                              title={(isConferente || isAdmin || isSuperAdmin) ? "Alternar Conferência" : "Sem permissão"}
                             >
                               <UserCheck className="w-4 h-4" />
                             </button>
@@ -1386,9 +1386,9 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                                 <td className="px-4 py-4 text-center">
                                   <span className={cn(
                                     "text-[11px] font-black px-2 py-0.5 rounded-md",
-                                    (item.planned_quantity - (item.quantity ?? 0)) === 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
+                                    ((item.quantity ?? 0) - item.planned_quantity) >= 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
                                   )}>
-                                    {item.planned_quantity - (item.quantity ?? 0)}
+                                    {(item.quantity ?? 0) - item.planned_quantity}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4 text-center">
@@ -1402,6 +1402,32 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                             ))}
                           </tbody>
                         </table>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                      <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 shadow-sm">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-1">Total Planejado</p>
+                        <p className="text-xl font-headline font-black text-on-surface">
+                          {editingOrder.items?.reduce((acc, i) => acc + i.planned_quantity, 0)}
+                        </p>
+                      </div>
+                      <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 shadow-sm">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-1">Total Separado</p>
+                        <p className="text-xl font-headline font-black text-primary">
+                          {editingOrder.items?.reduce((acc, i) => acc + (i.quantity ?? 0), 0)}
+                        </p>
+                      </div>
+                      <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 shadow-sm">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-1">Diferença Total</p>
+                        <p className={cn(
+                          "text-xl font-headline font-black",
+                          (editingOrder.items?.reduce((acc, i) => acc + (i.quantity ?? 0), 0) || 0) - (editingOrder.items?.reduce((acc, i) => acc + i.planned_quantity, 0) || 0) >= 0 
+                            ? "text-emerald-500" 
+                            : "text-amber-500"
+                        )}>
+                          {(editingOrder.items?.reduce((acc, i) => acc + (i.quantity ?? 0), 0) || 0) - (editingOrder.items?.reduce((acc, i) => acc + i.planned_quantity, 0) || 0)}
+                        </p>
                       </div>
                     </div>
 

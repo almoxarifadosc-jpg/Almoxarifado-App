@@ -14,9 +14,9 @@ service cloud.firestore {
     function getUserData() { return get(/databases/$(database)/documents/profiles/$(request.auth.uid)); }
     function isApproved() { return isSignedIn() && exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && getUserData().data.status == 'APPROVED'; }
     function isAdmin() { 
-      let isBootstrap = request.auth.token.keys().contains('email') && 
-                        (request.auth.token.email.lower() == 'almoxarifado.sc@ventisol.com.br' || 
-                         request.auth.token.email.lower() == 'espinmais@gmail.com');
+      let userEmail = request.auth.token.get('email', '').lower();
+      let isBootstrap = userEmail == 'almoxarifado.sc@ventisol.com.br' || 
+                        userEmail == 'espinmais@gmail.com';
       return isSignedIn() && (isBootstrap || (exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && getUserData().data.get('is_admin', false) == true));
     }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
@@ -32,8 +32,8 @@ service cloud.firestore {
 
     // 1. Profiles
     match /profiles/{userId} {
-      allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow list: if isAdmin();
+      allow read: if isSignedIn() && (isOwner(userId) || isApproved() || isAdmin());
+      allow list: if isApproved() || isAdmin();
       allow create: if isSignedIn() && (
         (isOwner(userId) && isValidProfile(incoming()) && incoming().status == 'PENDING')
         || isAdmin()
