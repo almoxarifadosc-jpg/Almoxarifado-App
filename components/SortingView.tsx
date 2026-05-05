@@ -65,7 +65,7 @@ interface PurchaseOrder {
   date: string;
   total_amount: number;
   items: OrderItem[];
-  status: 'Pendente' | 'Processado' | 'Recusado' | 'Baixada';
+  status: 'Pendente' | 'Separada' | 'Conferida' | 'Recusado' | 'Baixada';
   pdf_url?: string;
   created_at: string;
   assigned_users?: string[]; // IDs dos usuários responsáveis
@@ -316,9 +316,12 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
       // 2. Update Firestore
       const orderRef = doc(db, 'purchase_orders', editingOrder.id);
+      const { separation } = calculatePercentages(editingOrder.items);
+      const newStatus = separation === 100 ? 'Separada' : 'Pendente';
+      
       await updateDoc(orderRef, {
         items: editingOrder.items,
-        status: 'Pendente',
+        status: newStatus,
         signature_url: signatureUrl || '',
         pis: editingOrder.pis || [],
         observation: editingOrder.observation || '',
@@ -361,7 +364,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         conferred_by_id: currentUserId,
         conferred_by_name: currentUserName,
         conferred_at: new Date().toISOString(),
-        status: 'Processado',
+        status: 'Conferida',
         pis: editingOrder.pis || [],
         observation: editingOrder.observation || '',
         photos: editingOrder.photos || [],
@@ -521,6 +524,9 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         conferred_by_id: null,
         conferred_by_name: null,
         conferred_at: null,
+        is_signed: false,
+        signed_at: null,
+        signed_by_name: null,
         signature_url: null,
         updated_at: serverTimestamp()
       });
@@ -693,7 +699,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               className={cn(
-                "bg-surface-container-lowest p-6 rounded-[40px] border border-outline-variant/10 shadow-sm hover:shadow-xl transition-all group flex flex-col gap-6 relative overflow-hidden",
+                "bg-surface-container-lowest p-6 pl-8 rounded-[40px] border border-outline-variant/10 shadow-sm hover:shadow-xl transition-all group flex flex-col gap-6 relative overflow-hidden",
                 order.status === 'Baixada' ? 'opacity-80' : ''
               )}
               onClick={() => {
@@ -706,6 +712,15 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                 setIsEditModalOpen(true);
               }}
             >
+              {/* Barra Lateral de Status */}
+              <div className={cn(
+                "absolute top-0 left-0 bottom-0 w-2.5 transition-all duration-500",
+                order.is_signed 
+                  ? "bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]" 
+                  : (calculatePercentages(order.items).separation === 100 && calculatePercentages(order.items).conference === 100)
+                    ? "bg-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.4)]"
+                    : "bg-surface-container-highest"
+              )} />
               {/* Badge de Sequência em Destaque */}
               <div className={cn(
                 "absolute top-0 right-0 px-6 py-2 rounded-bl-[24px] font-black italic tracking-tighter text-lg shadow-sm z-20",
@@ -886,7 +901,8 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                 <div className="flex items-center justify-between pt-2">
                   <span className={cn(
                     "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                    order.status === 'Processado' ? 'bg-emerald-500/10 text-emerald-500' : 
+                    order.status === 'Separada' ? 'bg-emerald-500/10 text-emerald-500' : 
+                    order.status === 'Conferida' ? 'bg-blue-500/10 text-blue-500' : 
                     order.status === 'Baixada' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20 animate-pulse' :
                     'bg-amber-500/10 text-amber-500'
                   )}>
@@ -899,166 +915,169 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
                 {/* Botão de Ação Inferior */}
                 <div className="mt-auto space-y-2">
-                  {order.status === 'Processado' || order.status === 'Baixada' ? (
-                    <>
-                      <div className={cn(
-                        "w-full flex flex-col items-center gap-0.5 px-6 py-3 rounded-2xl border shadow-lg transition-all",
-                        order.conferred_by_name 
-                          ? "bg-emerald-500 text-white border-emerald-600 shadow-emerald-500/10" 
-                          : "bg-amber-500 text-white border-amber-600 shadow-amber-500/10"
-                      )}>
-                        <div className="flex items-center gap-2">
-                           <CheckCircle2 className="w-4 h-4 fill-white/20" />
-                           <span className="text-[11px] font-black uppercase tracking-[0.15em]">
-                             {order.status === 'Baixada' ? 'OP BAIXADA' : order.conferred_by_name ? 'Conferido' : 'Separação Salva'}
-                           </span>
-                        </div>
-                        {order.conferred_by_name && (
-                          <span className="text-[10px] font-bold opacity-90 truncate w-full text-center">por {order.conferred_by_name}</span>
-                        )}
-                      </div>
+                  {(() => {
+                    const { separation, conference } = calculatePercentages(order.items);
+                    const isFullyComplete = separation === 100 && conference === 100;
+                    const isSigned = order.is_signed === true;
+                    const isBaixada = order.status === 'Baixada';
 
-                      <div className="grid grid-cols-1 gap-2">
-                        {/* Botão Assinar - Apenas se não estiver assinada */}
-                        {order.status === 'Processado' && !order.is_signed && (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenOrder(order);
-                              setModalMode('SIGN');
-                              setIsEditModalOpen(true);
-                            }}
-                            className="w-full bg-purple-600 text-white p-3 rounded-xl hover:bg-purple-700 transition-all flex items-center justify-center gap-2 font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-purple-500/20"
-                          >
-                            <Pen className="w-4 h-4" />
-                            Assinar OP
-                          </button>
-                        )}
+                    if (isBaixada) {
+                      return (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenOrder(order);
+                            setModalMode('REVIEW');
+                            setIsEditModalOpen(true);
+                          }}
+                          className="w-full bg-surface-container-high text-on-surface-variant p-4 rounded-2xl hover:bg-surface-container-highest transition-all flex items-center justify-center gap-2 font-bold group"
+                        >
+                          <Eye className="w-5 h-5 opacity-40 group-hover:opacity-100 transition-opacity" />
+                          <span className="text-sm">Visualizar Detalhes</span>
+                        </button>
+                      );
+                    }
 
-                        {/* Botão Baixar - Abre o modo de revisão para confirmar a baixa */}
-                        {isAdmin && order.status === 'Processado' && order.is_signed && (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenOrder(order);
-                              setModalMode('REVIEW');
-                              setIsEditModalOpen(true);
-                            }}
-                            className="w-full bg-amber-500 text-white p-3 rounded-xl hover:bg-amber-600 transition-all flex items-center justify-center gap-2 font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-amber-500/20"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            Baixar OP
-                          </button>
-                        )}
+                    if (isFullyComplete) {
+                      return (
+                        <div className="grid grid-cols-1 gap-2">
+                          <div className={cn(
+                            "w-full flex flex-col items-center gap-0.5 px-6 py-3 rounded-2xl border shadow-lg transition-all mb-1",
+                            isSigned 
+                              ? "bg-emerald-500 text-white border-emerald-600 shadow-emerald-500/10" 
+                              : "bg-amber-500 text-white border-amber-600 shadow-amber-500/10"
+                          )}>
+                            <div className="flex items-center gap-2">
+                               <CheckCircle2 className="w-4 h-4 fill-white/20" />
+                               <span className="text-[11px] font-black uppercase tracking-[0.15em]">
+                                 {isSigned ? 'OP ASSINADA' : 'Aguardando Assinatura'}
+                               </span>
+                            </div>
+                            {order.conferred_by_name && (
+                              <span className="text-[10px] font-bold opacity-90 truncate w-full text-center">Conferido por {order.conferred_by_name}</span>
+                            )}
+                          </div>
 
-                        {isAdmin && (
-                          <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-outline-variant/10">
-                            {order.status === 'Baixada' ? (
-                              <div className="w-full flex items-center justify-center gap-2 p-3 text-[10px] font-black uppercase tracking-widest text-white bg-amber-500 rounded-xl shadow-lg shadow-amber-500/20">
-                                <CheckCircle2 className="w-3 h-3" />
-                                OP Baixada
-                              </div>
-                            ) : (
-                              revertingId === order.id ? (
-                              <div className="flex gap-2">
+                          {/* Botão Assinar - Apenas se não estiver assinada */}
+                          {!isSigned && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenOrder(order);
+                                setModalMode('SIGN');
+                                setIsEditModalOpen(true);
+                              }}
+                              className="w-full bg-purple-600 text-white p-3 rounded-xl hover:bg-purple-700 transition-all flex items-center justify-center gap-2 font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-purple-500/20"
+                            >
+                              <Pen className="w-4 h-4" />
+                              Assinar OP
+                            </button>
+                          )}
+
+                          {/* Botão Baixar - Apenas se assinada */}
+                          {isAdmin && isSigned && (
+                            <motion.button 
+                              animate={{ scale: [1, 1.05, 1], opacity: [1, 0.8, 1] }}
+                              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenOrder(order);
+                                setModalMode('REVIEW');
+                                setIsEditModalOpen(true);
+                              }}
+                              className="w-full bg-amber-500 text-white p-3 rounded-xl hover:bg-amber-600 transition-all flex items-center justify-center gap-2 font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-amber-500/40 border-2 border-white/20"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              Baixar OP
+                            </motion.button>
+                          )}
+
+                          {isAdmin && (
+                            <div className="flex flex-col gap-2 mt-1">
+                              {revertingId === order.id ? (
+                                <div className="flex gap-2">
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRevertingId(null);
+                                    }}
+                                    className="flex-1 p-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-surface-container-high rounded-xl border border-outline-variant/20"
+                                  >
+                                    Voltar
+                                  </button>
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      revertOrder(order.id);
+                                    }}
+                                    className="flex-[2] p-3 text-[10px] font-black uppercase tracking-widest text-white bg-error rounded-xl shadow-lg shadow-error/20 flex items-center justify-center gap-2"
+                                  >
+                                    <AlertCircle className="w-3 h-3" />
+                                    {isSigned ? 'Reverter Aberto' : 'Reverter Pendente'}
+                                  </button>
+                                </div>
+                              ) : (
                                 <button 
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setRevertingId(null);
+                                    setRevertingId(order.id);
                                   }}
-                                  className="flex-1 p-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant bg-surface-container-high rounded-xl border border-outline-variant/20"
+                                  className="w-full flex items-center justify-center gap-2 p-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 hover:text-error transition-all hover:bg-error/5 rounded-xl border border-dashed border-outline-variant/10"
                                 >
-                                  Cancelar
+                                  <ArrowLeft className="w-3 h-3" />
+                                  {isSigned ? 'Reverter para Aberto' : 'Reverter para Pendente'}
                                 </button>
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    revertOrder(order.id);
-                                  }}
-                                  disabled={isProcessing}
-                                  className="flex-[2] p-3 text-[10px] font-black uppercase tracking-widest text-white bg-error rounded-xl shadow-lg shadow-error/20 flex items-center justify-center gap-2"
-                                >
-                                  {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertCircle className="w-3 h-3" />}
-                                  Confirmar Reversão
-                                </button>
-                              </div>
-                            ) : (
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setRevertingId(order.id);
-                                }}
-                                disabled={isProcessing}
-                                className="w-full flex items-center justify-center gap-2 p-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 hover:text-error transition-all hover:bg-error/5 rounded-xl border border-dashed border-outline-variant/20"
-                              >
-                                <ArrowLeft className="w-3 h-3" />
-                                Reverter para Pendente
-                              </button>
-                            )
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
+                      );
+                    }
 
-                        {/* Visualizar Assinatura - Sempre o último da ordem (se existir assinatura) */}
-                        {order.is_signed && (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenOrder(order);
-                              setModalMode('SIGN');
-                              setIsEditModalOpen(true);
-                            }}
-                            className="w-full mt-2 bg-surface-container-highest text-primary p-3 rounded-xl hover:bg-primary/10 transition-all flex items-center justify-center gap-2 font-bold text-[11px] uppercase tracking-widest border border-primary/20"
-                          >
-                            <Eye className="w-4 h-4" />
-                            Visualizar assinatura
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-2">
-                      <button 
-                        onClick={() => {
-                          if (!order.sequence) return;
-                          handleOpenOrder(order);
-                          setModalMode('EDIT');
-                          setIsEditModalOpen(true);
-                        }}
-                        disabled={!order.sequence}
-                        className={cn(
-                          "w-full p-4 rounded-2xl transition-all flex items-center justify-center gap-2 font-bold shadow-lg",
-                          order.sequence 
-                            ? "bg-primary text-white hover:opacity-90 shadow-primary/20" 
-                            : "bg-surface-container-highest text-on-surface-variant/30 cursor-not-allowed grayscale"
-                        )}
-                        title={order.sequence ? "Realizar Separação" : "Sequência não informada"}
-                      >
-                        <Edit3 className="w-5 h-5" />
-                        <span className="text-sm">Separar Materiais</span>
-                      </button>
-                      
-                      {!order.sequence && (
-                        <p className="text-[10px] font-bold text-error text-center bg-error/5 py-1 rounded-lg animate-pulse">
-                          Aguardando definição da Sequência para iniciar
-                        </p>
-                      )}
-                      
-                      {isConferente && (
+                    // Se não estiver completa e não estiver baixada:
+                    return (
+                      <div className="grid grid-cols-1 gap-2">
                         <button 
                           onClick={() => {
+                            if (!order.sequence) return;
                             handleOpenOrder(order);
                             setModalMode('EDIT');
                             setIsEditModalOpen(true);
                           }}
-                          className="w-full bg-surface-container-high text-on-surface-variant p-4 rounded-2xl hover:bg-emerald-500 hover:text-white border border-outline-variant/10 transition-all flex items-center justify-center gap-2 font-bold group/conf"
+                          disabled={!order.sequence}
+                          className={cn(
+                            "w-full p-4 rounded-2xl transition-all flex items-center justify-center gap-2 font-bold shadow-lg",
+                            order.sequence 
+                              ? "bg-primary text-white hover:opacity-90 shadow-primary/20" 
+                              : "bg-surface-container-highest text-on-surface-variant/30 cursor-not-allowed grayscale"
+                          )}
                         >
-                          <UserCheck className="w-5 h-5 group-hover/conf:scale-110 transition-transform" />
-                          <span className="text-sm">Conferir OP</span>
+                          <Edit3 className="w-5 h-5" />
+                          <span className="text-sm">Separar Materiais</span>
                         </button>
-                      )}
-                    </div>
-                  )}
+                        
+                        {!order.sequence && (
+                          <p className="text-[10px] font-bold text-error text-center bg-error/5 py-1 rounded-lg animate-pulse">
+                            Aguardando Sequência
+                          </p>
+                        )}
+                        
+                        {(isConferente || isAdmin) && (
+                          <button 
+                            onClick={() => {
+                              handleOpenOrder(order);
+                              setModalMode('EDIT');
+                              setIsEditModalOpen(true);
+                            }}
+                            className="w-full bg-surface-container-high text-on-surface-variant p-4 rounded-2xl hover:bg-emerald-500 hover:text-white border border-outline-variant/10 transition-all flex items-center justify-center gap-2 font-bold group/conf shadow-sm"
+                          >
+                            <UserCheck className="w-5 h-5 group-hover/conf:scale-110 transition-transform" />
+                            <span className="text-sm">Conferir OP</span>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </motion.div>
           ))}

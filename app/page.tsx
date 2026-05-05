@@ -622,7 +622,12 @@ export default function Page() {
               />
             )}
             {currentView === 'SEPARATION_DASHBOARD' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente') && (
-              <SeparationDashboardView key="separation-dashboard" />
+              <SeparationDashboardView 
+                key="separation-dashboard" 
+                isAdmin={currentUser?.is_admin}
+                currentUserId={currentUser?.id}
+                currentUserName={currentUser?.name}
+              />
             )}
             {currentView === 'PERFORMANCE' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente') && (
               <PerformanceView key="performance" />

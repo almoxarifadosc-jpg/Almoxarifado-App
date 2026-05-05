@@ -56,7 +56,7 @@ interface PurchaseOrder {
   date: string;
   total_amount: number;
   items: OrderItem[];
-  status: 'Pendente' | 'Processado' | 'Recusado' | 'Baixada';
+  status: 'Pendente' | 'Separada' | 'Conferida' | 'Recusado' | 'Baixada';
   pdf_url?: string;
   created_at: string;
   type?: string;
@@ -335,7 +335,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
       const payload = {
         items: itemsToSave,
         total_amount: Number(editingOrder.total_amount) || 0,
-        status: 'Processado',
+        status: 'Conferida',
         updated_at: serverTimestamp()
       };
 
@@ -714,7 +714,8 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                 <div className="pt-4 border-t border-outline-variant/10 flex items-center justify-between">
                   <span className={cn(
                     "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                    order.status === 'Processado' ? 'bg-emerald-500/10 text-emerald-500' : 
+                    order.status === 'Conferida' ? 'bg-emerald-500/10 text-emerald-500' : 
+                    order.status === 'Separada' ? 'bg-emerald-500/10 text-emerald-500' : 
                     order.status === 'Baixada' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' :
                     'bg-amber-500/10 text-amber-500'
                   )}>

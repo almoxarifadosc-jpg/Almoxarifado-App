@@ -13,16 +13,18 @@ import {
   Eye,
   Filter
 } from 'lucide-react';
-import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { AnimatePresence, motion } from 'motion/react';
+import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
+import { sendGoogleChatNotification } from '@/lib/notifications';
 
 interface OrderItem {
   code?: string;
   description: string;
   planned_quantity: number;
-  quantity: number;
+  quantity: number | null;
   unitPrice?: number;
   totalPrice?: number;
   collector_name?: string;
@@ -37,13 +39,47 @@ interface PurchaseOrder {
   date: string;
   total_amount: number;
   items: OrderItem[];
-  status: 'Pendente' | 'Processado' | 'Recusado' | 'Baixada';
+  status: 'Pendente' | 'Separada' | 'Conferida' | 'Recusado' | 'Baixada';
+  is_signed?: boolean;
   created_at: string;
 }
 
-export function SeparationDashboardView() {
+export function SeparationDashboardView({ isAdmin, currentUserId, currentUserName }: { isAdmin?: boolean, currentUserId?: string, currentUserName?: string }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  const baixarOrder = async (order: PurchaseOrder) => {
+    if (!isAdmin) return;
+    setIsProcessing(true);
+    try {
+      const orderRef = doc(db, 'purchase_orders', order.id);
+      await updateDoc(orderRef, { 
+        status: 'Baixada',
+        updated_at: serverTimestamp()
+      });
+
+      // Enviar notificação para o Google Chat
+      const message = `🚀 *OP Baixada via Painel*\n\n` +
+        `*Número:* #${order.order_number}\n` +
+        `*Executor:* ${currentUserName || 'Sistema'}\n` +
+        `*Data:* ${new Date().toLocaleString('pt-BR')}`;
+      await sendGoogleChatNotification(message);
+
+      setSuccess('OP Baixada com sucesso!');
+      setConfirmingId(null);
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      console.error("Erro ao baixar OP:", err);
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${order.id}`);
+      } catch (e) {}
+    } finally {
+      setIsProcessing(false);
+    }
+  };
   // Helper to get YYYY-MM-DD in local time
   const formatToISODate = (date: Date) => {
     const year = date.getFullYear();
@@ -88,8 +124,8 @@ export function SeparationDashboardView() {
 
   const calculatePercentages = (items: OrderItem[]) => {
     if (!items || items.length === 0) return { separation: 0, conference: 0 };
-    // Consideramos separado se a quantidade não for nula (mesmo que seja 0, indica que foi processado)
-    const separatedCount = items.filter(i => i.quantity !== null).length;
+    // Consideramos separado se a quantidade não for nula e maior ou igual a zero
+    const separatedCount = items.filter(i => i.quantity !== null && i.quantity >= 0).length;
     const conferredCount = items.filter(i => i.is_conferred).length;
     
     return {
@@ -174,6 +210,20 @@ export function SeparationDashboardView() {
 
   return (
     <div className="px-6 py-8 max-w-[1600px] mx-auto min-h-screen pb-32">
+      <AnimatePresence>
+        {success && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-emerald-500 text-white rounded-2xl shadow-xl flex items-center gap-3 font-bold"
+          >
+            <CheckCircle2 className="w-5 h-5" />
+            {success}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header & Filter */}
       <section className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
@@ -256,8 +306,12 @@ export function SeparationDashboardView() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: idx * 0.05 }}
                 className={cn(
-                  "bg-surface-container-lowest p-5 rounded-3xl border border-outline-variant/10 shadow-sm hover:shadow-lg transition-all relative overflow-hidden flex flex-col gap-4",
-                  isFullyComplete && "border-l-4 border-l-emerald-500"
+                  "bg-surface-container-lowest p-5 pl-7 rounded-3xl border border-outline-variant/10 shadow-sm hover:shadow-lg transition-all relative overflow-hidden flex flex-col gap-4",
+                  order.is_signed 
+                    ? "border-l-4 border-l-emerald-500" 
+                    : isFullyComplete 
+                      ? "border-l-4 border-l-amber-400" 
+                      : "border-l-4 border-l-transparent"
                 )}
               >
                 <div className="flex justify-between items-start">
@@ -322,6 +376,46 @@ export function SeparationDashboardView() {
                     </div>
                   </div>
                 </div>
+
+                {isAdmin && order.is_signed && order.status !== 'Baixada' && (
+                  <div className="mt-2">
+                    {confirmingId === order.id ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button 
+                          onClick={() => setConfirmingId(null)}
+                          className="p-2.5 bg-surface-container-high text-on-surface-variant text-[10px] font-black uppercase rounded-xl"
+                        >
+                          Não
+                        </button>
+                        <button 
+                          onClick={() => baixarOrder(order)}
+                          disabled={isProcessing}
+                          className="p-2.5 bg-emerald-500 text-white text-[10px] font-black uppercase rounded-xl flex items-center justify-center gap-1 shadow-lg shadow-emerald-500/20"
+                        >
+                          {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                          Sim
+                        </button>
+                      </div>
+                    ) : (
+                      <motion.button 
+                        animate={{ scale: [1, 1.02, 1] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                        onClick={() => setConfirmingId(order.id)}
+                        className="w-full py-2.5 bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Truck className="w-3.5 h-3.5" />
+                        Baixar OP
+                      </motion.button>
+                    )}
+                  </div>
+                )}
+                
+                {order.status === 'Baixada' && (
+                  <div className="mt-2 py-2.5 bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 border border-emerald-500/20">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    OP Concluída
+                  </div>
+                )}
               </motion.div>
             );
           })}
