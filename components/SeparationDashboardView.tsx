@@ -178,10 +178,20 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
   };
 
   const filteredOrders = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayISO = formatToISODate(today);
+
     return orders.filter(order => {
       const orderDate = parseAnyDate(order.date || order.created_at);
       if (!orderDate) return false;
       
+      const { separation, conference } = calculatePercentages(order.items);
+      const isFullyFinished = order.status === 'Baixada';
+
+      // Se não estiver finalizada, aparece independente do filtro
+      if (!isFullyFinished) return true;
+
       const start = parseISODate(startDate);
       start.setHours(0, 0, 0, 0);
       
@@ -189,6 +199,26 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
       end.setHours(23, 59, 59, 999);
       
       return orderDate >= start && orderDate <= end;
+    }).sort((a, b) => {
+      const dA = parseAnyDate(a.date || a.created_at);
+      const dB = parseAnyDate(b.date || b.created_at);
+      const dateAStr = dA ? formatToISODate(dA) : '';
+      const dateBStr = dB ? formatToISODate(dB) : '';
+
+      const { separation: sepA, conference: confA } = calculatePercentages(a.items);
+      const { separation: sepB, conference: confB } = calculatePercentages(b.items);
+      
+      const finishedA = a.status === 'Baixada' || (sepA === 100 && confA === 100);
+      const finishedB = b.status === 'Baixada' || (sepB === 100 && confB === 100);
+
+      const lateAndNotFinishedA = dateAStr < todayISO && !finishedA;
+      const lateAndNotFinishedB = dateBStr < todayISO && !finishedB;
+
+      if (lateAndNotFinishedA && !lateAndNotFinishedB) return -1;
+      if (!lateAndNotFinishedA && lateAndNotFinishedB) return 1;
+
+      // Secundário: Data descendente
+      return (dB?.getTime() || 0) - (dA?.getTime() || 0);
     });
   }, [orders, startDate, endDate]);
 

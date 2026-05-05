@@ -566,17 +566,48 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     // 3. Filtro específico de OP
     const matchOP = opFilter === '' || o.order_number.toLowerCase().includes(opFilter.toLowerCase());
 
-    // 4. Filtro de data
+    // 4. Filtro de data com exceção para OPs não finalizadas
+    const { separation, conference } = calculatePercentages(o.items);
+    const isFullyFinished = o.status === 'Baixada';
+    
     let matchDate = true;
     if (o.date) {
       const orderDate = o.date.split('T')[0];
-      matchDate = (!startDate || orderDate >= startDate) && (!endDate || orderDate <= endDate);
+      // Se NÃO está finalizada, ignora o filtro de data (sempre true)
+      // Se ESTÁ finalizada, respeita o filtro de data
+      if (isFullyFinished) {
+        matchDate = (!startDate || orderDate >= startDate) && (!endDate || orderDate <= endDate);
+      } else {
+        matchDate = true;
+      }
     } else {
-      // Se não tem data, mostramos se os filtros estão vazios ou se a data inicial/final não restringe
-      matchDate = !startDate && !endDate;
+      // Se não tem data, mostramos se estiver nos filtros ou se não estiver finalizada
+      matchDate = (!startDate && !endDate) || !isFullyFinished;
     }
 
     return matchText && matchOP && matchDate;
+  }).sort((a, b) => {
+    // Nova Lógica de Priorização: Atrasadas e Não Finalizadas no Topo
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    const { separation: sepA, conference: confA } = calculatePercentages(a.items);
+    const { separation: sepB, conference: confB } = calculatePercentages(b.items);
+    
+    const finishedA = a.status === 'Baixada' || (sepA === 100 && confA === 100);
+    const finishedB = b.status === 'Baixada' || (sepB === 100 && confB === 100);
+    
+    const dateA = a.date ? a.date.split('T')[0] : '';
+    const dateB = b.date ? b.date.split('T')[0] : '';
+    
+    const lateAndNotFinishedA = dateA < todayStr && !finishedA;
+    const lateAndNotFinishedB = dateB < todayStr && !finishedB;
+
+    if (lateAndNotFinishedA && !lateAndNotFinishedB) return -1;
+    if (!lateAndNotFinishedA && lateAndNotFinishedB) return 1;
+
+    // Critério secundário: Sequência
+    return (a.sequence || 999999) - (b.sequence || 999999);
   });
 
   return (
@@ -1571,7 +1602,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                         
                         return (
                           <div className="flex flex-col gap-1">
-                            {isConferente && editingOrder.status === 'Pendente' && (
+                            {(isConferente || isAdmin || isSuperAdmin) && editingOrder.status !== 'Baixada' && (
                               isConferConfirming ? (
                                 <div className="flex flex-col sm:flex-row gap-2">
                                   <button 
@@ -1605,7 +1636,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                                 </button>
                               )
                             )}
-                            {!canConfer && editingOrder.status === 'Pendente' && (
+                            {!canConfer && editingOrder.status !== 'Baixada' && (
                               <p className="text-[9px] font-bold text-amber-600 uppercase tracking-widest animate-pulse pl-1 text-center">
                                 * Separação e Conferência devem estar 100%
                               </p>
@@ -1658,7 +1689,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                  {modalMode === 'EDIT' && editingOrder.status === 'Pendente' && (
+                  {modalMode === 'EDIT' && editingOrder.status !== 'Baixada' && (
                     <button 
                       onClick={updateOrder}
                       disabled={isProcessing}
