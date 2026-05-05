@@ -41,9 +41,9 @@ interface PurchaseOrder {
   items: OrderItem[];
   status: 'Pendente' | 'Separada' | 'Conferida' | 'Recusado' | 'Baixada';
   is_signed?: boolean;
-  signature_url?: string | null;
-  signed_by_name?: string | null;
-  signed_at?: string | null;
+  signature_url?: string;
+  signed_by_name?: string;
+  signed_at?: string;
   created_at: string;
 }
 
@@ -508,8 +508,8 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
                   {selectedOrder.is_signed && (
                         <div className="bg-surface-container-high/20 rounded-[32px] border border-outline-variant/10 p-6 flex flex-col items-center gap-4">
                           <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Assinatura Eletrônica Registrada</p>
-                          <div className="bg-white p-4 rounded-2xl w-full flex justify-center">
-                            <img src={selectedOrder.signature_url || undefined} ... /> alt="Assinatura" className="h-32 object-contain" />
+                          <div className="bg-white p-4 rounded-2xl w-full flex justify-center shadow-inner">
+                            <img src={selectedOrder.signature_url} alt="Assinatura" className="h-32 object-contain" />
                           </div>
                           <div className="text-center">
                             <p className="text-sm font-bold text-on-surface italic">Assinado por: {selectedOrder.signed_by_name}</p>

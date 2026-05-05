@@ -12,12 +12,11 @@ export async function sendGoogleChatNotification(message: string) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`❌ Falha no Google Chat (Status: ${response.status}):`, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
+      console.error('❌ Erro na resposta do Google Chat:', errorText);
+    } else {
+      console.log('✅ Notificação enviada com sucesso!');
     }
-
-    console.log('✅ Notificação enviada com sucesso para o Google Chat!');
   } catch (error) {
-    console.error('❌ Erro na requisição de notificação:', error);
+    console.error('❌ Erro ao enviar notificação para o Google Chat:', error);
   }
 }
