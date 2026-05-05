@@ -454,11 +454,12 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
       // Enviar notificação para o Google Chat
       if (orderToClose) {
-        const message = `🚀 *OP Baixada (Concluída)*\n\n` +
+        const message = `🚀 *OP Baixar (Concluída)*\n\n` +
           `*Número:* #${orderToClose.order_number}\n` +
           `*Fornecedor:* ${orderToClose.supplier_name}\n` +
           `*Executor:* ${currentUserName || 'Sistema'}\n` +
           `*Data:* ${new Date().toLocaleString('pt-BR')}`;
+        
         await sendGoogleChatNotification(message);
       }
 
@@ -1502,7 +1503,9 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                     {editingOrder.is_signed && (
                        <div className="bg-surface-container-high/20 rounded-[32px] border border-outline-variant/10 p-6 flex flex-col items-center gap-4">
                           <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Assinatura Eletrônica Registrada</p>
-                          <img src={editingOrder.signature_url} alt="Assinatura" className="h-32 object-contain" />
+                          <div className="bg-white p-4 rounded-2xl w-full flex justify-center">
+                            <img src={editingOrder.signature_url} alt="Assinatura" className="h-32 object-contain" />
+                          </div>
                           <div className="text-center">
                             <p className="text-sm font-bold text-on-surface italic">Assinado por: {editingOrder.signed_by_name}</p>
                             <p className="text-[10px] font-mono text-on-surface-variant opacity-50 uppercase">{editingOrder.signed_at && new Date(editingOrder.signed_at).toLocaleString()}</p>
@@ -1536,7 +1539,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
                     <div className="bg-surface-container-high rounded-[40px] border border-outline-variant/20 p-6 shadow-inner overflow-hidden">
                       {editingOrder.is_signed ? (
-                        <div className="w-full flex flex-col items-center justify-center py-6 bg-white/40 rounded-3xl relative group border border-outline-variant/5">
+                        <div className="w-full flex flex-col items-center justify-center py-6 bg-white rounded-3xl relative group border border-outline-variant/5">
                           <img 
                             src={editingOrder.signature_url} 
                             alt="Assinatura Manuscrita" 

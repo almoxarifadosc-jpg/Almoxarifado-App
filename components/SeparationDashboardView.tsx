@@ -51,6 +51,9 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
   const [success, setSuccess] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
+  const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+
   const baixarOrder = async (order: PurchaseOrder) => {
     if (!isAdmin) return;
     setIsProcessing(true);
@@ -66,10 +69,13 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
         `*Número:* #${order.order_number}\n` +
         `*Executor:* ${currentUserName || 'Sistema'}\n` +
         `*Data:* ${new Date().toLocaleString('pt-BR')}`;
+      
       await sendGoogleChatNotification(message);
 
       setSuccess('OP Baixada com sucesso!');
       setConfirmingId(null);
+      setIsReviewModalOpen(false);
+      setSelectedOrder(null);
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       console.error("Erro ao baixar OP:", err);
@@ -409,34 +415,18 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
 
                 {isAdmin && order.is_signed && order.status !== 'Baixada' && (
                   <div className="mt-2">
-                    {confirmingId === order.id ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        <button 
-                          onClick={() => setConfirmingId(null)}
-                          className="p-2.5 bg-surface-container-high text-on-surface-variant text-[10px] font-black uppercase rounded-xl"
-                        >
-                          Não
-                        </button>
-                        <button 
-                          onClick={() => baixarOrder(order)}
-                          disabled={isProcessing}
-                          className="p-2.5 bg-emerald-500 text-white text-[10px] font-black uppercase rounded-xl flex items-center justify-center gap-1 shadow-lg shadow-emerald-500/20"
-                        >
-                          {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                          Sim
-                        </button>
-                      </div>
-                    ) : (
-                      <motion.button 
-                        animate={{ scale: [1, 1.02, 1] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        onClick={() => setConfirmingId(order.id)}
-                        className="w-full py-2.5 bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2"
-                      >
-                        <Truck className="w-3.5 h-3.5" />
-                        Baixar OP
-                      </motion.button>
-                    )}
+                    <motion.button 
+                      animate={{ scale: [1, 1.02, 1] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        setIsReviewModalOpen(true);
+                      }}
+                      className="w-full py-2.5 bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Truck className="w-3.5 h-3.5" />
+                      Baixar OP
+                    </motion.button>
                   </div>
                 )}
                 
@@ -451,6 +441,181 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
           })}
         </div>
       )}
+
+      {/* Review Modal */}
+      <AnimatePresence>
+        {isReviewModalOpen && selectedOrder && (
+          <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface-container-lowest w-full max-w-4xl max-h-[90vh] rounded-[40px] shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="p-8 border-b border-outline-variant/10 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                    <ClipboardList className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-headline font-black text-on-surface">Revisão da OP</h3>
+                    <p className="text-sm text-on-surface-variant">OP #{selectedOrder.order_number}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setIsReviewModalOpen(false);
+                    setSelectedOrder(null);
+                  }}
+                  className="p-2 hover:bg-surface-container-high rounded-full transition-colors"
+                >
+                  <Eye className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8">
+                <div className="space-y-8">
+                  {/* Dados Gerais */}
+                  <div className="bg-surface-container-high/40 rounded-[32px] border border-outline-variant/10 overflow-hidden">
+                    <div className="bg-surface-container-high px-6 py-3 border-b border-outline-variant/10">
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface">Dados Gerais</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 p-6 gap-6">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Fornecedor</p>
+                        <p className="font-bold text-on-surface">{selectedOrder.supplier_name}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Localização</p>
+                        <p className="font-bold text-on-surface">{selectedOrder.product_location || 'N/A'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Data da OP</p>
+                        <p className="font-bold text-on-surface">
+                          {(() => {
+                            const d = parseAnyDate(selectedOrder.date || selectedOrder.created_at);
+                            return d ? d.toLocaleDateString('pt-BR') : 'N/A';
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Exibição da Assinatura no Review se existir */}
+                  {selectedOrder.is_signed && (
+                        <div className="bg-surface-container-high/20 rounded-[32px] border border-outline-variant/10 p-6 flex flex-col items-center gap-4">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Assinatura Eletrônica Registrada</p>
+                          <div className="bg-white p-4 rounded-2xl w-full flex justify-center">
+                            <img src={selectedOrder.signature_url} alt="Assinatura" className="h-32 object-contain" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-bold text-on-surface italic">Assinado por: {selectedOrder.signed_by_name}</p>
+                            <p className="text-[10px] font-mono text-on-surface-variant opacity-50 uppercase">{selectedOrder.signed_at && new Date(selectedOrder.signed_at).toLocaleString()}</p>
+                          </div>
+                        </div>
+                  )}
+
+                  {/* Itens */}
+                  <div className="bg-surface-container-high/40 rounded-[32px] border border-outline-variant/10 overflow-hidden">
+                    <div className="bg-surface-container-high px-6 py-3 border-b border-outline-variant/10">
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface">Itens da Operação</h4>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-surface-container-low/50">
+                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 border-b border-outline-variant/10">Material</th>
+                            <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Planejado</th>
+                            <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Separado</th>
+                            <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Dif.</th>
+                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-outline-variant/10">
+                          {selectedOrder.items?.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-surface-container-low/30 transition-colors">
+                              <td className="px-6 py-4 uppercase">
+                                <p className="text-sm font-bold text-on-surface leading-tight">{item.description}</p>
+                                <p className="text-[10px] font-black text-on-surface-variant opacity-50 mt-0.5">{item.code || 'S/ RED'}</p>
+                              </td>
+                              <td className="px-4 py-4 text-center font-bold text-on-surface">{item.planned_quantity}</td>
+                              <td className="px-4 py-4 text-center font-bold text-primary">{item.quantity ?? '-'}</td>
+                              <td className="px-4 py-4 text-center">
+                                <span className={cn(
+                                  "text-[11px] font-black px-2 py-0.5 rounded-md",
+                                  ((item.quantity ?? 0) - item.planned_quantity) >= 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
+                                )}>
+                                  {(item.quantity ?? 0) - item.planned_quantity}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                {item.is_conferred ? (
+                                  <div className="flex items-center justify-center gap-1 text-emerald-500">
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">OK</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-500 opacity-60">PENDENTE</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 shadow-sm text-center">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-1">Total Planejado</p>
+                      <p className="text-xl font-headline font-black text-on-surface">
+                        {selectedOrder.items?.reduce((acc, i) => acc + i.planned_quantity, 0)}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 shadow-sm text-center">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-1">Total Separado</p>
+                      <p className="text-xl font-headline font-black text-primary">
+                        {selectedOrder.items?.reduce((acc, i) => acc + (i.quantity ?? 0), 0)}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 shadow-sm text-center">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-1">Diferença Total</p>
+                      <p className={cn(
+                        "text-xl font-headline font-black",
+                        (selectedOrder.items?.reduce((acc, i) => acc + (i.quantity ?? 0), 0) || 0) - (selectedOrder.items?.reduce((acc, i) => acc + i.planned_quantity, 0) || 0) >= 0 
+                          ? "text-emerald-500" 
+                          : "text-amber-500"
+                      )}>
+                        {(selectedOrder.items?.reduce((acc, i) => acc + (i.quantity ?? 0), 0) || 0) - (selectedOrder.items?.reduce((acc, i) => acc + i.planned_quantity, 0) || 0)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-8 border-t border-outline-variant/10 bg-surface-container-low/30 flex justify-end gap-4">
+                <button 
+                  onClick={() => {
+                    setIsReviewModalOpen(false);
+                    setSelectedOrder(null);
+                  }}
+                  className="px-8 py-4 bg-surface-container-high text-on-surface font-black uppercase tracking-widest rounded-2xl hover:bg-surface-container-highest transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => baixarOrder(selectedOrder)}
+                  disabled={isProcessing}
+                  className="px-8 py-4 bg-emerald-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                  Confirmar Baixa de OP
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
