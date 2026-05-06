@@ -48,7 +48,7 @@ interface PurchaseOrder {
   created_at: string;
 }
 
-export function SeparationDashboardView({ isAdmin, currentUserId, currentUserName }: { isAdmin?: boolean, currentUserId?: string, currentUserName?: string }) {
+export function SeparationDashboardView({ isAdmin, currentUserId, currentUserName, isViewer }: { isAdmin?: boolean, currentUserId?: string, currentUserName?: string, isViewer?: boolean }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -59,7 +59,7 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   const baixarOrder = async (order: PurchaseOrder) => {
-    if (!isAdmin) return;
+    if (!isAdmin || isViewer) return;
     setIsProcessing(true);
     try {
       const orderRef = doc(db, 'purchase_orders', order.id);
@@ -417,7 +417,7 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
                   </div>
                 </div>
 
-                {isAdmin && order.is_signed && order.status !== 'Baixada' && (
+                {isAdmin && !isViewer && order.is_signed && order.status !== 'Baixada' && (
                   <div className="mt-2">
                     <motion.button 
                       animate={{ scale: [1, 1.02, 1] }}
@@ -625,16 +625,18 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
                   }}
                   className="px-8 py-4 bg-surface-container-high text-on-surface font-black uppercase tracking-widest rounded-2xl hover:bg-surface-container-highest transition-all"
                 >
-                  Cancelar
+                  Fechar
                 </button>
-                <button 
-                  onClick={() => baixarOrder(selectedOrder)}
-                  disabled={isProcessing}
-                  className="px-8 py-4 bg-emerald-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-                >
-                  {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                  Confirmar Baixa de OP
-                </button>
+                {isAdmin && !isViewer && (
+                  <button 
+                    onClick={() => baixarOrder(selectedOrder)}
+                    disabled={isProcessing}
+                    className="px-8 py-4 bg-emerald-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                  >
+                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                    Confirmar Baixa de OP
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>

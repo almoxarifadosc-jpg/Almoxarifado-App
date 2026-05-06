@@ -37,26 +37,12 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
   const sections = [
     {
       title: 'OPs',
-      items: ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente') ? [
+      items: ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? [
         { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText },
         { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
         { id: 'SEPARATION_DASHBOARD' as View, label: 'Painel de Separação', icon: LayoutDashboard },
         { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 },
       ] : []
-    },
-    {
-      title: 'Ventisol',
-      items: [
-        { id: 'OPERATIONS' as View, label: 'Ordens de Prod.', icon: Network },
-        { id: 'ANALYTICS' as View, label: 'Painel de Ops', icon: BarChart3 },
-        { id: 'DASHBOARD' as View, label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'LAUNCH' as View, label: 'Portal', icon: Rocket },
-      ].filter(item => {
-        if (category === 'Recebimento') return false;
-        if (category === 'Bemplas') return false;
-        if (isViewer && (item.id === 'OPERATIONS' || item.id === 'LAUNCH')) return false;
-        return true;
-      })
     },
     {
       title: 'Intercompany',

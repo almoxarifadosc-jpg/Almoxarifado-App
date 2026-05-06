@@ -89,13 +89,14 @@ interface Profile {
   is_super_admin?: boolean;
 }
 
-export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente, currentUserName, userCategory }: { 
+export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente, currentUserName, userCategory, isViewer }: { 
   isAdmin?: boolean, 
   isSuperAdmin?: boolean,
   currentUserId?: string,
   isConferente?: boolean,
   currentUserName?: string,
-  userCategory?: string
+  userCategory?: string,
+  isViewer?: boolean
 }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -211,6 +212,11 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   }, [isEditModalOpen]);
 
   const handleEditItemQuantity = (idx: number, newQty: number) => {
+    if (isViewer) return;
+    // Permissão: Ventisol, Ventisol + Conferente, Admin, Superadmin
+    const canEdit = isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente';
+    if (!canEdit) return;
+
     setEditingOrder(prev => {
       if (!prev) return null;
       const updatedItems = [...(prev.items || [])];
@@ -275,7 +281,11 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   };
 
   const handleToggleItemConferred = (index: number) => {
-    if (!editingOrder || (!isConferente && !isAdmin && !isSuperAdmin)) return;
+    if (isViewer) return;
+    // Permissão: Ventisol, Ventisol + Conferente, Admin, Superadmin, Conferente
+    const canConferAction = isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente';
+    if (!canConferAction) return;
+
     setEditingOrder(prev => {
       if (!prev) return null;
       const newItems = [...(prev.items || [])];
@@ -301,8 +311,16 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   };
 
   const updateOrder = async () => {
+    if (isViewer) return;
     if (!editingOrder?.id) return;
     if (!validateQuantities()) return;
+
+    // Validar categoria para salvar separação (apenas se não for admin/superadmin)
+    const canSaveStep = isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente';
+    if (!canSaveStep) {
+      setError("Você não tem permissão para salvar alterações nesta OP.");
+      return;
+    }
     
     setIsProcessing(true);
     setError(null);
@@ -347,8 +365,16 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   };
 
   const conferOrder = async () => {
+    if (isViewer) return;
     if (!editingOrder?.id) return;
     if (!validateQuantities()) return;
+
+    // Pergunta: Admin, Superadmin e Conferentes/Ventisol+Conf podem conferir
+    const canConferOP = isAdmin || isSuperAdmin || isConferente || userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente';
+    if (!canConferOP) {
+      setError("Apenas Conferentes e Administradores podem realizar a conferência final.");
+      return;
+    }
     
     if (!currentUserId || !currentUserName) {
       setError("Erro de autenticação: usuário não identificado.");
@@ -391,10 +417,19 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   };
 
   const signOrder = async () => {
+    if (isViewer) return;
     const currentUserProfile = profiles.find(p => p.id === currentUserId);
     const effectiveUserName = currentUserName || currentUserProfile?.name || currentUserProfile?.email;
 
     if (!editingOrder?.id) return;
+
+    // Apenas Admin, superadmin e Conferentes podem assinar OPs
+    const canSignOP = isAdmin || isSuperAdmin || isConferente || userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente';
+    if (!canSignOP) {
+      setError("Apenas Admin, Superadmin e Conferentes podem assinar OPs.");
+      return;
+    }
+
     if (!effectiveUserName) {
       setError("Erro: Usuário não identificado. Por favor, recarregue a página.");
       return;
@@ -451,7 +486,8 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   };
 
   const baixarOrder = async (orderId: string) => {
-    if (!isAdmin) return;
+    if (isViewer) return;
+    if (!isAdmin && !isSuperAdmin) return;
     
     setIsProcessing(true);
     try {
@@ -1181,14 +1217,16 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                         <input 
                           type="text"
                           value={currentPI}
+                          disabled={isViewer || !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')}
                           onChange={(e) => setCurrentPI(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleAddPI()}
+                          onKeyDown={(e) => e.key === 'Enter' && !isViewer && (isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente') && handleAddPI()}
                           placeholder="Digite o número da PI..."
-                          className="flex-1 bg-surface-container-highest border-0 rounded-xl md:rounded-2xl px-4 md:px-5 py-3 md:py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-bold text-sm"
+                          className="flex-1 bg-surface-container-highest border-0 rounded-xl md:rounded-2xl px-4 md:px-5 py-3 md:py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-bold text-sm disabled:opacity-50"
                         />
                         <button 
                           onClick={handleAddPI}
-                          className="w-12 h-12 md:w-14 md:h-14 bg-primary text-white rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all outline-none"
+                          disabled={isViewer || !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')}
+                          className="w-12 h-12 md:w-14 md:h-14 bg-primary text-white rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all outline-none disabled:opacity-50"
                         >
                           <Plus className="w-5 h-5 md:w-6 md:h-6" />
                         </button>
@@ -1198,9 +1236,11 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                         {editingOrder.pis?.map(pi => (
                           <div key={pi} className="bg-primary/10 text-primary px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border border-primary/20">
                             {pi}
-                            <button onClick={() => handleRemovePI(pi)} className="hover:text-error transition-colors">
-                              <X className="w-3.5 h-3.5" />
-                            </button>
+                            {(!isViewer && (isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')) && (
+                              <button onClick={() => handleRemovePI(pi)} className="hover:text-error transition-colors">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         ))}
                         {(!editingOrder.pis || editingOrder.pis.length === 0) && (
@@ -1246,7 +1286,11 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                               <span className="md:hidden text-[9px] font-black uppercase text-on-surface-variant/40 mb-1">Sep.</span>
                               <input 
                                 type="number"
-                                disabled={editingOrder.status === 'Baixada'}
+                                disabled={
+                                  isViewer || 
+                                  editingOrder.status === 'Baixada' || 
+                                  !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')
+                                }
                                 className={cn(
                                   "w-14 md:w-16 bg-surface-container-high md:bg-surface-container-low text-center font-black p-2 rounded-xl outline-none focus:ring-2 ring-primary/30 text-sm disabled:opacity-50",
                                   item.quantity !== null && (item.quantity as number) < item.planned_quantity && "ring-2 ring-error/50 text-error bg-error/5"
@@ -1275,14 +1319,18 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                           <div className="flex justify-center">
                             <button 
                               onClick={() => handleToggleItemConferred(idx)}
-                              disabled={(!isConferente && !isAdmin && !isSuperAdmin) || editingOrder.status === 'Baixada'}
+                              disabled={
+                                isViewer || 
+                                editingOrder.status === 'Baixada' || 
+                                !(isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente')
+                              }
                               className={cn(
                                 "w-8 h-8 rounded-full flex items-center justify-center transition-all",
                                 item.is_conferred 
                                   ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
                                   : "bg-surface-container-high text-on-surface-variant/30 hover:bg-emerald-500/10 hover:text-emerald-500 border border-outline-variant/10"
                               )}
-                              title={(isConferente || isAdmin || isSuperAdmin) ? "Alternar Conferência" : "Sem permissão"}
+                              title={(isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente') && !isViewer ? "Alternar Conferência" : "Sem permissão"}
                             >
                               <UserCheck className="w-4 h-4" />
                             </button>
@@ -1298,16 +1346,22 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                         <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-3 block ml-1">Observação da Separação</label>
                         <textarea 
                           value={editingOrder.observation || ''}
+                          disabled={isViewer || !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')}
                           onChange={(e) => setEditingOrder({ ...editingOrder, observation: e.target.value })}
                           placeholder="Alguma observação sobre esta separação?"
-                          className="w-full bg-surface-container-highest border-0 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-medium text-sm min-h-[100px] resize-none"
+                          className="w-full bg-surface-container-highest border-0 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-medium text-sm min-h-[100px] resize-none disabled:opacity-50"
                         />
                       </div>
 
                       <div className="bg-surface-container-low p-6 rounded-[32px] border border-outline-variant/10">
                         <div className="flex items-center justify-between mb-4">
                           <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 ml-1">Fotos da Separação</label>
-                          <label className="cursor-pointer bg-primary text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-primary/10">
+                          <label className={cn(
+                            "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-primary/10",
+                            (isViewer || !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente'))
+                              ? "bg-surface-container-high text-on-surface-variant/40 cursor-not-allowed"
+                              : "cursor-pointer bg-primary text-white hover:opacity-90"
+                          )}>
                             <Camera className="w-3 h-3" />
                             Adicionar Fotos
                             <input 
@@ -1317,7 +1371,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                               capture="environment"
                               className="hidden" 
                               onChange={handlePhotoUpload} 
-                              disabled={uploadingPhotos}
+                              disabled={uploadingPhotos || isViewer || !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')}
                             />
                           </label>
                         </div>

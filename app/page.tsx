@@ -609,7 +609,7 @@ export default function Page() {
                 isSuperAdmin={currentUser?.is_super_admin}
               />
             )}
-            {currentView === 'SORTING' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente') && (
+            {currentView === 'SORTING' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
               <SortingView 
                 key="sorting" 
                 isAdmin={currentUser?.is_admin} 
@@ -618,17 +618,19 @@ export default function Page() {
                 isConferente={currentUser?.is_conferente || currentUser?.category === 'Conferente'}
                 currentUserName={currentUser?.name}
                 userCategory={currentUser?.category}
+                isViewer={currentUser?.is_viewer}
               />
             )}
-            {currentView === 'SEPARATION_DASHBOARD' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente') && (
+            {currentView === 'SEPARATION_DASHBOARD' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
               <SeparationDashboardView 
                 key="separation-dashboard" 
                 isAdmin={currentUser?.is_admin}
                 currentUserId={currentUser?.id}
                 currentUserName={currentUser?.name}
+                isViewer={currentUser?.is_viewer}
               />
             )}
-            {currentView === 'PERFORMANCE' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente') && (
+            {currentView === 'PERFORMANCE' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
               <PerformanceView key="performance" />
             )}
             {currentView === 'ADMIN_PANEL' && (
