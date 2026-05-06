@@ -463,7 +463,7 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
                   </div>
                   <div>
                     <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant opacity-60">Revisão da OP</h5>
-                    <h3 className="text-3xl font-headline font-black text-on-surface leading-none">#{selectedOrder.order_number}</h3>
+                    <h1 className="text-4xl md:text-5xl font-headline font-black text-primary leading-none tracking-tighter">#{selectedOrder.order_number}</h1>
                   </div>
                 </div>
                 <button 

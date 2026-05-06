@@ -17,7 +17,6 @@ import { PurchaseOrdersView } from '@/components/PurchaseOrdersView';
 import { SortingView } from '@/components/SortingView';
 import { SeparationDashboardView } from '@/components/SeparationDashboardView';
 import PerformanceView from '@/components/PerformanceView';
-import { SupabaseSetupView } from '@/components/SupabaseSetupView';
 import { Factory, Settings, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -458,9 +457,9 @@ export default function Page() {
                 <AlertCircle className="w-6 h-6 text-amber-500 mx-auto mb-2" />
                 <h3 className="text-sm font-black text-on-surface uppercase tracking-tight">Conexão Lenta</h3>
                 <p className="text-[10px] text-on-surface-variant mt-2 leading-relaxed">
-                  {loadError || 'O sistema está tentando conectar ao banco de dados do Supabase.'}
+                  {loadError || 'O sistema está tentando conectar ao banco de dados.'}
                   <br /><br />
-                  <span className="font-bold">Dica:</span> Se estiver na rede da Ventisol, verifique se o domínio <code className="bg-surface-container-high px-1">supabase.co</code> está liberado no firewall.
+                  <span className="font-bold">Dica:</span> Verifique sua conexão com a internet ou se o serviço está temporariamente indisponível.
                 </p>
               </div>
               

@@ -419,6 +419,8 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         is_signed: true,
         signed_at: new Date().toISOString(),
         signed_by_name: effectiveUserName,
+        pis: editingOrder.pis || [],
+        observation: editingOrder.observation || '',
         updated_at: serverTimestamp()
       });
       
@@ -429,7 +431,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         `*Assinado por:* ${effectiveUserName}\n` +
         `*Data:* ${new Date().toLocaleString('pt-BR')}`;
       
-      await sendGoogleChatNotification(chatMessage);
+      await sendGoogleChatNotification(chatMessage, true);
       
       setIsEditModalOpen(false);
       setEditingOrder(null);
