@@ -422,6 +422,15 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         updated_at: serverTimestamp()
       });
       
+      // Enviar notificação para o Google Chat sobre a assinatura
+      const chatMessage = `✍️ *OP Assinada (Aguardando Baixa)*\n\n` +
+        `*Número:* #${editingOrder.order_number}\n` +
+        `*Fornecedor:* ${editingOrder.supplier_name}\n` +
+        `*Assinado por:* ${effectiveUserName}\n` +
+        `*Data:* ${new Date().toLocaleString('pt-BR')}`;
+      
+      await sendGoogleChatNotification(chatMessage);
+      
       setIsEditModalOpen(false);
       setEditingOrder(null);
       setSuccess('Assinatura salva com sucesso!');

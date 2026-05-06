@@ -20,7 +20,6 @@ import {
 } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
-import { migrateData } from '@/lib/migration-service';
 
 interface Profile {
   id: string;
@@ -67,11 +66,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
   const categories = ['Ventisol', 'Conferente', 'Bemplas', 'Recebimento'];
-
-  const [migrationStatus, setMigrationStatus] = useState<Record<string, string> | null>(null);
-  const [migrating, setMigrating] = useState(false);
-  const [migrationProgress, setMigrationProgress] = useState({ current: 0, total: 0, tableName: '' });
-  const [showConfirmMigrate, setShowConfirmMigrate] = useState(false);
 
   const fetchPendingUsers = useCallback(async () => {
     try {
@@ -364,32 +358,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     }
   };
 
-  const handleMigrate = async () => {
-    console.log('Iniciando processo de migração...');
-    setMigrating(true);
-    setShowConfirmMigrate(false);
-    setMigrationStatus(null);
-    setMigrationProgress({ current: 0, total: 0, tableName: 'Iniciando...' });
-    
-    try {
-      console.log('Chamando migrateData com callback de progresso...');
-      const results = await migrateData((tableName, index, total) => {
-        console.log(`Progresso da Migração: ${tableName} (${index + 1}/${total})`);
-        setMigrationProgress({ current: index + 1, total, tableName });
-      });
-      
-      console.log('Migração finalizada com sucesso:', results);
-      setMigrationStatus(results);
-      setMigrationProgress(prev => ({ ...prev, tableName: 'Concluído!' }));
-      alert('Tabelas migradas com sucesso!');
-    } catch (err: any) {
-      console.error('Falha crítica na migração:', err);
-      alert('Erro na migração: ' + err.message);
-    } finally {
-      setMigrating(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -452,81 +420,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
                     <div className="w-12 h-12 bg-surface-container-lowest rounded-lg flex items-center justify-center overflow-hidden">
                       <img src={logoUrl} alt="Prévia da Logo" className="max-w-full max-h-full object-contain" />
                     </div>
-                  </div>
-                )}
-                {(currentIsSuperAdmin || currentUserEmail?.toLowerCase() === 'almoxarifado.sc@ventisol.com.br' || currentUserEmail?.toLowerCase() === 'espinmais@gmail.com') && (
-                  <div className="mt-8 pt-8 border-t border-outline-variant/10">
-                    <h3 className="text-sm font-bold uppercase tracking-widest text-amber-600 flex items-center gap-2 mb-4">
-                      <AlertCircle className="w-4 h-4" />
-                      Migração de Dados (Legado)
-                    </h3>
-                    <p className="text-xs text-on-surface-variant mb-4">
-                      Transfira os dados existentes do Supabase para o Firebase. Use apenas uma vez para sincronizar as bases.
-                    </p>
-                    
-                    {!showConfirmMigrate && !migrating ? (
-                      <button 
-                        type="button"
-                        onClick={() => setShowConfirmMigrate(true)}
-                        className="w-full py-4 bg-amber-500/10 text-amber-600 rounded-2xl font-bold text-sm border border-amber-500/20 hover:bg-amber-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <ShieldCheck className="w-5 h-5" />
-                        Executar Migração Supabase ➔ Firebase
-                      </button>
-                    ) : showConfirmMigrate && !migrating ? (
-                      <div className="flex gap-2">
-                        <button 
-                          type="button"
-                          onClick={() => handleMigrate()}
-                          className="flex-1 py-4 bg-amber-500 text-white rounded-2xl font-bold text-sm hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                        >
-                          <ShieldCheck className="w-5 h-5" />
-                          Confirmar Migração
-                        </button>
-                        <button 
-                          type="button"
-                          onClick={() => setShowConfirmMigrate(false)}
-                          className="px-6 py-4 bg-surface-container-low text-on-surface rounded-2xl font-bold text-sm border border-outline-variant/20 hover:bg-surface-container-highest transition-all"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="w-full py-4 bg-amber-500/10 text-amber-600 rounded-2xl font-bold text-sm border border-amber-500/20 flex items-center justify-center gap-2">
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                          Migrando: {migrationProgress.tableName}
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-[10px] font-bold text-amber-600 uppercase tracking-widest">
-                            <span>Progresso</span>
-                            <span>{Math.round((migrationProgress.current / migrationProgress.total) * 100)}%</span>
-                          </div>
-                          <div className="h-2 w-full bg-amber-500/10 rounded-full overflow-hidden border border-amber-500/20">
-                            <motion.div 
-                              initial={{ width: 0 }}
-                              animate={{ width: `${(migrationProgress.current / migrationProgress.total) * 100}%` }}
-                              className="h-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
-                            />
-                          </div>
-                          <p className="text-[10px] text-on-surface-variant text-center">
-                            Tabela {migrationProgress.current} de {migrationProgress.total}...
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {migrationStatus && (
-                      <div className="mt-4 p-4 bg-surface rounded-xl text-[10px] font-mono space-y-1 max-h-40 overflow-y-auto border border-outline-variant/10">
-                        <p className="font-bold border-b border-outline-variant/10 pb-1 mb-2 text-on-surface">Resultado da Migração:</p>
-                        {Object.entries(migrationStatus).map(([table, result]) => (
-                          <div key={table} className={result.includes('Successfully') ? 'text-primary' : 'text-error'}>
-                            {table}: {result}
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 )}
               </div>

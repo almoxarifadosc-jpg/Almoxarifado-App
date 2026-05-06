@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
-  const webhookUrl = process.env.NEXT_PUBLIC_GOOGLE_CHAT_WEBHOOK_URL;
-
-  if (!webhookUrl) {
-    return NextResponse.json({ error: 'Webhook URL not configured' }, { status: 500 });
-  }
-
   try {
-    const { message } = await request.json();
+    const { message, isSignature } = await request.json();
+    
+    const defaultWebhook = process.env.NEXT_PUBLIC_GOOGLE_CHAT_WEBHOOK_URL;
+    const signatureWebhook = process.env.NEXT_PUBLIC_GOOGLE_CHAT_SIGNATURE_WEBHOOK_URL;
+
+    const webhookUrl = isSignature ? (signatureWebhook || defaultWebhook) : defaultWebhook;
+
+    if (!webhookUrl) {
+      return NextResponse.json({ error: 'Webhook URL not configured' }, { status: 500 });
+    }
 
     const response = await fetch(webhookUrl, {
       method: 'POST',

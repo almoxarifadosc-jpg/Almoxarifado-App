@@ -1,4 +1,4 @@
-export async function sendGoogleChatNotification(message: string) {
+export async function sendGoogleChatNotification(message: string, isSignature: boolean = false) {
   console.log('📡 Tentando enviar notificação para o Google Chat...');
 
   try {
@@ -7,7 +7,7 @@ export async function sendGoogleChatNotification(message: string) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, isSignature }),
     });
 
     if (!response.ok) {

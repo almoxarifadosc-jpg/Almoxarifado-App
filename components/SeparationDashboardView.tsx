@@ -44,6 +44,7 @@ interface PurchaseOrder {
   signature_url?: string;
   signed_by_name?: string;
   signed_at?: string;
+  pis?: string[];
   created_at: string;
 }
 
@@ -461,8 +462,8 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
                     <ClipboardList className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-headline font-black text-on-surface">Revisão da OP</h3>
-                    <p className="text-sm text-on-surface-variant">OP #{selectedOrder.order_number}</p>
+                    <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant opacity-60">Revisão da OP</h5>
+                    <h3 className="text-3xl font-headline font-black text-on-surface leading-none">#{selectedOrder.order_number}</h3>
                   </div>
                 </div>
                 <button 
@@ -503,6 +504,26 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
                       </div>
                     </div>
                   </div>
+
+                  {/* PIs Adicionadas */}
+                  {selectedOrder.pis && selectedOrder.pis.length > 0 && (
+                    <div className="bg-surface-container-high/40 rounded-[32px] border border-outline-variant/10 overflow-hidden">
+                      <div className="bg-surface-container-high px-6 py-3 border-b border-outline-variant/10">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface">Pedidos de Industrialização (PIs)</h4>
+                      </div>
+                      <div className="p-6 flex flex-wrap gap-3">
+                        {selectedOrder.pis.map((pi, idx) => (
+                          <div 
+                            key={idx}
+                            className="px-4 py-2 bg-primary text-white rounded-xl font-bold text-xs shadow-lg shadow-primary/20 flex items-center gap-2"
+                          >
+                            <Package className="w-3.5 h-3.5" />
+                            {pi}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Exibição da Assinatura no Review se existir */}
                   {selectedOrder.is_signed && (
