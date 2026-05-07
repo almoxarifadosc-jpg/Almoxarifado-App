@@ -28,6 +28,7 @@ interface OrderItem {
   unitPrice?: number;
   totalPrice?: number;
   collector_name?: string;
+  location?: string;
   is_conferred?: boolean;
 }
 
@@ -46,6 +47,7 @@ interface PurchaseOrder {
   signed_at?: string;
   pis?: string[];
   created_at: string;
+  sequence?: number | null;
 }
 
 export function SeparationDashboardView({ isAdmin, currentUserId, currentUserName, isViewer }: { isAdmin?: boolean, currentUserId?: string, currentUserName?: string, isViewer?: boolean }) {
@@ -234,7 +236,14 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
       if (lateAndNotFinishedA && !lateAndNotFinishedB) return -1;
       if (!lateAndNotFinishedA && lateAndNotFinishedB) return 1;
 
-      // Secundário: Data descendente
+      // Secundário: Sequência
+      if (a.sequence !== undefined && b.sequence !== undefined && a.sequence !== null && b.sequence !== null) {
+        return a.sequence - b.sequence;
+      }
+      if (a.sequence !== null && a.sequence !== undefined) return -1;
+      if (b.sequence !== null && b.sequence !== undefined) return 1;
+
+      // Terciário: Data descendente
       return (dB?.getTime() || 0) - (dA?.getTime() || 0);
     });
   }, [orders, startDate, endDate, searchOP]);
@@ -401,7 +410,14 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col">
                     <span className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-50">OP Nº</span>
-                    <h4 className="text-lg font-headline font-black text-on-surface">#{order.order_number}</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-lg font-headline font-black text-on-surface">#{order.order_number}</h4>
+                      {order.sequence !== undefined && order.sequence !== null && (
+                        <span className="px-2 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded-lg shadow-sm">
+                          SEQ: {order.sequence}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {isFullyComplete && (
                     <div className="w-7 h-7 bg-emerald-500/10 text-emerald-500 rounded-lg flex items-center justify-center">
@@ -593,6 +609,7 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
                         <thead>
                           <tr className="bg-surface-container-low/50">
                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 border-b border-outline-variant/10">Material</th>
+                            <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Local</th>
                             <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Planejado</th>
                             <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Separado</th>
                             <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Dif.</th>
@@ -605,6 +622,11 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
                               <td className="px-6 py-4 uppercase">
                                 <p className="text-sm font-bold text-on-surface leading-tight">{item.description}</p>
                                 <p className="text-[10px] font-black text-on-surface-variant opacity-50 mt-0.5">{item.code || 'S/ RED'}</p>
+                              </td>
+                              <td className="px-4 py-4 text-center">
+                                <span className="text-[10px] font-black text-amber-600 bg-amber-500/10 px-2 py-1 rounded-md">
+                                  {item.location || '-'}
+                                </span>
                               </td>
                               <td className="px-4 py-4 text-center font-bold text-on-surface">{item.planned_quantity}</td>
                               <td className="px-4 py-4 text-center font-bold text-primary">{item.quantity ?? '-'}</td>

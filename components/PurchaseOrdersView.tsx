@@ -46,6 +46,7 @@ interface OrderItem {
   unitPrice?: number;
   totalPrice?: number;
   collector_name?: string;
+  location?: string;
 }
 
 interface PurchaseOrder {
@@ -180,7 +181,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                   }
                 },
                 {
-                  text: "Extraia os dados deste documento (Pedido de Compra ou Separação de OP). Se for Separação de OP, use o número da OP como order_number. O layout tem colunas: 'Cód.', 'Produto', 'Nome Coletor', 'Quantidade' e 'Separad'. Extraia: order_number (string), date (string YYYY-MM-DD), supplier_name (string - coloque aqui o nome do PRODUTO principal da primeira tabela), product_location (string - localize a informação 'Local' na primeira tabela), total_amount (number - a quantidade total da primeira tabela), e items (array de objetos). REGRAS IMPORTANTES PARA ITENS: 1. Mapeie o valor da coluna 'Quantidade' fisicamente presente no PDF para o campo 'planned_quantity'. 2. O campo 'quantity' deve ser SEMPRE 0 (ele será preenchido pelo usuário depois). 3. Extraia o 'code', 'description' e 'collector_name' normalmente. Retorne APENAS o JSON."
+                  text: "Extraia os dados deste documento (Pedido de Compra ou Separação de OP). Se for Separação de OP, use o número da OP como order_number. O layout tem colunas como: 'Cód.', 'Produto', 'Local' (ou 'Loc.'), 'Nome Coletor', 'Quantidade' e 'Separad'. Extraia: order_number (string), date (string YYYY-MM-DD), supplier_name (string - coloque aqui o nome do PRODUTO principal da primeira tabela), product_location (string - localize a informação 'Local' no cabeçalho ou primeira tabela), total_amount (number - a quantidade total da primeira tabela), e items (array de objetos). REGRAS IMPORTANTES PARA ITENS: 1. Mapeie o valor da coluna 'Quantidade' fisicamente presente no PDF para o campo 'planned_quantity'. 2. O campo 'quantity' deve ser SEMPRE 0 (ele será preenchido pelo usuário depois). 3. Extraia o 'code', 'description', 'location' (vindo da coluna 'Local' ou 'Loc.') e 'collector_name' normalmente. Retorne APENAS o JSON."
                 }
               ]
             },
@@ -205,6 +206,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                         planned_quantity: { type: Type.NUMBER, description: "Valor da coluna 'Quantidade'" },
                         quantity: { type: Type.NUMBER, description: "Valor da coluna 'Separad'" },
                         collector_name: { type: Type.STRING },
+                        location: { type: Type.STRING, description: "Localização específica do item (coluna Local)" },
                         unitPrice: { type: Type.NUMBER },
                         totalPrice: { type: Type.NUMBER }
                       },
@@ -328,6 +330,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
         planned_quantity: Number(item.planned_quantity) || 0,
         quantity: Number(item.quantity) || 0,
         unitPrice: Number(item.unitPrice || 0),
+        location: String(item.location || ''),
         totalPrice: Number(item.totalPrice || 0),
         collector_name: String(item.collector_name || '')
       }));
@@ -837,12 +840,17 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                                 <div className="w-10 h-10 bg-surface-container-high rounded-xl flex items-center justify-center text-on-surface-variant text-xs font-black shrink-0">
                                   {item.planned_quantity || 0}
                                 </div>
-                                <div className="text-right">
+                                <div className="text-right flex flex-col gap-1 items-end">
                                   {item.collector_name ? (
                                     <p className="text-[9px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-md inline-block">
                                       {item.collector_name}
                                     </p>
                                   ) : null}
+                                  {(isAdmin || isSuperAdmin) && item.location && (
+                                    <p className="text-[9px] font-black text-amber-600 bg-amber-500/10 px-2 py-1 rounded-md inline-block whitespace-nowrap">
+                                      LO: {item.location}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               <div className="min-w-0">
@@ -1032,6 +1040,9 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                         <tr className="bg-surface-container-high">
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Cód.</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Produto</th>
+                          {(isAdmin || isSuperAdmin) && (
+                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Local</th>
+                          )}
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Nome Coletor</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Quantidade</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Separad</th>
@@ -1047,6 +1058,13 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                             <td className="px-6 py-4">
                               <p className="text-sm font-bold text-on-surface truncate max-w-[200px]" title={item.description}>{item.description}</p>
                             </td>
+                            {(isAdmin || isSuperAdmin) && (
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-[10px] font-black text-amber-600 bg-amber-500/10 px-2 py-1 rounded-md">
+                                  {item.location || '-'}
+                                </span>
+                              </td>
+                            )}
                             <td className="px-6 py-4">
                               <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">
                                 {item.collector_name || '-'}

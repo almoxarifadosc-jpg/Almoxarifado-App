@@ -10,7 +10,6 @@
     "clean": "next clean"
   },
   "dependencies": {
-    "@firebase/eslint-plugin-security-rules": "^0.0.2",
     "@google/genai": "^1.17.0",
     "@hookform/resolvers": "^5.2.1",
     "@types/react-signature-canvas": "^1.0.7",
@@ -27,6 +26,7 @@
     "tailwind-merge": "^3.0.1"
   },
   "devDependencies": {
+    "@firebase/eslint-plugin-security-rules": "^0.0.2",
     "@tailwindcss/postcss": "^4.0.0",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^20",

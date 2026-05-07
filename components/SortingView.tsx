@@ -54,6 +54,7 @@ interface OrderItem {
   unitPrice?: number;
   totalPrice?: number;
   collector_name?: string;
+  location?: string;
   is_conferred?: boolean;
 }
 
@@ -1285,8 +1286,9 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
                     <div className="bg-surface-container-high/30 overflow-hidden rounded-2xl md:rounded-[32px] border border-outline-variant/10 shadow-inner">
                     {/* Cabeçalho Desktop */}
-                    <div className="hidden md:grid grid-cols-[1fr,100px,100px,80px] bg-surface-container-high px-6 py-4">
+                    <div className="hidden md:grid grid-cols-[1fr,120px,100px,100px,80px,50px] bg-surface-container-high px-6 py-4">
                       <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Material / Código</div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Local</div>
                       <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Planejado</div>
                       <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Separado</div>
                       <div className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Dif.</div>
@@ -1294,7 +1296,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
                     <div className="divide-y divide-outline-variant/10">
                       {editingOrder.items?.map((item, idx) => (
-                        <div key={idx} className="p-3 md:p-4 md:px-6 md:py-3 hover:bg-surface-container-low/50 transition-colors grid grid-cols-1 md:grid-cols-[1fr,100px,100px,80px,50px] items-center gap-3 md:gap-0">
+                        <div key={idx} className="p-3 md:p-4 md:px-6 md:py-3 hover:bg-surface-container-low/50 transition-colors grid grid-cols-1 md:grid-cols-[1fr,120px,100px,100px,80px,50px] items-center gap-3 md:gap-0">
                           {/* Material Info */}
                           <div className="min-w-0">
                             {/* Desktop: Descrição > Código */}
@@ -1305,8 +1307,20 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                             {/* Mobile: Código (Ênfase) > Descrição */}
                             <div className="md:hidden">
                               <p className="text-lg font-black text-primary leading-tight mb-0.5">{item.code || 'SEM CÓDIGO'}</p>
-                              <p className="text-[11px] font-medium text-on-surface-variant line-clamp-2 leading-relaxed italic">{item.description}</p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-[11px] font-medium text-on-surface-variant line-clamp-2 leading-relaxed italic">{item.description}</p>
+                                {item.location && (
+                                  <span className="shrink-0 bg-amber-500/10 text-amber-600 text-[10px] font-black px-2 py-0.5 rounded-md">LO: {item.location}</span>
+                                )}
+                              </div>
                             </div>
+                          </div>
+
+                          {/* Local Column (Desktop) */}
+                          <div className="hidden md:flex justify-center">
+                            <span className="text-[10px] font-black text-amber-600 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/10">
+                              {item.location || '-'}
+                            </span>
                           </div>
 
                           {/* Colunas de Quantidade (Responsivas) */}
@@ -1499,6 +1513,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                           <thead>
                             <tr className="bg-surface-container-low/50">
                               <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Cód/Material</th>
+                              <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Local</th>
                               <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Plan.</th>
                               <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Sep.</th>
                               <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Dif.</th>
@@ -1511,6 +1526,11 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                                 <td className="px-6 py-4">
                                   <p className="text-sm font-black text-on-surface whitespace-nowrap">{item.code || '-'}</p>
                                   <p className="text-[11px] font-medium text-on-surface-variant leading-tight">{item.description}</p>
+                                </td>
+                                <td className="px-4 py-4 text-center">
+                                  <span className="text-[10px] font-black text-amber-600 bg-amber-500/10 px-2 py-1 rounded-md">
+                                    {item.location || '-'}
+                                  </span>
                                 </td>
                                 <td className="px-4 py-4 text-center text-sm font-bold text-on-surface">{item.planned_quantity}</td>
                                 <td className="px-4 py-4 text-center text-sm font-black text-primary">{item.quantity ?? 0}</td>
