@@ -282,8 +282,8 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
   const handleToggleItemConferred = (index: number) => {
     if (isViewer) return;
-    // Permissão: Ventisol, Ventisol + Conferente, Admin, Superadmin, Conferente
-    const canConferAction = isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente';
+    // Permissão: Admin, Superadmin, Conferente, Ventisol + Conferente (não apenas Ventisol)
+    const canConferAction = isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente';
     if (!canConferAction) return;
 
     setEditingOrder(prev => {

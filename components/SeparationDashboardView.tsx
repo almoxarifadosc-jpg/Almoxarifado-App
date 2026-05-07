@@ -54,6 +54,8 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
   const [isProcessing, setIsProcessing] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [searchOP, setSearchOP] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(true);
 
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -193,6 +195,11 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
     const todayISO = formatToISODate(today);
 
     return orders.filter(order => {
+      // Filtro de Busca por OP
+      if (searchOP.trim() && !order.order_number.toLowerCase().includes(searchOP.toLowerCase())) {
+        return false;
+      }
+
       const orderDate = parseAnyDate(order.date || order.created_at);
       if (!orderDate) return false;
       
@@ -230,7 +237,7 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
       // Secundário: Data descendente
       return (dB?.getTime() || 0) - (dA?.getTime() || 0);
     });
-  }, [orders, startDate, endDate]);
+  }, [orders, startDate, endDate, searchOP]);
 
   const kpis = useMemo(() => {
     const total = filteredOrders.length;
@@ -265,37 +272,74 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
       </AnimatePresence>
 
       {/* Header & Filter */}
-      <section className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <section className={cn(
+        "mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-all duration-300 overflow-hidden",
+        !showFilters && "md:h-0 md:mb-0 md:opacity-0 md:pointer-events-none"
+      )}>
         <div>
           <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight">Painel de Separação</h2>
           <p className="text-on-surface-variant font-medium">Monitoramento em tempo real da separação de OPs.</p>
         </div>
 
-        <div className="flex items-center gap-3 bg-surface-container-low p-2 rounded-2xl border border-outline-variant/10">
-          <div className="flex items-center gap-2 px-3">
-            <Calendar className="w-4 h-4 text-primary" />
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
+          {/* Busca por OP */}
+          <div className="relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant transition-colors group-focus-within:text-primary" />
             <input 
-              type="date" 
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="bg-transparent text-xs font-bold text-on-surface outline-none"
-            />
-            <span className="text-on-surface-variant text-xs font-bold px-1">até</span>
-            <input 
-              type="date" 
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="bg-transparent text-xs font-bold text-on-surface outline-none"
+              type="text"
+              placeholder="Buscar por OP..."
+              value={searchOP}
+              onChange={(e) => setSearchOP(e.target.value)}
+              className="w-full md:w-64 pl-11 pr-4 py-3 bg-surface-container-low rounded-2xl border border-outline-variant/10 focus:border-primary/30 focus:ring-4 focus:ring-primary/5 outline-none font-bold text-on-surface text-sm transition-all"
             />
           </div>
-          <button 
-            onClick={fetchOrders}
-            className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-colors"
-          >
-            <Filter className="w-4 h-4" />
-          </button>
+
+          <div className="flex items-center gap-3 bg-surface-container-low p-2 rounded-2xl border border-outline-variant/10">
+            <div className="flex items-center gap-2 px-3">
+              <Calendar className="w-4 h-4 text-primary" />
+              <input 
+                type="date" 
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="bg-transparent text-xs font-bold text-on-surface outline-none"
+              />
+              <span className="text-on-surface-variant text-xs font-bold px-1">até</span>
+              <input 
+                type="date" 
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="bg-transparent text-xs font-bold text-on-surface outline-none"
+              />
+            </div>
+            <button 
+              onClick={fetchOrders}
+              className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-colors"
+            >
+              <Filter className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </section>
+
+      {/* Botão de Esconder/Mostrar - Somente Desktop */}
+      <div className="hidden md:flex justify-end mb-4">
+        <button 
+          onClick={() => setShowFilters(!showFilters)}
+          className="flex items-center gap-2 px-4 py-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant rounded-xl border border-outline-variant/10 transition-all text-xs font-bold"
+        >
+          {showFilters ? (
+            <>
+              <Eye className="w-4 h-4" />
+              Esconder Filtros
+            </>
+          ) : (
+            <>
+              <Filter className="w-4 h-4" />
+              Mostrar Filtros
+            </>
+          )}
+        </button>
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
