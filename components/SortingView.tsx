@@ -1322,7 +1322,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                               disabled={
                                 isViewer || 
                                 editingOrder.status === 'Baixada' || 
-                                !(isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente')
+                                !(isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente')
                               }
                               className={cn(
                                 "w-8 h-8 rounded-full flex items-center justify-center transition-all",
@@ -1330,7 +1330,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                                   ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
                                   : "bg-surface-container-high text-on-surface-variant/30 hover:bg-emerald-500/10 hover:text-emerald-500 border border-outline-variant/10"
                               )}
-                              title={(isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente') && !isViewer ? "Alternar Conferência" : "Sem permissão"}
+                              title={(isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente') && !isViewer ? "Alternar Conferência" : "Sem permissão"}
                             >
                               <UserCheck className="w-4 h-4" />
                             </button>

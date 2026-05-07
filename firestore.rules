@@ -13,6 +13,8 @@ service cloud.firestore {
     function existing() { return resource.data; }
     function getUserData() { return get(/databases/$(database)/documents/profiles/$(request.auth.uid)); }
     function isApproved() { return isSignedIn() && exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && getUserData().data.status == 'APPROVED'; }
+    function isVentisol() { return isApproved() && getUserData().data.get('category', '') in ['Ventisol', 'Ventisol + Conferente']; }
+    function isConferente() { return isApproved() && (getUserData().data.get('category', '') in ['Conferente', 'Ventisol + Conferente'] || getUserData().data.get('is_conferente', false) == true); }
     function isAdmin() { 
       let userEmail = request.auth.token.get('email', '').lower();
       let isBootstrap = userEmail == 'almoxarifado.sc@ventisol.com.br' || 
@@ -102,12 +104,20 @@ service cloud.firestore {
       allow update: if (isApproved() || isAdmin()) && (
         isAdmin() ||
         (existing().status != 'Baixada' && (
-          // Action: Assign
-          (incoming().diff(existing()).affectedKeys().hasOnly(['assigned_users'])) ||
-          // Action: Confer
-          (incoming().diff(existing()).affectedKeys().hasOnly(['items', 'conferred_by_id', 'conferred_by_name', 'conferred_at', 'status', 'pis', 'observation', 'photos'])) ||
-          // Action: Sign
-          (incoming().diff(existing()).affectedKeys().hasOnly(['signature_url', 'is_signed', 'signed_at', 'signed_by_name']))
+          // Action: Assign (Admin handled by isAdmin() or explicit)
+          (incoming().diff(existing()).affectedKeys().hasAll(['assigned_users', 'updated_at'])) ||
+          
+          // Action: Separate (Ventisol & Others)
+          (isApproved() && incoming().diff(existing()).affectedKeys().hasOnly(['items', 'status', 'pis', 'observation', 'photos', 'updated_at', 'signature_url']) 
+            && (incoming().status in ['Pendente', 'Separada', 'Em Separação'])) ||
+          
+          // Action: Confer (Conferente or Admin)
+          (isConferente() && incoming().diff(existing()).affectedKeys().hasOnly(['items', 'conferred_by_id', 'conferred_by_name', 'conferred_at', 'status', 'pis', 'observation', 'photos', 'updated_at', 'signature_url'])
+            && incoming().status == 'Conferida') ||
+          
+          // Action: Sign (Conferente or Admin)
+          (isConferente() && incoming().diff(existing()).affectedKeys().hasOnly(['signature_url', 'is_signed', 'signed_at', 'signed_by_name', 'pis', 'observation', 'updated_at'])
+            && incoming().is_signed == true)
         ))
       );
       allow delete: if isAdmin();
