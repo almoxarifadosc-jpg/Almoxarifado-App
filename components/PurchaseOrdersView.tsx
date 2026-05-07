@@ -335,6 +335,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
       const payload = {
         items: itemsToSave,
         total_amount: Number(editingOrder.total_amount) || 0,
+        sequence: editingOrder.sequence !== undefined ? editingOrder.sequence : null,
         status: 'Conferida',
         updated_at: serverTimestamp()
       };
@@ -402,7 +403,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
         date: dateStr, 
         items: finalItems,
         status: 'Pendente',
-        sequence: orderSequence ? parseInt(orderSequence) : null,
+        sequence: (orderSequence && !isNaN(parseInt(orderSequence))) ? parseInt(orderSequence) : null,
         assigned_users: autoAssignIds,
         created_at: serverTimestamp()
       });
@@ -994,6 +995,34 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                     </p>
                   </div>
                 </div>
+
+                {/* Edição de Sequência para Administradores */}
+                {isAdmin && (
+                  <div className="bg-amber-500/5 p-6 rounded-[32px] border border-amber-500/10 mb-8 flex items-center justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-500">
+                        <Package className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-on-surface">Sequência de Separação</h4>
+                        <p className="text-[10px] text-on-surface-variant">Administradores podem ajustar a prioridade da OP.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">SEQ</span>
+                      <input 
+                        type="number"
+                        value={editingOrder.sequence || ''}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? null : parseInt(e.target.value);
+                          setEditingOrder({ ...editingOrder, sequence: val });
+                        }}
+                        placeholder="Ex: 1"
+                        className="w-24 h-12 bg-surface-container-high rounded-xl text-on-surface text-center font-black outline-none focus:ring-2 focus:ring-amber-500/50 border-none ring-1 ring-outline-variant/10"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Tabela de Itens */}
                 <div className="bg-surface-container-high/30 overflow-hidden rounded-[32px] border border-outline-variant/10 shadow-inner">

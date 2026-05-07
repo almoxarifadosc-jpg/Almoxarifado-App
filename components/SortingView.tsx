@@ -344,6 +344,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         pis: editingOrder.pis || [],
         observation: editingOrder.observation || '',
         photos: editingOrder.photos || [],
+        sequence: editingOrder.sequence !== undefined ? editingOrder.sequence : null,
         updated_at: serverTimestamp()
       });
 
@@ -394,6 +395,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         pis: editingOrder.pis || [],
         observation: editingOrder.observation || '',
         photos: editingOrder.photos || [],
+        sequence: editingOrder.sequence !== undefined ? editingOrder.sequence : null,
         updated_at: serverTimestamp()
       });
 
@@ -456,6 +458,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         signed_by_name: effectiveUserName,
         pis: editingOrder.pis || [],
         observation: editingOrder.observation || '',
+        sequence: editingOrder.sequence !== undefined ? editingOrder.sequence : null,
         updated_at: serverTimestamp()
       });
       
@@ -1211,40 +1214,71 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                 {modalMode === 'EDIT' && (
                   <>
                     {/* Campo PI */}
-                    <div className="mb-4 md:mb-6 p-4 md:p-6 bg-surface-container-low rounded-[24px] md:rounded-[32px] border border-outline-variant/10">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-2 md:mb-3 block ml-1">Processos Industriais (PI)</label>
-                      <div className="flex gap-2 mb-3 md:mb-4">
-                        <input 
-                          type="text"
-                          value={currentPI}
-                          disabled={isViewer || !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')}
-                          onChange={(e) => setCurrentPI(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && !isViewer && (isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente') && handleAddPI()}
-                          placeholder="Digite o número da PI..."
-                          className="flex-1 bg-surface-container-highest border-0 rounded-xl md:rounded-2xl px-4 md:px-5 py-3 md:py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-bold text-sm disabled:opacity-50"
-                        />
-                        <button 
-                          onClick={handleAddPI}
-                          disabled={isViewer || !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')}
-                          className="w-12 h-12 md:w-14 md:h-14 bg-primary text-white rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all outline-none disabled:opacity-50"
-                        >
-                          <Plus className="w-5 h-5 md:w-6 md:h-6" />
-                        </button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <div className="p-4 md:p-6 bg-surface-container-low rounded-[24px] md:rounded-[32px] border border-outline-variant/10">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-2 md:mb-3 block ml-1">Processos Industriais (PI)</label>
+                        <div className="flex gap-2 mb-3 md:mb-4">
+                          <input 
+                            type="text"
+                            value={currentPI}
+                            disabled={isViewer || !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')}
+                            onChange={(e) => setCurrentPI(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && !isViewer && (isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente') && handleAddPI()}
+                            placeholder="Número da PI..."
+                            className="flex-1 bg-surface-container-highest border-0 rounded-xl md:rounded-2xl px-4 md:px-5 py-3 md:py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-bold text-sm disabled:opacity-50"
+                          />
+                          <button 
+                            onClick={handleAddPI}
+                            disabled={isViewer || !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')}
+                            className="w-12 h-12 bg-primary text-white rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all outline-none disabled:opacity-50"
+                          >
+                            <Plus className="w-5 h-5 md:w-6 md:h-6" />
+                          </button>
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-2">
+                          {editingOrder.pis?.map(pi => (
+                            <div key={pi} className="bg-primary/10 text-primary px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border border-primary/20">
+                              {pi}
+                              {(!isViewer && (isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')) && (
+                                <button onClick={() => handleRemovePI(pi)} className="hover:text-error transition-colors">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      
-                      <div className="flex flex-wrap gap-2">
-                        {editingOrder.pis?.map(pi => (
-                          <div key={pi} className="bg-primary/10 text-primary px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border border-primary/20">
-                            {pi}
-                            {(!isViewer && (isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')) && (
-                              <button onClick={() => handleRemovePI(pi)} className="hover:text-error transition-colors">
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+
+                      {/* Sequência (Admin) */}
+                      <div className={cn(
+                        "p-4 md:p-6 rounded-[24px] md:rounded-[32px] border transition-all flex flex-col justify-between",
+                        isAdmin ? "bg-amber-500/5 border-amber-500/20" : "bg-surface-container-low border-outline-variant/10 opacity-50"
+                      )}>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-2 md:mb-3 block ml-1">Sequência de Separação</label>
+                          <div className="flex items-center gap-4">
+                            <input 
+                              type="number"
+                              value={editingOrder.sequence || ''}
+                              disabled={!isAdmin || isViewer}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? null : parseInt(e.target.value);
+                                setEditingOrder({ ...editingOrder, sequence: val });
+                              }}
+                              placeholder="Ex: 1"
+                              className="flex-1 bg-surface-container-highest border-0 rounded-xl md:rounded-2xl px-5 py-4 focus:ring-2 focus:ring-amber-500 outline-none transition-all font-black text-xl disabled:opacity-50"
+                            />
+                            <div className={cn(
+                              "w-12 h-12 rounded-xl flex items-center justify-center",
+                              isAdmin ? "bg-amber-500/10 text-amber-600" : "bg-surface-container-high text-on-surface-variant/20"
+                            )}>
+                              <Package className="w-6 h-6" />
+                            </div>
                           </div>
-                        ))}
-                        {(!editingOrder.pis || editingOrder.pis.length === 0) && (
-                          <p className="text-[10px] text-on-surface-variant italic ml-1">Nenhuma PI adicionada.</p>
+                        </div>
+                        {!isAdmin && (
+                          <p className="text-[9px] font-bold text-on-surface-variant/40 mt-2 ml-1 italic">* Edição restrita a administradores</p>
                         )}
                       </div>
                     </div>
