@@ -194,10 +194,31 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
     try {
       const q = query(collection(db, 'receipts'), orderBy('created_at', 'desc'));
       const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Receipt[];
+      const data = querySnapshot.docs.map(doc => {
+        const d = doc.data();
+        let createdAt = d.created_at;
+        let updatedAt = d.updated_at;
+
+        // Convert Firestore Timestamps to ISO strings for consistent filtering and display
+        if (createdAt && typeof createdAt.toDate === 'function') {
+          createdAt = createdAt.toDate().toISOString();
+        } else if (createdAt && createdAt.seconds) {
+          createdAt = new Date(createdAt.seconds * 1000).toISOString();
+        }
+
+        if (updatedAt && typeof updatedAt.toDate === 'function') {
+          updatedAt = updatedAt.toDate().toISOString();
+        } else if (updatedAt && updatedAt.seconds) {
+          updatedAt = new Date(updatedAt.seconds * 1000).toISOString();
+        }
+
+        return {
+          id: doc.id,
+          ...d,
+          created_at: createdAt,
+          updated_at: updatedAt
+        };
+      }) as Receipt[];
       setReceipts(data);
     } catch (err) {
       console.error('Error fetching receipts:', err);
@@ -312,24 +333,44 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
     setFormError(null);
     
     try {
-      if (formData.invoices.length === 0) {
-        throw new Error('Adicione pelo menos uma Nota Fiscal.');
+      let finalInvoices = [...formData.invoices];
+      
+      // Auto-add current NF if filled but not added to list
+      if (currentNF.trim() && !finalInvoices.includes(currentNF.trim())) {
+        finalInvoices.push(currentNF.trim());
+      }
+
+      if (finalInvoices.length === 0) {
+        setFormError('Adicione pelo menos uma Nota Fiscal.');
+        setSaving(false);
+        return;
       }
       if (!formData.load_type) {
-        throw new Error('Selecione o Tipo de Carga.');
+        setFormError('Selecione o Tipo de Carga.');
+        setSaving(false);
+        return;
       }
       if (!formData.driver) {
-        throw new Error('Selecione um Motorista.');
+        setFormError('Selecione um Motorista.');
+        setSaving(false);
+        return;
       }
       if (!formData.supplier_name) {
-        throw new Error('Selecione um Fornecedor.');
+        setFormError('Selecione um Fornecedor.');
+        setSaving(false);
+        return;
       }
+
+      const payload = {
+        ...formData,
+        invoices: finalInvoices,
+        invoice_count: finalInvoices.length
+      };
 
       if (editingReceipt) {
         const docRef = doc(db, 'receipts', editingReceipt.id);
         await updateDoc(docRef, { 
-          ...formData, 
-          invoice_count: formData.invoices.length,
+          ...payload, 
           updated_by_name: userName || 'Usuário',
           updated_at: serverTimestamp()
         });
@@ -344,11 +385,10 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
         const load_id = nextLoadNum.toString().padStart(4, '0');
 
         await addDoc(collection(db, 'receipts'), { 
-          ...formData, 
+          ...payload, 
           load_id,
-          invoice_number: formData.invoices[0] || 'S/N',
+          invoice_number: finalInvoices[0] || 'S/N',
           supplier_type: 'Externo', // Default value
-          invoice_count: formData.invoices.length,
           status: 'Pendente', 
           author_id: currentUserId,
           updated_by_name: userName || 'Usuário',
