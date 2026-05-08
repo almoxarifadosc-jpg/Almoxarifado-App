@@ -50,7 +50,14 @@ interface PurchaseOrder {
   sequence?: number | null;
 }
 
-export function SeparationDashboardView({ isAdmin, currentUserId, currentUserName, isViewer }: { isAdmin?: boolean, currentUserId?: string, currentUserName?: string, isViewer?: boolean }) {
+export function SeparationDashboardView({ isAdmin, isSuperAdmin, currentUserId, currentUserName, isViewer, allowedGroups }: { 
+  isAdmin?: boolean, 
+  isSuperAdmin?: boolean,
+  currentUserId?: string, 
+  currentUserName?: string, 
+  isViewer?: boolean,
+  allowedGroups?: string[]
+}) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -58,6 +65,15 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [searchOP, setSearchOP] = useState<string>('');
   const [showFilters, setShowFilters] = useState(true);
+
+  const isOrderRestricted = (order: PurchaseOrder) => {
+    if (isAdmin || isSuperAdmin || !allowedGroups || allowedGroups.length === 0) return false;
+    if (!order.items || order.items.length === 0) return false;
+    return !order.items.some(item => {
+      const itemLoc = (item.location || '').toUpperCase();
+      return allowedGroups.some(group => itemLoc.includes(group.toUpperCase()));
+    });
+  };
 
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -197,6 +213,9 @@ export function SeparationDashboardView({ isAdmin, currentUserId, currentUserNam
     const todayISO = formatToISODate(today);
 
     return orders.filter(order => {
+      // Regra de Grupos Permitidos
+      if (isOrderRestricted(order)) return false;
+
       // Filtro de Busca por OP
       if (searchOP.trim() && !order.order_number.toLowerCase().includes(searchOP.toLowerCase())) {
         return false;

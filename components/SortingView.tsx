@@ -88,16 +88,18 @@ interface Profile {
   name: string;
   email: string;
   is_super_admin?: boolean;
+  allowed_groups?: string[];
 }
 
-export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente, currentUserName, userCategory, isViewer }: { 
+export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente, currentUserName, userCategory, isViewer, allowedGroups }: { 
   isAdmin?: boolean, 
   isSuperAdmin?: boolean,
   currentUserId?: string,
   isConferente?: boolean,
   currentUserName?: string,
   userCategory?: string,
-  isViewer?: boolean
+  isViewer?: boolean,
+  allowedGroups?: string[]
 }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -138,6 +140,19 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   const [revertingId, setRevertingId] = useState<string | null>(null);
   const [isConferConfirming, setIsConferConfirming] = useState(false);
   const [isBaixarConfirming, setIsBaixarConfirming] = useState(false);
+
+  const isItemRestricted = (item: OrderItem) => {
+    if (isAdmin || isSuperAdmin || !allowedGroups || allowedGroups.length === 0) return false;
+    const itemLoc = (item.location || '').toUpperCase();
+    return !allowedGroups.some(group => itemLoc.includes(group.toUpperCase()));
+  };
+
+  const isOrderRestricted = (order: PurchaseOrder) => {
+    if (isAdmin || isSuperAdmin || !allowedGroups || allowedGroups.length === 0) return false;
+    if (!order.items || order.items.length === 0) return false;
+    // Se PELO MENOS UM item for acessível, o usuário vê a OP
+    return !order.items.some(item => !isItemRestricted(item));
+  };
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -215,8 +230,17 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   const handleEditItemQuantity = (idx: number, newQty: number) => {
     if (isViewer) return;
     // Permissão: Ventisol, Ventisol + Conferente, Admin, Superadmin
-    const canEdit = isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente';
-    if (!canEdit) return;
+    const canEditRole = isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente';
+    if (!canEditRole) return;
+
+    // Nova Regra de Grupos Permitidos
+    if (!isAdmin && !isSuperAdmin && allowedGroups && allowedGroups.length > 0) {
+      const item = editingOrder?.items[idx];
+      if (item && isItemRestricted(item)) {
+        setError(`Acesso negado para o grupo ${item.location || 'não identificado'}.`);
+        return;
+      }
+    }
 
     setEditingOrder(prev => {
       if (!prev) return null;
@@ -286,6 +310,15 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     // Permissão: Admin, Superadmin, Conferente, Ventisol + Conferente (não apenas Ventisol)
     const canConferAction = isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente';
     if (!canConferAction) return;
+
+    // Nova Regra de Grupos Permitidos
+    if (!isAdmin && !isSuperAdmin && allowedGroups && allowedGroups.length > 0) {
+      const item = editingOrder?.items[index];
+      if (item && isItemRestricted(item)) {
+        setError(`Apenas usuários do grupo ${item.location || 'N/A'} podem conferir este item.`);
+        return;
+      }
+    }
 
     setEditingOrder(prev => {
       if (!prev) return null;
@@ -595,6 +628,9 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   };
 
   const filteredOrders = orders.filter(o => {
+    // 0. Regra de Grupos Permitidos
+    if (isOrderRestricted(o)) return false;
+
     // 1. Filtro por permissão de visualização
     const isAssigned = o.assigned_users?.includes(currentUserId || '');
     
@@ -1310,7 +1346,12 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                               <div className="flex items-center gap-2 mb-1">
                                 <p className="text-[11px] font-medium text-on-surface-variant line-clamp-2 leading-relaxed italic">{item.description}</p>
                                 {item.location && (
-                                  <span className="shrink-0 bg-amber-500/10 text-amber-600 text-[10px] font-black px-2 py-0.5 rounded-md">LO: {item.location}</span>
+                                  <span className={cn(
+                                    "shrink-0 text-[10px] font-black px-2 py-0.5 rounded-md",
+                                    isItemRestricted(item) ? "bg-error/10 text-error" : "bg-amber-500/10 text-amber-600"
+                                  )}>
+                                    LO: {item.location} {isItemRestricted(item) && '🔒'}
+                                  </span>
                                 )}
                               </div>
                             </div>
@@ -1318,8 +1359,13 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
                           {/* Local Column (Desktop) */}
                           <div className="hidden md:flex justify-center">
-                            <span className="text-[10px] font-black text-amber-600 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/10">
-                              {item.location || '-'}
+                            <span className={cn(
+                              "text-[10px] font-black px-2.5 py-1 rounded-lg border",
+                              isItemRestricted(item) 
+                                ? "bg-error/10 text-error border-error/20" 
+                                : "bg-amber-500/10 text-amber-600 border-amber-500/10"
+                            )}>
+                              {item.location || '-'} {isItemRestricted(item) && '🔒'}
                             </span>
                           </div>
 
@@ -1337,11 +1383,13 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                                 disabled={
                                   isViewer || 
                                   editingOrder.status === 'Baixada' || 
+                                  isItemRestricted(item) ||
                                   !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')
                                 }
                                 className={cn(
                                   "w-14 md:w-16 bg-surface-container-high md:bg-surface-container-low text-center font-black p-2 rounded-xl outline-none focus:ring-2 ring-primary/30 text-sm disabled:opacity-50",
-                                  item.quantity !== null && (item.quantity as number) < item.planned_quantity && "ring-2 ring-error/50 text-error bg-error/5"
+                                  item.quantity !== null && (item.quantity as number) < item.planned_quantity && "ring-2 ring-error/50 text-error bg-error/5",
+                                  isItemRestricted(item) && "opacity-20 grayscale"
                                 )}
                                 value={item.quantity === null ? '' : item.quantity}
                                 onChange={(e) => handleEditItemQuantity(idx, parseInt(e.target.value))}
@@ -1370,15 +1418,17 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
                               disabled={
                                 isViewer || 
                                 editingOrder.status === 'Baixada' || 
+                                isItemRestricted(item) ||
                                 !(isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente')
                               }
                               className={cn(
                                 "w-8 h-8 rounded-full flex items-center justify-center transition-all",
                                 item.is_conferred 
                                   ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
-                                  : "bg-surface-container-high text-on-surface-variant/30 hover:bg-emerald-500/10 hover:text-emerald-500 border border-outline-variant/10"
+                                  : "bg-surface-container-high text-on-surface-variant/30 hover:bg-emerald-500/10 hover:text-emerald-500 border border-outline-variant/10",
+                                isItemRestricted(item) && "opacity-20 grayscale"
                               )}
-                              title={(isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente') && !isViewer ? "Alternar Conferência" : "Sem permissão"}
+                              title={(isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente') && !isViewer && !isItemRestricted(item) ? "Alternar Conferência" : "Sem permissão"}
                             >
                               <UserCheck className="w-4 h-4" />
                             </button>

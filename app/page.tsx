@@ -619,15 +619,18 @@ export default function Page() {
                 currentUserName={currentUser?.name}
                 userCategory={currentUser?.category}
                 isViewer={currentUser?.is_viewer}
+                allowedGroups={currentUser?.allowed_groups}
               />
             )}
             {currentView === 'SEPARATION_DASHBOARD' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
               <SeparationDashboardView 
                 key="separation-dashboard" 
                 isAdmin={currentUser?.is_admin}
+                isSuperAdmin={currentUser?.is_super_admin}
                 currentUserId={currentUser?.id}
                 currentUserName={currentUser?.name}
                 isViewer={currentUser?.is_viewer}
+                allowedGroups={currentUser?.allowed_groups}
               />
             )}
             {currentView === 'PERFORMANCE' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
