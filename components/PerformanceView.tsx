@@ -90,13 +90,16 @@ export default function PerformanceView() {
   };
 
   useEffect(() => {
-    fetchData();
-    const unsubOrders = onSnapshot(collection(db, 'purchase_orders'), () => {
-      fetchData();
+    // Escuta em tempo real otimizada
+    const unsubOrders = onSnapshot(query(collection(db, 'purchase_orders'), limit(200)), (snap) => {
+      setOrders(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as PurchaseOrder[]);
+      setLoading(false);
     });
-    const unsubProfiles = onSnapshot(collection(db, 'profiles'), () => {
-      fetchData();
+    
+    const unsubProfiles = onSnapshot(collection(db, 'profiles'), (snap) => {
+      setProfiles(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Profile[]);
     });
+
     return () => {
       unsubOrders();
       unsubProfiles();

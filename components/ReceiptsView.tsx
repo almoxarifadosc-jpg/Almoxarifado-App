@@ -189,72 +189,6 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
     }
   };
 
-  const fetchReceipts = async (showLoading = true) => {
-    if (showLoading) setLoading(true);
-    try {
-      const q = query(collection(db, 'receipts'), orderBy('created_at', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => {
-        const d = doc.data();
-        let createdAt = d.created_at;
-        let updatedAt = d.updated_at;
-
-        // Convert Firestore Timestamps to ISO strings for consistent filtering and display
-        if (createdAt && typeof createdAt.toDate === 'function') {
-          createdAt = createdAt.toDate().toISOString();
-        } else if (createdAt && createdAt.seconds) {
-          createdAt = new Date(createdAt.seconds * 1000).toISOString();
-        }
-
-        if (updatedAt && typeof updatedAt.toDate === 'function') {
-          updatedAt = updatedAt.toDate().toISOString();
-        } else if (updatedAt && updatedAt.seconds) {
-          updatedAt = new Date(updatedAt.seconds * 1000).toISOString();
-        }
-
-        return {
-          id: doc.id,
-          ...d,
-          created_at: createdAt,
-          updated_at: updatedAt
-        };
-      }) as Receipt[];
-      setReceipts(data);
-    } catch (err) {
-      console.error('Error fetching receipts:', err);
-    } finally {
-      if (showLoading) setLoading(false);
-    }
-  };
-
-  const fetchSuppliers = async () => {
-    try {
-      const q = query(collection(db, 'suppliers'), orderBy('name'));
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Supplier[];
-      setDbSuppliers(data);
-    } catch (err) {
-      console.error('Error fetching suppliers:', err);
-    }
-  };
-
-  const fetchLoadTypes = async () => {
-    try {
-      const q = query(collection(db, 'load_types'), orderBy('name'));
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as LoadType[];
-      setLoadTypes(data);
-    } catch (err) {
-      console.error('Error fetching load types:', err);
-    }
-  };
-
   const saveLoadType = async () => {
     if (!newLoadType.trim()) return;
     setSavingLoadType(true);
@@ -267,7 +201,6 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
       setNewLoadType('');
       setNewLoadTypeColor('#3b82f6');
       setIsLoadTypeModalOpen(false);
-      fetchLoadTypes();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.CREATE, 'load_types');
     } finally {
@@ -276,20 +209,43 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
   };
 
   useEffect(() => {
-    fetchReceipts();
-    fetchSuppliers();
-    fetchLoadTypes();
+    setLoading(true);
+    
+    // Obter Recebimentos (Limitado a 200 mais recentes)
+    const qReceipts = query(collection(db, 'receipts'), orderBy('created_at', 'desc'), limit(200));
+    const unsubReceipts = onSnapshot(qReceipts, (snapshot) => {
+      const data = snapshot.docs.map(doc => {
+        const d = doc.data();
+        let createdAt = d.created_at;
+        let updatedAt = d.updated_at;
 
-    const unsubReceipts = onSnapshot(collection(db, 'receipts'), () => {
-      fetchReceipts(false);
+        if (createdAt && typeof createdAt.toDate === 'function') {
+          createdAt = createdAt.toDate().toISOString();
+        }
+        if (updatedAt && typeof updatedAt.toDate === 'function') {
+          updatedAt = updatedAt.toDate().toISOString();
+        }
+
+        return {
+          id: doc.id,
+          ...d,
+          created_at: createdAt,
+          updated_at: updatedAt
+        };
+      }) as Receipt[];
+      setReceipts(data);
+      setLoading(false);
+    }, (err) => {
+      console.error('Error fetching receipts:', err);
+      setLoading(false);
     });
 
-    const unsubSuppliers = onSnapshot(collection(db, 'suppliers'), () => {
-      fetchSuppliers();
+    const unsubSuppliers = onSnapshot(collection(db, 'suppliers'), (snapshot) => {
+      setDbSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Supplier[]);
     });
 
-    const unsubLoadTypes = onSnapshot(collection(db, 'load_types'), () => {
-      fetchLoadTypes();
+    const unsubLoadTypes = onSnapshot(collection(db, 'load_types'), (snapshot) => {
+      setLoadTypes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LoadType[]);
     });
 
     return () => {
@@ -414,7 +370,6 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
         observation: '',
         image_url: ''
       });
-      fetchReceipts(false);
     } catch (err: any) {
       handleFirestoreError(err, editingReceipt ? OperationType.UPDATE : OperationType.CREATE, `receipts/${editingReceipt?.id || ''}`);
     } finally {
@@ -462,7 +417,6 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
         updated_at: serverTimestamp(),
         status_history: newHistory
       });
-      fetchReceipts(false);
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `receipts/${id}`);
     }
@@ -497,7 +451,6 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
       });
 
       setDivergenceModal({ isOpen: false, receiptId: null, observation: '', photoUrl: '' });
-      fetchReceipts(false);
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `receipts/${id}`);
     } finally {
@@ -511,7 +464,6 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
       const docRef = doc(db, 'receipts', deleteModal.id);
       await deleteDoc(docRef);
       setDeleteModal({ isOpen: false, id: null });
-      fetchReceipts(false);
     } catch (err: any) {
       handleFirestoreError(err, OperationType.DELETE, `receipts/${deleteModal.id}`);
     }

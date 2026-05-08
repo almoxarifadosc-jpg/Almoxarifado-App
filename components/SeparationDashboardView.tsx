@@ -143,10 +143,19 @@ export function SeparationDashboardView({ isAdmin, isSuperAdmin, currentUserId, 
   };
 
   useEffect(() => {
-    fetchOrders();
-
-    const unsubscribe = onSnapshot(collection(db, 'purchase_orders'), () => {
-      fetchOrders();
+    setLoading(true);
+    const q = query(collection(db, 'purchase_orders'), orderBy('created_at', 'desc'), limit(150));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as PurchaseOrder[];
+      setOrders(data);
+      setLoading(false);
+    }, (err) => {
+      console.error('Error fetching orders in real-time:', err);
+      setLoading(false);
     });
 
     return unsubscribe;

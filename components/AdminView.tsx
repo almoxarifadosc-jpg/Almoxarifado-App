@@ -67,34 +67,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
 
   const categories = ['Ventisol', 'Conferente', 'Bemplas', 'Recebimento'];
 
-  const fetchPendingUsers = useCallback(async () => {
-    try {
-      const q = query(collection(db, 'profiles'), where('status', '==', 'PENDING'), orderBy('name'));
-      const querySnapshot = await getDocs(q);
-      const users: Profile[] = [];
-      querySnapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data() } as Profile);
-      });
-      setPendingUsers(users);
-    } catch (err: any) {
-      console.error('Error fetching pending users:', err);
-    }
-  }, []);
-
-  const fetchApprovedUsers = useCallback(async () => {
-    try {
-      const q = query(collection(db, 'profiles'), where('status', '==', 'APPROVED'), orderBy('name'));
-      const querySnapshot = await getDocs(q);
-      const users: Profile[] = [];
-      querySnapshot.forEach((doc) => {
-        users.push({ id: doc.id, ...doc.data() } as Profile);
-      });
-      setApprovedUsers(users);
-    } catch (err: any) {
-      console.error('Error fetching approved users:', err);
-    }
-  }, []);
-
   const handleEditUser = (user: Profile) => {
     setEditingUser(user);
     setUserFormData({
@@ -135,7 +107,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     try {
       await updateDoc(doc(db, 'profiles', editingUser.id), updateData);
       setIsUserModalOpen(false);
-      fetchApprovedUsers();
       alert('Alterações salvas com sucesso!');
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `profiles/${editingUser.id}`);
@@ -154,7 +125,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
       alert('Usuário excluído com sucesso!');
       setIsDeleteModalOpen(false);
       setUserToDelete(null);
-      fetchApprovedUsers();
     } catch (err: any) {
       console.error('Delete error:', err);
       try {
@@ -166,57 +136,28 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     }
   };
 
-  const fetchProductionLines = useCallback(async () => {
-    try {
-      const q = query(collection(db, 'production_lines'), orderBy('name'));
-      const querySnapshot = await getDocs(q);
-      const lines: ProductionLine[] = [];
-      querySnapshot.forEach((doc) => {
-        lines.push({ id: doc.id, name: doc.data().name } as ProductionLine);
-      });
-      setProductionLines(lines);
-    } catch (err: any) {
-      console.error('Error fetching production lines:', err.message || err);
-    }
-  }, []);
+  useEffect(() => {
+    setLoading(true);
 
-  const fetchSettings = useCallback(async () => {
-    try {
-      const docSnap = await getDoc(doc(db, 'settings', 'company_logo'));
+    const profilesListener = onSnapshot(collection(db, 'profiles'), (snapshot) => {
+      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Profile))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      
+      setPendingUsers(users.filter(u => u.status === 'PENDING'));
+      setApprovedUsers(users.filter(u => u.status === 'APPROVED'));
+      setLoading(false);
+    });
+
+    const linesListener = onSnapshot(collection(db, 'production_lines'), (snapshot) => {
+      const lines = snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name } as ProductionLine))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setProductionLines(lines);
+    });
+
+    const settingsListener = onSnapshot(doc(db, 'settings', 'company_logo'), (docSnap) => {
       if (docSnap.exists()) {
         setLogoUrl(docSnap.data().value);
       }
-    } catch (err: any) {
-      console.error('Error fetching settings:', err);
-    }
-  }, []);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    await Promise.all([
-      fetchPendingUsers(),
-      fetchApprovedUsers(),
-      fetchProductionLines(),
-      fetchSettings()
-    ]);
-    setLoading(false);
-  }, [fetchPendingUsers, fetchApprovedUsers, fetchProductionLines, fetchSettings]);
-
-  useEffect(() => {
-    fetchData();
-
-    // Set up real-time subscriptions with Firestore onSnapshot
-    const profilesListener = onSnapshot(collection(db, 'profiles'), () => {
-      fetchPendingUsers();
-      fetchApprovedUsers();
-    });
-
-    const linesListener = onSnapshot(collection(db, 'production_lines'), () => {
-      fetchProductionLines();
-    });
-
-    const settingsListener = onSnapshot(collection(db, 'settings'), () => {
-      fetchSettings();
     });
 
     return () => {
@@ -224,13 +165,11 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
       linesListener();
       settingsListener();
     };
-  }, [fetchData, fetchPendingUsers, fetchApprovedUsers, fetchProductionLines, fetchSettings]);
+  }, []);
 
   const handleApprove = async (id: string) => {
     try {
       await updateDoc(doc(db, 'profiles', id), { status: 'APPROVED' });
-      fetchPendingUsers();
-      fetchApprovedUsers();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
     }
@@ -240,7 +179,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     if (!confirm('Rejeitar e excluir este usuário?')) return;
     try {
       await deleteDoc(doc(db, 'profiles', id));
-      fetchPendingUsers();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.DELETE, `profiles/${id}`);
     }
@@ -254,7 +192,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     }
     try {
       await updateDoc(doc(db, 'profiles', id), { is_admin: !currentStatus });
-      fetchApprovedUsers();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
     }
@@ -268,7 +205,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     }
     try {
       await updateDoc(doc(db, 'profiles', id), { is_super_admin: !currentStatus, is_admin: true });
-      fetchApprovedUsers();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
     }
@@ -277,7 +213,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
   const handleToggleViewer = async (id: string, currentStatus: boolean) => {
     try {
       await updateDoc(doc(db, 'profiles', id), { is_viewer: !currentStatus });
-      fetchApprovedUsers();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
     }
@@ -287,7 +222,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
     const groupsArray = groups.split(',').map(g => g.trim().toUpperCase()).filter(g => g);
     try {
       await updateDoc(doc(db, 'profiles', id), { allowed_groups: groupsArray });
-      fetchApprovedUsers();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
     }
@@ -319,7 +253,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
       
       setNewLineName('');
       setEditingLine(null);
-      fetchProductionLines();
     } catch (err: any) {
       handleFirestoreError(err, editingLine ? OperationType.UPDATE : OperationType.CREATE, 'production_lines');
     }
@@ -333,7 +266,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
   const handleDeleteLine = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'production_lines', id));
-      fetchProductionLines();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.DELETE, `production_lines/${id}`);
     }
@@ -352,7 +284,6 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
   const handleToggleAutoAssign = async (id: string, currentStatus: boolean) => {
     try {
       await updateDoc(doc(db, 'profiles', id), { is_auto_assign: !currentStatus });
-      fetchApprovedUsers();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `profiles/${id}`);
     }

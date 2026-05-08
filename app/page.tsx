@@ -226,66 +226,6 @@ export default function Page() {
     return unsubscribe;
   }, [fetchProfile]);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const opsQuery = query(collection(db, 'operations'), orderBy('created_at', 'desc'));
-      const newsQuery = query(collection(db, 'news_posts'), orderBy('created_at', 'desc'));
-      const linesQuery = query(collection(db, 'production_lines'), orderBy('name', 'asc'));
-      const settingsDoc = doc(db, 'settings', 'company_logo');
-
-      const [opsSnap, newsSnap, linesSnap, settingsSnap] = await Promise.all([
-        getDocs(opsQuery),
-        getDocs(newsQuery),
-        getDocs(linesQuery),
-        getDoc(settingsDoc)
-      ]);
-
-      const mappedOps = opsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as any[];
-
-      // Sort: Atrasada first, then Urgent, then Licitacao, then by ID alphabetical
-      const sortedOps = mappedOps.sort((a: any, b: any) => {
-        if (a.isAtrasada && !b.isAtrasada) return -1;
-        if (!a.isAtrasada && b.isAtrasada) return 1;
-        if (a.isUrgente && !b.isUrgente) return -1;
-        if (!a.isUrgente && b.isUrgente) return 1;
-        if (a.isLicitacao && !b.isLicitacao) return -1;
-        if (!a.isLicitacao && b.isLicitacao) return 1;
-        return (a.id || '').localeCompare(b.id || '');
-      });
-
-      setOperations(sortedOps);
-
-      setNewsPosts(newsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as any[]);
-
-      if (!linesSnap.empty) {
-        setProductionLines(linesSnap.docs.map(doc => doc.data().name));
-      } else {
-        setProductionLines([
-          "Linha de Montagem A2",
-          "Unidade de Processamento",
-          "Controle de Qualidade B1",
-          "Logística Interna",
-          "Linha de Pintura",
-          "Embalagem Final"
-        ]);
-      }
-      
-      if (settingsSnap.exists()) {
-        setLogoUrl(settingsSnap.data().value);
-      } else {
-        setLogoUrl('/app-logo.png');
-      }
-    } catch (err: any) {
-      console.error('Error fetching data:', err.message);
-    }
-  }, []);
-
   useEffect(() => {
     const unsubAuth = checkUser();
     
@@ -301,31 +241,67 @@ export default function Page() {
 
   useEffect(() => {
     if (currentUser) {
-      fetchData();
-
-      // Set up real-time subscriptions with Firestore onSnapshot
+      // Listeners em tempo real otimizados
+      // Eles já trazem os dados iniciais, então não precisamos de getDocs() antes
       console.log('Setting up real-time subscriptions...');
       
-      const unsubOps = onSnapshot(collection(db, 'operations'), (snapshot) => {
+      const unsubOps = onSnapshot(query(collection(db, 'operations'), orderBy('created_at', 'desc'), limit(150)), (snapshot) => {
+        const mappedOps = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as any[];
+
+        const sortedOps = mappedOps.sort((a: any, b: any) => {
+          if (a.isAtrasada && !b.isAtrasada) return -1;
+          if (!a.isAtrasada && b.isAtrasada) return 1;
+          if (a.isUrgente && !b.isUrgente) return -1;
+          if (!a.isUrgente && b.isUrgente) return 1;
+          if (a.isLicitacao && !b.isLicitacao) return -1;
+          if (!a.isLicitacao && b.isLicitacao) return 1;
+          return (a.id || '').localeCompare(b.id || '');
+        });
+
+        setOperations(sortedOps);
+
         snapshot.docChanges().forEach((change) => {
-          if (change.type === "added" || change.type === "modified") {
+          if (change.type === "modified") {
             const newData = change.doc.data();
             const opId = change.doc.id;
-            
-            // Notification logic (Simplified for Firebase migration)
-            if (notificationsEnabledRef.current && Notification.permission === 'granted' && (change.type === "modified")) {
+            if (notificationsEnabledRef.current && Notification.permission === 'granted') {
               if (newData.is_urgente) {
                 showLocalNotification(`🚨 OP ${opId} URGENTE!`, { body: `A OP ${opId} está marcada como URGENTE.` });
               }
             }
           }
         });
-        fetchData();
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'operations'));
 
-      const unsubNews = onSnapshot(collection(db, 'news_posts'), () => fetchData());
-      const unsubLines = onSnapshot(collection(db, 'production_lines'), () => fetchData());
-      const unsubSettings = onSnapshot(collection(db, 'settings'), () => fetchData());
+      const unsubNews = onSnapshot(query(collection(db, 'news_posts'), orderBy('created_at', 'desc'), limit(20)), (snap) => {
+        setNewsPosts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]);
+      });
+
+      const unsubLines = onSnapshot(collection(db, 'production_lines'), (snap) => {
+        if (!snap.empty) {
+          setProductionLines(snap.docs.map(doc => doc.data().name));
+        } else {
+          setProductionLines([
+            "Linha de Montagem A2",
+            "Unidade de Processamento",
+            "Controle de Qualidade B1",
+            "Logística Interna",
+            "Linha de Pintura",
+            "Embalagem Final"
+          ]);
+        }
+      });
+
+      const unsubSettings = onSnapshot(doc(db, 'settings', 'company_logo'), (snap) => {
+        if (snap.exists()) {
+          setLogoUrl(snap.data().value);
+        } else {
+          setLogoUrl('/app-logo.png');
+        }
+      });
 
       return () => {
         unsubOps();
@@ -334,7 +310,7 @@ export default function Page() {
         unsubSettings();
       };
     }
-  }, [currentUser, fetchData]);
+  }, [currentUser]);
 
   const addNewsPost = async (post: NewsPost) => {
     try {
@@ -602,11 +578,12 @@ export default function Page() {
             {currentView === 'SUPPLIERS' && !currentUser?.is_viewer && (
               <SuppliersView key="suppliers" isAdmin={currentUser?.is_admin} />
             )}
-            {currentView === 'ORDERS' && currentUser?.is_admin && (
+            {currentView === 'ORDERS' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente') && (
               <PurchaseOrdersView 
                 key="orders" 
                 isAdmin={currentUser?.is_admin} 
                 isSuperAdmin={currentUser?.is_super_admin}
+                userCategory={currentUser?.category}
               />
             )}
             {currentView === 'SORTING' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (

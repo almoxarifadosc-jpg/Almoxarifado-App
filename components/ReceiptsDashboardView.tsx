@@ -81,9 +81,18 @@ export function ReceiptsDashboardView() {
   };
 
   useEffect(() => {
-    fetchReceipts();
-    const unsubscribe = onSnapshot(collection(db, 'receipts'), () => {
-      fetchReceipts();
+    setLoading(true);
+    const q = query(collection(db, 'receipts'), orderBy('created_at', 'desc'), limit(200));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Receipt[];
+      setReceipts(data);
+      setLoading(false);
+    }, (err) => {
+      console.error('Error in onSnapshot Dashboard:', err);
+      setLoading(false);
     });
     return unsubscribe;
   }, []);

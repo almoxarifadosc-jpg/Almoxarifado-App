@@ -154,37 +154,6 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
     return !order.items.some(item => !isItemRestricted(item));
   };
 
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      const q = query(collection(db, 'purchase_orders'), orderBy('sequence', 'asc'));
-      const querySnapshot = await getDocs(q);
-      const ordersData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as PurchaseOrder[];
-      setOrders(ordersData);
-    } catch (err) {
-      console.error('Error fetching orders:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchProfiles = async () => {
-    try {
-      const q = query(collection(db, 'profiles'), where('status', '==', 'APPROVED'), orderBy('name'));
-      const querySnapshot = await getDocs(q);
-      const profilesData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Profile[];
-      setProfiles(profilesData);
-    } catch (err) {
-      console.error('Error fetching profiles:', err);
-    }
-  };
-
   useEffect(() => {
     // Escuta em tempo real usando onSnapshot
     setLoading(true);
@@ -201,8 +170,8 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
       console.error('Error fetching profiles in real-time:', err);
     });
 
-    // Obter Pedidos
-    const qOrders = query(collection(db, 'purchase_orders'), orderBy('sequence', 'asc'));
+    // Obter Pedidos (Limitado a 150 para economizar leituras)
+    const qOrders = query(collection(db, 'purchase_orders'), orderBy('sequence', 'desc'), limit(150));
     const unsubOrders = onSnapshot(qOrders, (snapshot) => {
       const ordersData = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -433,7 +402,6 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         updated_at: serverTimestamp()
       });
 
-      fetchOrders();
       setIsEditModalOpen(false);
       setEditingOrder(null);
       setIsConferConfirming(false);
@@ -547,7 +515,6 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         await sendGoogleChatNotification(message);
       }
 
-      fetchOrders();
       setIsEditModalOpen(false);
       setEditingOrder(null);
       setIsBaixarConfirming(false);
@@ -569,7 +536,6 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         assigned_users: userIds,
         updated_at: serverTimestamp()
       });
-      fetchOrders();
       setIsAssignModalOpen(false);
       setAssigningOrder(null);
       setSuccess('Usuários atribuídos com sucesso!');
@@ -616,7 +582,6 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
         updated_at: serverTimestamp()
       });
 
-      fetchOrders();
       setSuccess('OP retornada para Pendente com sucesso!');
       setRevertingId(null);
       setTimeout(() => setSuccess(null), 3000);

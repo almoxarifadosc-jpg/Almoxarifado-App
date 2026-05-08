@@ -64,8 +64,9 @@ interface PurchaseOrder {
   sequence?: number | null;
 }
 
-export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolean, isSuperAdmin?: boolean }) {
+export function PurchaseOrdersView({ isAdmin, isSuperAdmin, userCategory }: { isAdmin?: boolean, isSuperAdmin?: boolean, userCategory?: string }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  const isVentisolOrConferente = userCategory === 'Ventisol' || userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente';
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -96,27 +97,10 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
 
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      const q = query(collection(db, 'purchase_orders'), orderBy('sequence', 'asc'));
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as PurchaseOrder[];
-      setOrders(data);
-    } catch (err: any) {
-      console.error('Error fetching orders:', err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     // Escuta em tempo real usando onSnapshot diretamente no estado
     setLoading(true);
-    const q = query(collection(db, 'purchase_orders'), orderBy('sequence', 'asc'));
+    const q = query(collection(db, 'purchase_orders'), orderBy('sequence', 'desc'), limit(150));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
@@ -265,6 +249,16 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
     });
   };
 
+  const handleItemLocationChange = (idx: number, newLocation: string) => {
+    if (!extractedData?.items) return;
+    const newItems = [...extractedData.items];
+    newItems[idx] = { ...newItems[idx], location: newLocation };
+    setExtractedData(prev => ({
+      ...prev,
+      items: newItems
+    }));
+  };
+
   const handleItemQuantityChange = (idx: number, newQty: number) => {
     if (!extractedData?.items) return;
     
@@ -286,6 +280,15 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
       items: newItems,
       total_amount: newTotal > 0 ? newTotal : prev?.total_amount
     }));
+  };
+
+  const handleEditItemLocation = (idx: number, newLocation: string) => {
+    setEditingOrder(prev => {
+      if (!prev) return null;
+      const updatedItems = [...(prev.items || [])];
+      updatedItems[idx] = { ...updatedItems[idx], location: newLocation };
+      return { ...prev, items: updatedItems };
+    });
   };
 
   const handleEditItemQuantity = (idx: number, newQty: number) => {
@@ -346,7 +349,6 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
       const orderRef = doc(db, 'purchase_orders', editingOrder.id);
       await updateDoc(orderRef, payload);
 
-      await fetchOrders();
       setIsEditModalOpen(false);
       setEditingOrder(null);
       
@@ -373,8 +375,8 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
     setProcessingStatus("Verificando duplicidade...");
     setError(null);
     try {
-      // 1. Verificação de duplicidade por número de OP
-      const q = query(collection(db, 'purchase_orders'), where('order_number', '==', extractedData.order_number));
+      // 1. Verificação de duplicidade por número de OP (Limitado a 1 documento)
+      const q = query(collection(db, 'purchase_orders'), where('order_number', '==', extractedData.order_number), limit(1));
       const querySnapshot = await getDocs(q);
       
       if (!querySnapshot.empty) {
@@ -434,7 +436,6 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
     try {
       const orderRef = doc(db, 'purchase_orders', id);
       await deleteDoc(orderRef);
-      fetchOrders();
       setOrderToDelete(null);
       setSuccess('Pedido removido com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
@@ -846,10 +847,20 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                                       {item.collector_name}
                                     </p>
                                   ) : null}
-                                  {(isAdmin || isSuperAdmin) && item.location && (
-                                    <p className="text-[9px] font-black text-amber-600 bg-amber-500/10 px-2 py-1 rounded-md inline-block whitespace-nowrap">
-                                      LO: {item.location}
-                                    </p>
+                                  {(isAdmin || isSuperAdmin || isVentisolOrConferente) && (
+                                    (isAdmin || (isVentisolOrConferente && (!item.location || item.location === '-' || item.location === ''))) ? (
+                                      <input 
+                                        type="text"
+                                        value={item.location || ''}
+                                        onChange={(e) => handleItemLocationChange(idx, e.target.value)}
+                                        placeholder="Local..."
+                                        className="text-[9px] font-black text-amber-600 bg-amber-500/5 border border-amber-500/10 px-2 py-1 rounded-md w-20 outline-none focus:ring-1 focus:ring-amber-500"
+                                      />
+                                    ) : item.location ? (
+                                      <p className="text-[9px] font-black text-amber-600 bg-amber-500/10 px-2 py-1 rounded-md inline-block whitespace-nowrap">
+                                        LO: {item.location}
+                                      </p>
+                                    ) : null
                                   )}
                                 </div>
                               </div>
@@ -1040,7 +1051,7 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                         <tr className="bg-surface-container-high">
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Cód.</th>
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Produto</th>
-                          {(isAdmin || isSuperAdmin) && (
+                          {(isAdmin || isSuperAdmin || isVentisolOrConferente) && (
                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center">Local</th>
                           )}
                           <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Nome Coletor</th>
@@ -1058,11 +1069,21 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                             <td className="px-6 py-4">
                               <p className="text-sm font-bold text-on-surface truncate max-w-[200px]" title={item.description}>{item.description}</p>
                             </td>
-                            {(isAdmin || isSuperAdmin) && (
+                            {(isAdmin || isSuperAdmin || isVentisolOrConferente) && (
                               <td className="px-6 py-4 text-center">
-                                <span className="text-[10px] font-black text-amber-600 bg-amber-500/10 px-2 py-1 rounded-md">
-                                  {item.location || '-'}
-                                </span>
+                                {((isVentisolOrConferente && (!item.location || item.location === '-' || item.location === '')) || isAdmin) ? (
+                                  <input 
+                                    type="text"
+                                    value={item.location || ''}
+                                    onChange={(e) => handleEditItemLocation(idx, e.target.value)}
+                                    placeholder="Local..."
+                                    className="w-24 h-10 bg-surface-container-high rounded-xl text-on-surface text-center font-black outline-none focus:ring-2 focus:ring-primary/20 border-none mx-auto ring-1 ring-outline-variant/10 text-[10px]"
+                                  />
+                                ) : (
+                                  <span className="text-[10px] font-black text-amber-600 bg-amber-500/10 px-2 py-1 rounded-md">
+                                    {item.location || '-'}
+                                  </span>
+                                )}
                               </td>
                             )}
                             <td className="px-6 py-4">
@@ -1077,7 +1098,10 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin }: { isAdmin?: boolea
                               <input 
                                 type="number"
                                 value={item.quantity || ''}
-                                disabled={editingOrder.status === 'Baixada'}
+                                disabled={
+                                  editingOrder.status === 'Baixada' || 
+                                  (isVentisolOrConferente && !isAdmin && !!(item.location && item.location !== '-' && item.location !== ''))
+                                }
                                 onChange={(e) => handleEditItemQuantity(idx, Number(e.target.value))}
                                 className="w-20 h-10 bg-surface-container-high rounded-xl text-on-surface text-center font-black outline-none focus:ring-2 focus:ring-primary/20 border-none mx-auto ring-1 ring-outline-variant/10 disabled:opacity-50"
                               />

@@ -65,27 +65,18 @@ export function SuppliersView({ isAdmin }: SuppliersViewProps) {
     is_driver: false
   });
 
-  const fetchSuppliers = async () => {
+  useEffect(() => {
     setLoading(true);
-    try {
-      const q = query(collection(db, 'suppliers'), orderBy('name'));
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({
+    const unsubscribe = onSnapshot(query(collection(db, 'suppliers'), orderBy('name')), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Supplier[];
       setSuppliers(data);
-    } catch (err: any) {
-      console.error('Error fetching suppliers:', err.message);
-    } finally {
       setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchSuppliers();
-    const unsubscribe = onSnapshot(collection(db, 'suppliers'), () => {
-      fetchSuppliers();
+    }, (err) => {
+      console.error('Error fetching suppliers:', err);
+      setLoading(false);
     });
     return unsubscribe;
   }, []);
@@ -172,7 +163,6 @@ export function SuppliersView({ isAdmin }: SuppliersViewProps) {
       }
 
       setIsModalOpen(false);
-      fetchSuppliers();
     } catch (err: any) {
       handleFirestoreError(err, editingSupplier ? OperationType.UPDATE : OperationType.CREATE, `suppliers/${editingSupplier?.id || ''}`);
     } finally {
@@ -186,7 +176,6 @@ export function SuppliersView({ isAdmin }: SuppliersViewProps) {
       const docRef = doc(db, 'suppliers', supplierToDelete);
       await deleteDoc(docRef);
       setIsDeleteModalOpen(false);
-      fetchSuppliers();
     } catch (err: any) {
       handleFirestoreError(err, OperationType.DELETE, `suppliers/${supplierToDelete}`);
     }
