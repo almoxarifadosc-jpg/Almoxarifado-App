@@ -91,7 +91,18 @@ interface Profile {
   allowed_groups?: string[];
 }
 
-export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente, currentUserName, userCategory, isViewer, allowedGroups }: { 
+export function SortingView({ 
+  isAdmin, 
+  isSuperAdmin, 
+  currentUserId, 
+  isConferente, 
+  currentUserName, 
+  userCategory, 
+  isViewer, 
+  allowedGroups,
+  purchaseOrders = [],
+  profiles = []
+}: { 
   isAdmin?: boolean, 
   isSuperAdmin?: boolean,
   currentUserId?: string,
@@ -99,11 +110,13 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   currentUserName?: string,
   userCategory?: string,
   isViewer?: boolean,
-  allowedGroups?: string[]
+  allowedGroups?: string[],
+  purchaseOrders?: PurchaseOrder[],
+  profiles?: Profile[]
 }) {
-  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<PurchaseOrder[]>(purchaseOrders);
+  const [localProfiles, setLocalProfiles] = useState<Profile[]>(profiles);
+  const [loading, setLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -155,40 +168,12 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
   };
 
   useEffect(() => {
-    // Escuta em tempo real usando onSnapshot
-    setLoading(true);
-    
-    // Obter perfis
-    const qProfiles = query(collection(db, 'profiles'), where('status', '==', 'APPROVED'), orderBy('name'));
-    const unsubProfiles = onSnapshot(qProfiles, (snapshot) => {
-      const profilesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Profile[];
-      setProfiles(profilesData);
-    }, (err) => {
-      console.error('Error fetching profiles in real-time:', err);
-    });
+    setOrders(purchaseOrders);
+  }, [purchaseOrders]);
 
-    // Obter Pedidos (Limitado a 150 para economizar leituras)
-    const qOrders = query(collection(db, 'purchase_orders'), orderBy('sequence', 'desc'), limit(150));
-    const unsubOrders = onSnapshot(qOrders, (snapshot) => {
-      const ordersData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as PurchaseOrder[];
-      setOrders(ordersData);
-      setLoading(false);
-    }, (err) => {
-      console.error('Error fetching orders in real-time:', err);
-      setLoading(false);
-    });
-
-    return () => {
-      unsubOrders();
-      unsubProfiles();
-    };
-  }, []);
+  useEffect(() => {
+    setLocalProfiles(profiles);
+  }, [profiles]);
 
   useEffect(() => {
     if (isEditModalOpen) {
@@ -422,7 +407,7 @@ export function SortingView({ isAdmin, isSuperAdmin, currentUserId, isConferente
 
   const signOrder = async () => {
     if (isViewer) return;
-    const currentUserProfile = profiles.find(p => p.id === currentUserId);
+    const currentUserProfile = localProfiles.find(p => p.id === currentUserId);
     const effectiveUserName = currentUserName || currentUserProfile?.name || currentUserProfile?.email;
 
     if (!editingOrder?.id) return;

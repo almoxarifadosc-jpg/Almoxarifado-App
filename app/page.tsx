@@ -52,7 +52,12 @@ export default function Page() {
   const [newsPosts, setNewsPosts] = useState<NewsPost[]>([]);
   const [newsFilter, setNewsFilter] = useState('');
   const [operations, setOperations] = useState<Operation[]>([]);
-  const [productionLines, setProductionLines] = useState<string[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
+  const [receipts, setReceipts] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [loadTypes, setLoadTypes] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [productionLines, setProductionLines] = useState<any[]>([]);
   const [logoUrl, setLogoUrl] = useState<string>('/app-logo.png');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -282,15 +287,15 @@ export default function Page() {
 
       const unsubLines = onSnapshot(collection(db, 'production_lines'), (snap) => {
         if (!snap.empty) {
-          setProductionLines(snap.docs.map(doc => doc.data().name));
+          setProductionLines(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         } else {
           setProductionLines([
-            "Linha de Montagem A2",
-            "Unidade de Processamento",
-            "Controle de Qualidade B1",
-            "Logística Interna",
-            "Linha de Pintura",
-            "Embalagem Final"
+            { id: '1', name: "Linha de Montagem A2" },
+            { id: '2', name: "Unidade de Processamento" },
+            { id: '3', name: "Controle de Qualidade B1" },
+            { id: '4', name: "Logística Interna" },
+            { id: '5', name: "Linha de Pintura" },
+            { id: '6', name: "Embalagem Final" }
           ]);
         }
       });
@@ -308,6 +313,52 @@ export default function Page() {
         unsubNews();
         unsubLines();
         unsubSettings();
+      };
+    }
+  }, [currentUser]);
+
+  // Listeners Globais Adicionais (Centralizados para economizar leituras)
+  useEffect(() => {
+    if (currentUser) {
+      console.log('Setting up global shared listeners...');
+      
+      // Pedidos de Compra (Limitado a 150)
+      const unsubOrders = onSnapshot(query(collection(db, 'purchase_orders'), orderBy('sequence', 'desc'), limit(150)), (snap) => {
+        setPurchaseOrders(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+
+      // Recebimentos (Limitado a 200)
+      const unsubReceipts = onSnapshot(query(collection(db, 'receipts'), orderBy('created_at', 'desc'), limit(200)), (snap) => {
+        setReceipts(snap.docs.map(doc => {
+          const d = doc.data();
+          let createdAt = d.created_at;
+          let updatedAt = d.updated_at;
+          if (createdAt && typeof createdAt.toDate === 'function') createdAt = createdAt.toDate().toISOString();
+          if (updatedAt && typeof updatedAt.toDate === 'function') updatedAt = updatedAt.toDate().toISOString();
+          return { id: doc.id, ...d, created_at: createdAt, updated_at: updatedAt };
+        }));
+      });
+
+      // Fornecedores e Tipos de Carga (Listas Estáticas)
+      const unsubSuppliers = onSnapshot(query(collection(db, 'suppliers'), orderBy('name')), (snap) => {
+        setSuppliers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+
+      const unsubLoadTypes = onSnapshot(query(collection(db, 'load_types'), orderBy('name')), (snap) => {
+        setLoadTypes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+
+      // Perfis (Para Admin e Performance)
+      const unsubProfiles = onSnapshot(collection(db, 'profiles'), (snap) => {
+        setProfiles(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+
+      return () => {
+        unsubOrders();
+        unsubReceipts();
+        unsubSuppliers();
+        unsubLoadTypes();
+        unsubProfiles();
       };
     }
   }, [currentUser]);
@@ -545,7 +596,7 @@ export default function Page() {
               <OperationsView 
                 key="operations" 
                 operations={operations} 
-                productionLines={productionLines}
+                productionLines={productionLines.map(l => l.name)}
                 onToggleStep={toggleStep}
                 onToggleStatus={toggleOperationStatus}
                 onAddOperation={addOperation}
@@ -570,13 +621,16 @@ export default function Page() {
                 currentUserId={currentUser?.id}
                 userName={currentUser?.name} 
                 userCategory={currentUser?.category}
+                receipts={receipts}
+                suppliers={suppliers}
+                loadTypes={loadTypes}
               />
             )}
             {currentView === 'RECEIPTS_DASHBOARD' && !currentUser?.is_viewer && (
-              <ReceiptsDashboardView key="receipts-dashboard" />
+              <ReceiptsDashboardView key="receipts-dashboard" receipts={receipts} />
             )}
             {currentView === 'SUPPLIERS' && !currentUser?.is_viewer && (
-              <SuppliersView key="suppliers" isAdmin={currentUser?.is_admin} />
+              <SuppliersView key="suppliers" isAdmin={currentUser?.is_admin} suppliers={suppliers} />
             )}
             {currentView === 'ORDERS' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente') && (
               <PurchaseOrdersView 
@@ -584,6 +638,7 @@ export default function Page() {
                 isAdmin={currentUser?.is_admin} 
                 isSuperAdmin={currentUser?.is_super_admin}
                 userCategory={currentUser?.category}
+                purchaseOrders={purchaseOrders}
               />
             )}
             {currentView === 'SORTING' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
@@ -597,6 +652,8 @@ export default function Page() {
                 userCategory={currentUser?.category}
                 isViewer={currentUser?.is_viewer}
                 allowedGroups={currentUser?.allowed_groups}
+                purchaseOrders={purchaseOrders}
+                profiles={profiles}
               />
             )}
             {currentView === 'SEPARATION_DASHBOARD' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
@@ -608,16 +665,20 @@ export default function Page() {
                 currentUserName={currentUser?.name}
                 isViewer={currentUser?.is_viewer}
                 allowedGroups={currentUser?.allowed_groups}
+                purchaseOrders={purchaseOrders}
               />
             )}
             {currentView === 'PERFORMANCE' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
-              <PerformanceView key="performance" />
+              <PerformanceView key="performance" purchaseOrders={purchaseOrders} profiles={profiles} />
             )}
             {currentView === 'ADMIN_PANEL' && (
               <AdminView 
                 key="admin" 
                 currentIsSuperAdmin={currentUser?.is_super_admin} 
                 currentUserEmail={currentUser?.email}
+                profiles={profiles}
+                logoUrl={logoUrl}
+                productionLines={productionLines}
               />
             )}
           </AnimatePresence>

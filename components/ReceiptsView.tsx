@@ -90,11 +90,24 @@ const SUPPLIER_EXAMPLES = [
 
 const STATUS_OPTIONS = ['Pendente', 'Enviado', 'Recebido', 'Divergente', 'Concluído'] as const;
 
-export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, userCategory }: ReceiptsViewProps) {
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [dbSuppliers, setDbSuppliers] = useState<Supplier[]>([]);
-  const [loadTypes, setLoadTypes] = useState<LoadType[]>([]);
-  const [loading, setLoading] = useState(true);
+export function ReceiptsView({ 
+  isAdmin, 
+  isSuperAdmin, 
+  currentUserId, 
+  userName, 
+  userCategory,
+  receipts: globalReceipts = [],
+  suppliers: globalSuppliers = [],
+  loadTypes: globalLoadTypes = []
+}: ReceiptsViewProps & {
+  receipts?: Receipt[];
+  suppliers?: Supplier[];
+  loadTypes?: LoadType[];
+}) {
+  const [receipts, setReceipts] = useState<Receipt[]>(globalReceipts);
+  const [dbSuppliers, setDbSuppliers] = useState<Supplier[]>(globalSuppliers);
+  const [loadTypes, setLoadTypes] = useState<LoadType[]>(globalLoadTypes);
+  const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoadTypeModalOpen, setIsLoadTypeModalOpen] = useState(false);
   const [newLoadType, setNewLoadType] = useState('');
@@ -209,51 +222,16 @@ export function ReceiptsView({ isAdmin, isSuperAdmin, currentUserId, userName, u
   };
 
   useEffect(() => {
-    setLoading(true);
-    
-    // Obter Recebimentos (Limitado a 200 mais recentes)
-    const qReceipts = query(collection(db, 'receipts'), orderBy('created_at', 'desc'), limit(200));
-    const unsubReceipts = onSnapshot(qReceipts, (snapshot) => {
-      const data = snapshot.docs.map(doc => {
-        const d = doc.data();
-        let createdAt = d.created_at;
-        let updatedAt = d.updated_at;
+    setReceipts(globalReceipts);
+  }, [globalReceipts]);
 
-        if (createdAt && typeof createdAt.toDate === 'function') {
-          createdAt = createdAt.toDate().toISOString();
-        }
-        if (updatedAt && typeof updatedAt.toDate === 'function') {
-          updatedAt = updatedAt.toDate().toISOString();
-        }
+  useEffect(() => {
+    setDbSuppliers(globalSuppliers);
+  }, [globalSuppliers]);
 
-        return {
-          id: doc.id,
-          ...d,
-          created_at: createdAt,
-          updated_at: updatedAt
-        };
-      }) as Receipt[];
-      setReceipts(data);
-      setLoading(false);
-    }, (err) => {
-      console.error('Error fetching receipts:', err);
-      setLoading(false);
-    });
-
-    const unsubSuppliers = onSnapshot(collection(db, 'suppliers'), (snapshot) => {
-      setDbSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Supplier[]);
-    });
-
-    const unsubLoadTypes = onSnapshot(collection(db, 'load_types'), (snapshot) => {
-      setLoadTypes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LoadType[]);
-    });
-
-    return () => {
-      unsubReceipts();
-      unsubSuppliers();
-      unsubLoadTypes();
-    };
-  }, []);
+  useEffect(() => {
+    setLoadTypes(globalLoadTypes);
+  }, [globalLoadTypes]);
 
   const handleOpenModal = (receipt: Receipt | null = null) => {
     if (receipt) {

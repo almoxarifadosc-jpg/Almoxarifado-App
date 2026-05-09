@@ -64,10 +64,20 @@ interface PurchaseOrder {
   sequence?: number | null;
 }
 
-export function PurchaseOrdersView({ isAdmin, isSuperAdmin, userCategory }: { isAdmin?: boolean, isSuperAdmin?: boolean, userCategory?: string }) {
-  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+export function PurchaseOrdersView({ 
+  isAdmin, 
+  isSuperAdmin, 
+  userCategory,
+  purchaseOrders = []
+}: { 
+  isAdmin?: boolean, 
+  isSuperAdmin?: boolean, 
+  userCategory?: string,
+  purchaseOrders?: PurchaseOrder[]
+}) {
+  const [orders, setOrders] = useState<PurchaseOrder[]>(purchaseOrders);
   const isVentisolOrConferente = userCategory === 'Ventisol' || userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente';
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
@@ -98,24 +108,8 @@ export function PurchaseOrdersView({ isAdmin, isSuperAdmin, userCategory }: { is
   const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
 
   useEffect(() => {
-    // Escuta em tempo real usando onSnapshot diretamente no estado
-    setLoading(true);
-    const q = query(collection(db, 'purchase_orders'), orderBy('sequence', 'desc'), limit(150));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as PurchaseOrder[];
-      setOrders(data);
-      setLoading(false);
-    }, (err) => {
-      console.error('Error in onSnapshot:', err);
-      setLoading(false);
-    });
-
-    return unsubscribe;
-  }, []);
+    setOrders(purchaseOrders);
+  }, [purchaseOrders]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

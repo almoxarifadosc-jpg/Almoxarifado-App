@@ -61,10 +61,16 @@ interface Profile {
   is_super_admin?: boolean;
 }
 
-export default function PerformanceView() {
-  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function PerformanceView({ 
+  purchaseOrders = [], 
+  profiles = [] 
+}: { 
+  purchaseOrders?: PurchaseOrder[], 
+  profiles?: Profile[] 
+}) {
+  const [orders, setOrders] = useState<PurchaseOrder[]>(purchaseOrders);
+  const [localProfiles, setLocalProfiles] = useState<Profile[]>(profiles);
+  const [loading, setLoading] = useState(false);
   const [filterOP, setFilterOP] = useState('');
   const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
@@ -90,21 +96,12 @@ export default function PerformanceView() {
   };
 
   useEffect(() => {
-    // Escuta em tempo real otimizada
-    const unsubOrders = onSnapshot(query(collection(db, 'purchase_orders'), limit(200)), (snap) => {
-      setOrders(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as PurchaseOrder[]);
-      setLoading(false);
-    });
-    
-    const unsubProfiles = onSnapshot(collection(db, 'profiles'), (snap) => {
-      setProfiles(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Profile[]);
-    });
+    setOrders(purchaseOrders);
+  }, [purchaseOrders]);
 
-    return () => {
-      unsubOrders();
-      unsubProfiles();
-    };
-  }, []);
+  useEffect(() => {
+    setLocalProfiles(profiles);
+  }, [profiles]);
 
   const calculatePercentages = (items: OrderItem[]) => {
     if (!items || items.length === 0) return { separation: 0, conference: 0 };
@@ -400,7 +397,7 @@ export default function PerformanceView() {
               <div className="space-y-3 mb-8">
                 {selectedOrder.assigned_users && selectedOrder.assigned_users.length > 0 ? (
                   selectedOrder.assigned_users.map(uid => {
-                    const user = profiles.find(p => p.id === uid);
+                    const user = localProfiles.find(p => p.id === uid);
                     return (
                       <div key={uid} className="flex items-center gap-4 p-4 bg-surface-container-low rounded-[24px] border border-outline-variant/10">
                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">

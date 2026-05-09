@@ -40,9 +40,9 @@ interface Receipt {
   created_at: string;
 }
 
-export function ReceiptsDashboardView() {
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [loading, setLoading] = useState(true);
+export function ReceiptsDashboardView({ receipts: globalReceipts = [] }: { receipts?: Receipt[] }) {
+  const [receipts, setReceipts] = useState<Receipt[]>(globalReceipts);
+  const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
   });
@@ -63,39 +63,9 @@ export function ReceiptsDashboardView() {
     return new Date(dateVal);
   };
 
-  const fetchReceipts = async () => {
-    setLoading(true);
-    try {
-      const q = query(collection(db, 'receipts'), orderBy('created_at', 'asc'));
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Receipt[];
-      setReceipts(data);
-    } catch (err) {
-      console.error('Error fetching receipts:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    setLoading(true);
-    const q = query(collection(db, 'receipts'), orderBy('created_at', 'desc'), limit(200));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Receipt[];
-      setReceipts(data);
-      setLoading(false);
-    }, (err) => {
-      console.error('Error in onSnapshot Dashboard:', err);
-      setLoading(false);
-    });
-    return unsubscribe;
-  }, []);
+    setReceipts(globalReceipts);
+  }, [globalReceipts]);
 
   const filteredData = useMemo(() => {
     const start = new Date(startDate);

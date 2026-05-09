@@ -40,14 +40,26 @@ interface ProductionLine {
   name: string;
 }
 
-export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIsSuperAdmin?: boolean, currentUserEmail?: string }) {
+export function AdminView({ 
+  currentIsSuperAdmin, 
+  currentUserEmail, 
+  profiles = [], 
+  logoUrl: globalLogoUrl = '', 
+  productionLines: globalLines = [] 
+}: { 
+  currentIsSuperAdmin?: boolean, 
+  currentUserEmail?: string,
+  profiles?: Profile[],
+  logoUrl?: string,
+  productionLines?: ProductionLine[]
+}) {
   const [pendingUsers, setPendingUsers] = useState<Profile[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<Profile[]>([]);
   const [productionLines, setProductionLines] = useState<ProductionLine[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [newLineName, setNewLineName] = useState('');
   const [editingLine, setEditingLine] = useState<ProductionLine | null>(null);
-  const [logoUrl, setLogoUrl] = useState('');
+  const [logoUrl, setLogoUrl] = useState(globalLogoUrl);
   const [savingLogo, setSavingLogo] = useState(false);
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -137,35 +149,18 @@ export function AdminView({ currentIsSuperAdmin, currentUserEmail }: { currentIs
   };
 
   useEffect(() => {
-    setLoading(true);
+    const users = [...profiles].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    setPendingUsers(users.filter(u => u.status === 'PENDING'));
+    setApprovedUsers(users.filter(u => u.status === 'APPROVED'));
+  }, [profiles]);
 
-    const profilesListener = onSnapshot(collection(db, 'profiles'), (snapshot) => {
-      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Profile))
-        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      
-      setPendingUsers(users.filter(u => u.status === 'PENDING'));
-      setApprovedUsers(users.filter(u => u.status === 'APPROVED'));
-      setLoading(false);
-    });
+  useEffect(() => {
+    setProductionLines([...globalLines].sort((a, b) => (a.name || '').localeCompare(b.name || '')));
+  }, [globalLines]);
 
-    const linesListener = onSnapshot(collection(db, 'production_lines'), (snapshot) => {
-      const lines = snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name } as ProductionLine))
-        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      setProductionLines(lines);
-    });
-
-    const settingsListener = onSnapshot(doc(db, 'settings', 'company_logo'), (docSnap) => {
-      if (docSnap.exists()) {
-        setLogoUrl(docSnap.data().value);
-      }
-    });
-
-    return () => {
-      profilesListener();
-      linesListener();
-      settingsListener();
-    };
-  }, []);
+  useEffect(() => {
+    setLogoUrl(globalLogoUrl);
+  }, [globalLogoUrl]);
 
   const handleApprove = async (id: string) => {
     try {

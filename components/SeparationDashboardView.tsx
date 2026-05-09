@@ -50,16 +50,25 @@ interface PurchaseOrder {
   sequence?: number | null;
 }
 
-export function SeparationDashboardView({ isAdmin, isSuperAdmin, currentUserId, currentUserName, isViewer, allowedGroups }: { 
+export function SeparationDashboardView({ 
+  isAdmin, 
+  isSuperAdmin, 
+  currentUserId, 
+  currentUserName, 
+  isViewer, 
+  allowedGroups,
+  purchaseOrders: globalOrders = []
+}: { 
   isAdmin?: boolean, 
   isSuperAdmin?: boolean,
   currentUserId?: string, 
   currentUserName?: string, 
   isViewer?: boolean,
-  allowedGroups?: string[]
+  allowedGroups?: string[],
+  purchaseOrders?: PurchaseOrder[]
 }) {
-  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<PurchaseOrder[]>(globalOrders);
+  const [loading, setLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -125,41 +134,9 @@ export function SeparationDashboardView({ isAdmin, isSuperAdmin, currentUserId, 
     return formatToISODate(new Date());
   });
 
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      const q = query(collection(db, 'purchase_orders'), orderBy('created_at', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as PurchaseOrder[];
-      setOrders(data);
-    } catch (err) {
-      console.error('Error fetching orders:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    setLoading(true);
-    const q = query(collection(db, 'purchase_orders'), orderBy('created_at', 'desc'), limit(150));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as PurchaseOrder[];
-      setOrders(data);
-      setLoading(false);
-    }, (err) => {
-      console.error('Error fetching orders in real-time:', err);
-      setLoading(false);
-    });
-
-    return unsubscribe;
-  }, []);
+    setOrders(globalOrders);
+  }, [globalOrders]);
 
   const calculatePercentages = (items: OrderItem[]) => {
     if (!items || items.length === 0) return { separation: 0, conference: 0 };
@@ -349,7 +326,7 @@ export function SeparationDashboardView({ isAdmin, isSuperAdmin, currentUserId, 
               />
             </div>
             <button 
-              onClick={fetchOrders}
+              onClick={() => {}}
               className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-colors"
             >
               <Filter className="w-4 h-4" />

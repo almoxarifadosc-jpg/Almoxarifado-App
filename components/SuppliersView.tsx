@@ -46,9 +46,12 @@ interface SuppliersViewProps {
   isAdmin?: boolean;
 }
 
-export function SuppliersView({ isAdmin }: SuppliersViewProps) {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [loading, setLoading] = useState(true);
+export function SuppliersView({ 
+  isAdmin,
+  suppliers: globalSuppliers = []
+}: SuppliersViewProps & { suppliers?: Supplier[] }) {
+  const [suppliers, setSuppliers] = useState<Supplier[]>(globalSuppliers);
+  const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [supplierToDelete, setSupplierToDelete] = useState<string | null>(null);
@@ -66,20 +69,8 @@ export function SuppliersView({ isAdmin }: SuppliersViewProps) {
   });
 
   useEffect(() => {
-    setLoading(true);
-    const unsubscribe = onSnapshot(query(collection(db, 'suppliers'), orderBy('name')), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Supplier[];
-      setSuppliers(data);
-      setLoading(false);
-    }, (err) => {
-      console.error('Error fetching suppliers:', err);
-      setLoading(false);
-    });
-    return unsubscribe;
-  }, []);
+    setSuppliers(globalSuppliers);
+  }, [globalSuppliers]);
 
   const formatCNPJ = (value: string) => {
     const digits = value.replace(/\D/g, '');
