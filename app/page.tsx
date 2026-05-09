@@ -58,6 +58,17 @@ export default function Page() {
   const [loadTypes, setLoadTypes] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [productionLines, setProductionLines] = useState<any[]>([]);
+  
+  // Filtros Globais para reduzir leituras Firestore
+  const [globalStartDate, setGlobalStartDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 3); // Padrão: últimos 3 dias
+    return d.toISOString().split('T')[0];
+  });
+  const [globalEndDate, setGlobalEndDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+
   const [logoUrl, setLogoUrl] = useState<string>('/app-logo.png');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -320,15 +331,29 @@ export default function Page() {
   // Listeners Globais Adicionais (Centralizados para economizar leituras)
   useEffect(() => {
     if (currentUser) {
-      console.log('Setting up global shared listeners...');
+      console.log('Setting up global shared listeners with server-side filters...');
       
-      // Pedidos de Compra (Limitado a 150)
-      const unsubOrders = onSnapshot(query(collection(db, 'purchase_orders'), orderBy('sequence', 'desc'), limit(150)), (snap) => {
-        setPurchaseOrders(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      });
+      // Pedidos de Compra (Filtrados por Data e Limitados)
+      const ordersQuery = query(
+        collection(db, 'purchase_orders'), 
+        where('date', '>=', globalStartDate),
+        orderBy('date', 'desc'),
+        limit(200)
+      );
 
-      // Recebimentos (Limitado a 200)
-      const unsubReceipts = onSnapshot(query(collection(db, 'receipts'), orderBy('created_at', 'desc'), limit(200)), (snap) => {
+      const unsubOrders = onSnapshot(ordersQuery, (snap) => {
+        setPurchaseOrders(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'purchase_orders'));
+
+      // Recebimentos (Filtrados pela Data de Criação)
+      const receiptsQuery = query(
+        collection(db, 'receipts'), 
+        where('created_at', '>=', new Date(globalStartDate).toISOString()),
+        orderBy('created_at', 'desc'), 
+        limit(200)
+      );
+
+      const unsubReceipts = onSnapshot(receiptsQuery, (snap) => {
         setReceipts(snap.docs.map(doc => {
           const d = doc.data();
           let createdAt = d.created_at;
@@ -337,7 +362,7 @@ export default function Page() {
           if (updatedAt && typeof updatedAt.toDate === 'function') updatedAt = updatedAt.toDate().toISOString();
           return { id: doc.id, ...d, created_at: createdAt, updated_at: updatedAt };
         }));
-      });
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'receipts'));
 
       // Fornecedores e Tipos de Carga (Listas Estáticas)
       const unsubSuppliers = onSnapshot(query(collection(db, 'suppliers'), orderBy('name')), (snap) => {
@@ -348,8 +373,8 @@ export default function Page() {
         setLoadTypes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       });
 
-      // Perfis (Para Admin e Performance)
-      const unsubProfiles = onSnapshot(collection(db, 'profiles'), (snap) => {
+      // Perfis (Limitado para evitar download de coleção inteira)
+      const unsubProfiles = onSnapshot(query(collection(db, 'profiles'), limit(150)), (snap) => {
         setProfiles(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       });
 
@@ -361,7 +386,7 @@ export default function Page() {
         unsubProfiles();
       };
     }
-  }, [currentUser]);
+  }, [currentUser, globalStartDate, globalEndDate]);
 
   const addNewsPost = async (post: NewsPost) => {
     try {
@@ -577,6 +602,12 @@ export default function Page() {
           notificationsEnabled={notificationsEnabled}
           onRequestNotifications={requestNotificationPermission}
           onMenuToggle={() => setIsMobileMenuOpen(true)}
+          globalStartDate={globalStartDate}
+          globalEndDate={globalEndDate}
+          onDateChange={(start, end) => {
+            setGlobalStartDate(start);
+            setGlobalEndDate(end);
+          }}
         />
         
         <div className="flex-1 overflow-x-hidden">
@@ -624,6 +655,12 @@ export default function Page() {
                 receipts={receipts}
                 suppliers={suppliers}
                 loadTypes={loadTypes}
+                startDate={globalStartDate}
+                endDate={globalEndDate}
+                onDateChange={(start, end) => {
+                  setGlobalStartDate(start);
+                  setGlobalEndDate(end);
+                }}
               />
             )}
             {currentView === 'RECEIPTS_DASHBOARD' && !currentUser?.is_viewer && (
@@ -639,6 +676,12 @@ export default function Page() {
                 isSuperAdmin={currentUser?.is_super_admin}
                 userCategory={currentUser?.category}
                 purchaseOrders={purchaseOrders}
+                startDate={globalStartDate}
+                endDate={globalEndDate}
+                onDateChange={(start, end) => {
+                  setGlobalStartDate(start);
+                  setGlobalEndDate(end);
+                }}
               />
             )}
             {currentView === 'SORTING' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
@@ -654,6 +697,12 @@ export default function Page() {
                 allowedGroups={currentUser?.allowed_groups}
                 purchaseOrders={purchaseOrders}
                 profiles={profiles}
+                startDate={globalStartDate}
+                endDate={globalEndDate}
+                onDateChange={(start, end) => {
+                  setGlobalStartDate(start);
+                  setGlobalEndDate(end);
+                }}
               />
             )}
             {currentView === 'SEPARATION_DASHBOARD' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
@@ -666,10 +715,26 @@ export default function Page() {
                 isViewer={currentUser?.is_viewer}
                 allowedGroups={currentUser?.allowed_groups}
                 purchaseOrders={purchaseOrders}
+                startDate={globalStartDate}
+                endDate={globalEndDate}
+                onDateChange={(start, end) => {
+                  setGlobalStartDate(start);
+                  setGlobalEndDate(end);
+                }}
               />
             )}
             {currentView === 'PERFORMANCE' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
-              <PerformanceView key="performance" purchaseOrders={purchaseOrders} profiles={profiles} />
+              <PerformanceView 
+                key="performance" 
+                purchaseOrders={purchaseOrders} 
+                profiles={profiles} 
+                startDate={globalStartDate}
+                endDate={globalEndDate}
+                onDateChange={(start, end) => {
+                  setGlobalStartDate(start);
+                  setGlobalEndDate(end);
+                }}
+              />
             )}
             {currentView === 'ADMIN_PANEL' && (
               <AdminView 

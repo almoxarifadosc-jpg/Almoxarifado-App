@@ -63,37 +63,23 @@ interface Profile {
 
 export default function PerformanceView({ 
   purchaseOrders = [], 
-  profiles = [] 
+  profiles = [],
+  startDate,
+  endDate,
+  onDateChange
 }: { 
   purchaseOrders?: PurchaseOrder[], 
-  profiles?: Profile[] 
+  profiles?: Profile[],
+  startDate: string,
+  endDate: string,
+  onDateChange: (start: string, end: string) => void
 }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>(purchaseOrders);
   const [localProfiles, setLocalProfiles] = useState<Profile[]>(profiles);
   const [loading, setLoading] = useState(false);
   const [filterOP, setFilterOP] = useState('');
-  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const ordersSnap = await getDocs(collection(db, 'purchase_orders'));
-      const profilesSnap = await getDocs(collection(db, 'profiles'));
-
-      const ordersData = ordersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as PurchaseOrder[];
-      const profilesData = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Profile[];
-
-      setOrders(ordersData);
-      setProfiles(profilesData);
-    } catch (err) {
-      console.error('Error fetching performance data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     setOrders(purchaseOrders);
@@ -202,14 +188,14 @@ export default function PerformanceView({
             <input 
               type="date" 
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => onDateChange(e.target.value, endDate)}
               className="bg-transparent border-none text-sm font-black p-1 outline-none text-on-surface"
             />
             <span className="text-on-surface-variant opacity-30 mx-1">-</span>
             <input 
               type="date" 
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => onDateChange(startDate, e.target.value)}
               className="bg-transparent border-none text-sm font-black p-1 outline-none text-on-surface"
             />
           </div>

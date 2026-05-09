@@ -57,7 +57,10 @@ export function SeparationDashboardView({
   currentUserName, 
   isViewer, 
   allowedGroups,
-  purchaseOrders: globalOrders = []
+  purchaseOrders: globalOrders = [],
+  startDate,
+  endDate,
+  onDateChange
 }: { 
   isAdmin?: boolean, 
   isSuperAdmin?: boolean,
@@ -65,7 +68,10 @@ export function SeparationDashboardView({
   currentUserName?: string, 
   isViewer?: boolean,
   allowedGroups?: string[],
-  purchaseOrders?: PurchaseOrder[]
+  purchaseOrders?: PurchaseOrder[],
+  startDate: string,
+  endDate: string,
+  onDateChange: (start: string, end: string) => void
 }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>(globalOrders);
   const [loading, setLoading] = useState(false);
@@ -119,6 +125,7 @@ export function SeparationDashboardView({
       setIsProcessing(false);
     }
   };
+
   // Helper to get YYYY-MM-DD in local time
   const formatToISODate = (date: Date) => {
     const year = date.getFullYear();
@@ -126,13 +133,6 @@ export function SeparationDashboardView({
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
-
-  const [startDate, setStartDate] = useState<string>(() => {
-    return formatToISODate(new Date());
-  });
-  const [endDate, setEndDate] = useState<string>(() => {
-    return formatToISODate(new Date());
-  });
 
   useEffect(() => {
     setOrders(globalOrders);
@@ -314,14 +314,14 @@ export function SeparationDashboardView({
               <input 
                 type="date" 
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => onDateChange(e.target.value, endDate)}
                 className="bg-transparent text-xs font-bold text-on-surface outline-none"
               />
               <span className="text-on-surface-variant text-xs font-bold px-1">até</span>
               <input 
                 type="date" 
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => onDateChange(startDate, e.target.value)}
                 className="bg-transparent text-xs font-bold text-on-surface outline-none"
               />
             </div>

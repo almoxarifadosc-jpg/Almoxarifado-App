@@ -98,11 +98,17 @@ export function ReceiptsView({
   userCategory,
   receipts: globalReceipts = [],
   suppliers: globalSuppliers = [],
-  loadTypes: globalLoadTypes = []
+  loadTypes: globalLoadTypes = [],
+  startDate,
+  endDate,
+  onDateChange
 }: ReceiptsViewProps & {
   receipts?: Receipt[];
   suppliers?: Supplier[];
   loadTypes?: LoadType[];
+  startDate: string;
+  endDate: string;
+  onDateChange: (start: string, end: string) => void;
 }) {
   const [receipts, setReceipts] = useState<Receipt[]>(globalReceipts);
   const [dbSuppliers, setDbSuppliers] = useState<Supplier[]>(globalSuppliers);
@@ -119,12 +125,6 @@ export function ReceiptsView({
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
   const [observationModal, setObservationModal] = useState<{ isOpen: boolean; text: string }>({ isOpen: false, text: '' });
   const [filterText, setFilterText] = useState('');
-  const [startDate, setStartDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
-  });
-  const [endDate, setEndDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
-  });
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -550,14 +550,14 @@ export function ReceiptsView({
                 <input 
                   type="date" 
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => onDateChange(e.target.value, endDate)}
                   className="bg-transparent text-xs font-bold text-on-surface outline-none"
                 />
                 <span className="text-on-surface-variant text-xs">até</span>
                 <input 
                   type="date" 
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => onDateChange(startDate, e.target.value)}
                   className="bg-transparent text-xs font-bold text-on-surface outline-none"
                 />
               </div>

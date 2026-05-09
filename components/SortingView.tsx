@@ -101,7 +101,10 @@ export function SortingView({
   isViewer, 
   allowedGroups,
   purchaseOrders = [],
-  profiles = []
+  profiles = [],
+  startDate,
+  endDate,
+  onDateChange
 }: { 
   isAdmin?: boolean, 
   isSuperAdmin?: boolean,
@@ -112,7 +115,10 @@ export function SortingView({
   isViewer?: boolean,
   allowedGroups?: string[],
   purchaseOrders?: PurchaseOrder[],
-  profiles?: Profile[]
+  profiles?: Profile[],
+  startDate: string,
+  endDate: string,
+  onDateChange: (start: string, end: string) => void
 }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>(purchaseOrders);
   const [localProfiles, setLocalProfiles] = useState<Profile[]>(profiles);
@@ -122,20 +128,6 @@ export function SortingView({
   const [success, setSuccess] = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
   const [opFilter, setOpFilter] = useState('');
-  const [startDate, setStartDate] = useState(() => {
-    const today = new Date();
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, '0');
-    const d = String(today.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  });
-  const [endDate, setEndDate] = useState(() => {
-    const today = new Date();
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, '0');
-    const d = String(today.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'EDIT' | 'SIGN' | 'REVIEW'>('EDIT');
   const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
@@ -707,7 +699,7 @@ export function SortingView({
                   type="date"
                   className="w-full bg-surface-container-high/50 rounded-2xl text-sm p-3.5 pl-11 outline-none border border-outline-variant/20 focus:border-primary/50 transition-all font-medium"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => onDateChange(e.target.value, endDate)}
                 />
                 <Calendar className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" />
               </div>
@@ -719,7 +711,7 @@ export function SortingView({
                   type="date"
                   className="w-full bg-surface-container-high/50 rounded-2xl text-sm p-3.5 pl-11 outline-none border border-outline-variant/20 focus:border-primary/50 transition-all font-medium"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => onDateChange(startDate, e.target.value)}
                 />
                 <Calendar className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" />
               </div>
@@ -735,8 +727,7 @@ export function SortingView({
                   const m = String(today.getMonth() + 1).padStart(2, '0');
                   const d = String(today.getDate()).padStart(2, '0');
                   const dateStr = `${y}-${m}-${d}`;
-                  setStartDate(dateStr);
-                  setEndDate(dateStr);
+                  onDateChange(dateStr, dateStr);
                 }}
                 className="p-3.5 bg-surface-container-high hover:bg-surface-container-highest text-error rounded-2xl transition-colors border border-outline-variant/20 shadow-sm active:scale-95"
                 title="Limpar Filtros"
