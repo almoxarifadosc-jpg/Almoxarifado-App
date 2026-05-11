@@ -61,9 +61,7 @@ export default function Page() {
   
   // Filtros Globais para reduzir leituras Firestore
   const [globalStartDate, setGlobalStartDate] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 3); // Padrão: últimos 3 dias
-    return d.toISOString().split('T')[0];
+    return new Date().toISOString().split('T')[0]; // Padrão: Hoje (para carregamentos)
   });
   const [globalEndDate, setGlobalEndDate] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
@@ -77,6 +75,7 @@ export default function Page() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const notificationsEnabledRef = useRef(false);
+  const staticDataFetchedRef = useRef(false);
 
   // Sync ref with state
   useEffect(() => {
@@ -261,7 +260,7 @@ export default function Page() {
       // Eles já trazem os dados iniciais, então não precisamos de getDocs() antes
       console.log('Setting up real-time subscriptions...');
       
-      const unsubOps = onSnapshot(query(collection(db, 'operations'), orderBy('created_at', 'desc'), limit(150)), (snapshot) => {
+      const unsubOps = onSnapshot(query(collection(db, 'operations'), orderBy('created_at', 'desc'), limit(50)), (snapshot) => {
         const mappedOps = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
@@ -292,7 +291,7 @@ export default function Page() {
         });
       }, (error) => handleFirestoreError(error, OperationType.LIST, 'operations'));
 
-      const unsubNews = onSnapshot(query(collection(db, 'news_posts'), orderBy('created_at', 'desc'), limit(20)), (snap) => {
+      const unsubNews = onSnapshot(query(collection(db, 'news_posts'), orderBy('created_at', 'desc'), limit(15)), (snap) => {
         setNewsPosts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]);
       });
 
@@ -331,26 +330,55 @@ export default function Page() {
   // Listeners Globais Adicionais (Centralizados para economizar leituras)
   useEffect(() => {
     if (currentUser) {
-      console.log('Setting up global shared listeners with server-side filters...');
+      console.log('Setting up global shared listeners with optimized filters...');
       
-      // Pedidos de Compra (Filtrados por Data e Limitados)
-      const ordersQuery = query(
-        collection(db, 'purchase_orders'), 
-        where('date', '>=', globalStartDate),
-        orderBy('date', 'desc'),
-        limit(200)
+      // 1. Pedidos de Compra (Pool unificado)
+      // O usuário solicitou: OPs da semana anterior + Situação diferente de Baixada
+      const lastWeek = new Date();
+      lastWeek.setDate(lastWeek.getDate() - 7);
+      const lastWeekStr = lastWeek.toISOString().split('T')[0];
+
+      // Query A: Incompletas (independente da data, mas limitado)
+      const ordersIncompleteQuery = query(
+        collection(db, 'purchase_orders'),
+        where('status', 'in', ['Pendente', 'Separada', 'Conferida', 'Recusado']),
+        where('date', '>=', lastWeekStr), // Restringir a semana anterior conforme solicitado
+        limit(80)
       );
 
-      const unsubOrders = onSnapshot(ordersQuery, (snap) => {
-        setPurchaseOrders(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'purchase_orders'));
+      // Query B: OPs do range de data selecionado (Apenas se o usuário mudar o filtro)
+      const ordersByDateQuery = query(
+        collection(db, 'purchase_orders'), 
+        where('date', '>=', globalStartDate),
+        where('date', '<=', globalEndDate),
+        limit(50)
+      );
 
-      // Recebimentos (Filtrados pela Data de Criação)
+      const opCache = new Map<string, any>();
+      const updateOps = (snap: any) => {
+        snap.docChanges().forEach((change: any) => {
+          if (change.type === 'removed') {
+            opCache.delete(change.doc.id);
+          } else {
+            opCache.set(change.doc.id, { id: change.doc.id, ...change.doc.data() });
+          }
+        });
+        
+        const allOps = Array.from(opCache.values());
+        allOps.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        setPurchaseOrders(allOps);
+      };
+
+      const unsubOrdersByDate = onSnapshot(ordersByDateQuery, updateOps, (err) => handleFirestoreError(err, OperationType.LIST, 'purchase_orders'));
+      const unsubIncomplete = onSnapshot(ordersIncompleteQuery, updateOps, (err) => handleFirestoreError(err, OperationType.LIST, 'purchase_orders'));
+
+      // 2. Recebimentos (Filtro estrito e Limite Menor - Apenas Hoje por padrão)
       const receiptsQuery = query(
         collection(db, 'receipts'), 
-        where('created_at', '>=', new Date(globalStartDate).toISOString()),
+        where('created_at', '>=', new Date(globalStartDate + 'T00:00:00').toISOString()),
+        where('created_at', '<=', new Date(globalEndDate + 'T23:59:59').toISOString()),
         orderBy('created_at', 'desc'), 
-        limit(200)
+        limit(60)
       );
 
       const unsubReceipts = onSnapshot(receiptsQuery, (snap) => {
@@ -364,26 +392,32 @@ export default function Page() {
         }));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'receipts'));
 
-      // Fornecedores e Tipos de Carga (Listas Estáticas)
-      const unsubSuppliers = onSnapshot(query(collection(db, 'suppliers'), orderBy('name')), (snap) => {
-        setSuppliers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      });
+      // 3. Coleções Secundárias (Carregamento Único para economizar leituras em tempo real)
+      const fetchStaticData = async () => {
+        if (staticDataFetchedRef.current) return;
+        staticDataFetchedRef.current = true;
+        
+        try {
+          const [supSnap, loadSnap, profSnap] = await Promise.all([
+            getDocs(query(collection(db, 'suppliers'), orderBy('name'), limit(150))),
+            getDocs(query(collection(db, 'load_types'), orderBy('name'), limit(50))),
+            getDocs(query(collection(db, 'profiles'), limit(80)))
+          ]);
+          
+          setSuppliers(supSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          setLoadTypes(loadSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          setProfiles(profSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        } catch (err) {
+          console.error('Erro ao carregar dados estáticos:', err);
+        }
+      };
 
-      const unsubLoadTypes = onSnapshot(query(collection(db, 'load_types'), orderBy('name')), (snap) => {
-        setLoadTypes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      });
-
-      // Perfis (Limitado para evitar download de coleção inteira)
-      const unsubProfiles = onSnapshot(query(collection(db, 'profiles'), limit(150)), (snap) => {
-        setProfiles(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      });
+      fetchStaticData();
 
       return () => {
-        unsubOrders();
+        unsubOrdersByDate();
+        unsubIncomplete();
         unsubReceipts();
-        unsubSuppliers();
-        unsubLoadTypes();
-        unsubProfiles();
       };
     }
   }, [currentUser, globalStartDate, globalEndDate]);

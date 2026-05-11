@@ -6,22 +6,36 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Phase 3: Primitives
+    // Phase 3: Primitives (Hardened for cost optimization)
     function isSignedIn() { return request.auth != null; }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function queryExisting() { return resource.data; }
     function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
-    function getUserData() { return get(/databases/$(database)/documents/profiles/$(request.auth.uid)); }
-    function isApproved() { return isSignedIn() && exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && getUserData().data.status == 'APPROVED'; }
-    function isVentisol() { return isApproved() && getUserData().data.get('category', '') in ['Ventisol', 'Ventisol + Conferente']; }
-    function isConferente() { return isApproved() && (getUserData().data.get('category', '') in ['Conferente', 'Ventisol + Conferente'] || getUserData().data.get('is_conferente', false) == true); }
+    
+    // Check approval without redundant get() calls in loops
+    // isApproved() will be used sparingly
+    function isApproved() { 
+      return isSignedIn() && exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) 
+             && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.status == 'APPROVED'; 
+    }
+    
     function isAdmin() { 
       let userEmail = request.auth.token.get('email', '').lower();
       let isBootstrap = userEmail == 'almoxarifado.sc@ventisol.com.br' || 
                         userEmail == 'espinmais@gmail.com';
-      return isSignedIn() && (isBootstrap || (exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && getUserData().data.get('is_admin', false) == true));
+      return isSignedIn() && (isBootstrap || (exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.get('is_admin', false) == true));
     }
+
+    // Role helpers
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isConferente() { 
+      let data = get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data;
+      return isApproved() && (data.get('category', '') in ['Conferente', 'Ventisol + Conferente'] || data.get('is_conferente', false) == true); 
+    }
+
+    // Hardened Rules Matchers - Use this for list/get to centralize
+    function canViewData() {
+      return isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.status == 'APPROVED'));
+    }
 
     // Phase 2: Helper constraints
     function isValidProfile(data) {
@@ -34,13 +48,12 @@ service cloud.firestore {
 
     // 1. Profiles
     match /profiles/{userId} {
-      allow read: if isSignedIn() && (isOwner(userId) || isApproved() || isAdmin());
-      allow list: if isApproved() || isAdmin();
+      allow read, list: if isSignedIn() && (isOwner(userId) || canViewData());
       allow create: if isSignedIn() && (
         (isOwner(userId) && isValidProfile(incoming()) && incoming().status == 'PENDING')
         || isAdmin()
       );
-      allow update: if (isSignedIn() && isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'category', 'allowed_groups']))
+      allow update: if (isSignedIn() && isOwner(userId) && incoming().diff(resource.data).affectedKeys().hasOnly(['name', 'email', 'category', 'allowed_groups']))
         || isAdmin();
       allow delete: if isAdmin();
     }
@@ -51,22 +64,22 @@ service cloud.firestore {
         && data.id is string && data.line is string && data.quantity is number;
     }
     match /operations/{opId} {
-      allow read: if isApproved() || isAdmin();
+      allow read, list: if canViewData();
       allow create: if isAdmin() && isValidOperation(incoming());
-      allow update: if (isAdmin() || (isApproved() && incoming().diff(existing()).affectedKeys().hasOnly(['steps', 'progress', 'is_completed'])))
+      allow update: if (isAdmin() || (canViewData() && incoming().diff(resource.data).affectedKeys().hasOnly(['steps', 'progress', 'is_completed'])))
         && isValidOperation(incoming());
       allow delete: if isAdmin();
     }
 
     // 3. News Posts
     match /news_posts/{newsId} {
-      allow read: if isApproved() || isAdmin();
+      allow read, list: if canViewData();
       allow write: if isAdmin();
     }
 
     // 4. Production Lines
     match /production_lines/{lineId} {
-      allow read: if isApproved() || isAdmin();
+      allow read, list: if canViewData();
       allow write: if isAdmin();
     }
 
@@ -78,45 +91,45 @@ service cloud.firestore {
 
     // 6. Suppliers & Load Types
     match /suppliers/{sId} {
-      allow read: if isApproved() || isAdmin();
+      allow read, list: if canViewData();
       allow write: if isAdmin();
     }
     match /load_types/{tId} {
-      allow read: if isApproved() || isAdmin();
+      allow read, list: if canViewData();
       allow write: if isAdmin();
     }
 
     // 7. Receipts
     match /receipts/{rId} {
-      allow read: if isApproved() || isAdmin();
-      allow create: if (isApproved() && incoming().author_id == request.auth.uid) || isAdmin();
-      allow update: if (isApproved() || isAdmin()) && (
+      allow read, list: if canViewData();
+      allow create: if (canViewData() && incoming().author_id == request.auth.uid) || isAdmin();
+      allow update: if (canViewData() || isAdmin()) && (
         isAdmin() || 
-        (existing().status != 'Concluído' && (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updated_at', 'updated_by_name', 'status_history', 'divergence_observation', 'divergence_photo_url'])))
+        (resource.data.status != 'Concluído' && (incoming().diff(resource.data).affectedKeys().hasOnly(['status', 'updated_at', 'updated_by_name', 'status_history', 'divergence_observation', 'divergence_photo_url'])))
       );
       allow delete: if isAdmin();
     }
 
     // 8. Purchase Orders
     match /purchase_orders/{pId} {
-      allow read: if isApproved() || isAdmin();
+      allow read, list: if canViewData();
       allow create: if isAdmin();
-      allow update: if (isApproved() || isAdmin()) && (
+      allow update: if (canViewData() || isAdmin()) && (
         isAdmin() ||
-        (existing().status != 'Baixada' && (
+        (resource.data.status != 'Baixada' && (
           // Action: Assign (Admin handled by isAdmin() or explicit)
-          (incoming().diff(existing()).affectedKeys().hasAll(['assigned_users', 'updated_at'])) ||
+          (incoming().diff(resource.data).affectedKeys().hasAll(['assigned_users', 'updated_at'])) ||
           
           // Action: Separate (Ventisol & Others)
-          (isApproved() && incoming().diff(existing()).affectedKeys().hasOnly(['items', 'status', 'pis', 'observation', 'photos', 'updated_at', 'signature_url']) 
+          (canViewData() && incoming().diff(resource.data).affectedKeys().hasOnly(['items', 'status', 'pis', 'observation', 'photos', 'updated_at', 'signature_url']) 
             && (incoming().status in ['Pendente', 'Separada', 'Em Separação'])) ||
           
           // Action: Confer (Conferente or Admin)
-          (isConferente() && incoming().diff(existing()).affectedKeys().hasOnly(['items', 'conferred_by_id', 'conferred_by_name', 'conferred_at', 'status', 'pis', 'observation', 'photos', 'updated_at', 'signature_url'])
+          (isConferente() && incoming().diff(resource.data).affectedKeys().hasOnly(['items', 'conferred_by_id', 'conferred_by_name', 'conferred_at', 'status', 'pis', 'observation', 'photos', 'updated_at', 'signature_url'])
             && incoming().status == 'Conferida') ||
           
           // Action: Sign (Conferente or Admin)
-          (isConferente() && incoming().diff(existing()).affectedKeys().hasOnly(['signature_url', 'is_signed', 'signed_at', 'signed_by_name', 'pis', 'observation', 'updated_at'])
+          (isConferente() && incoming().diff(resource.data).affectedKeys().hasOnly(['signature_url', 'is_signed', 'signed_at', 'signed_by_name', 'pis', 'observation', 'updated_at'])
             && incoming().is_signed == true)
         ))
       );

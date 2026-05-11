@@ -134,18 +134,17 @@ export default function PerformanceView({
     };
   }, [filteredOrders]);
 
-  const monthChartData = useMemo(() => {
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const currentYear = new Date().getFullYear();
+  const currentMonthStats = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
     
-    const data = months.map((name, index) => {
-      const count = orders.filter(order => {
-        const d = new Date(order.date);
-        return d.getMonth() === index && d.getFullYear() === currentYear;
-      }).length;
-      return { name, total: count };
-    });
-    return data;
+    const opsThisMonth = orders.filter(order => {
+      const d = new Date(order.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    }).length;
+
+    return opsThisMonth;
   }, [orders]);
 
   const locationChartData = useMemo(() => {
@@ -243,31 +242,29 @@ export default function PerformanceView({
         </div>
       </div>
 
-      {/* Graphs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16">
-        <div className="bg-surface-container-lowest p-8 rounded-[40px] border border-outline-variant/10 shadow-sm">
-          <h3 className="text-xl font-headline font-black text-on-surface mb-8 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-primary" />
-            OPs por Mês ({new Date().getFullYear()})
-          </h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthChartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700 }} />
-                <Tooltip cursor={{ fill: 'transparent' }} />
-                <Bar dataKey="total" radius={[8, 8, 0, 0]} barSize={32}>
-                  {monthChartData.map((_, i) => <Cell key={`month-${i}`} fill="var(--primary)" />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+      {/* Graphs & Month Summary */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-16">
+        {/* Card do Mês */}
+        <div className="lg:col-span-1 bg-surface-container-lowest p-8 rounded-[40px] border border-outline-variant/10 shadow-sm flex flex-col justify-center items-center text-center">
+          <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center text-primary mb-6">
+            <Calendar className="w-10 h-10" />
           </div>
+          <h3 className="text-[12px] font-black uppercase tracking-[0.2em] text-on-surface-variant opacity-50 mb-2">OPs Carregadas do Mês</h3>
+          <p className="text-6xl font-headline font-black text-on-surface mb-2">{currentMonthStats}</p>
+          <div className="flex items-center gap-2 text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full text-[10px] font-bold">
+            <TrendingUp className="w-3 h-3" />
+            <span>Mês Atual ({new Date().getFullYear()})</span>
+          </div>
+          <p className="mt-4 text-[10px] text-on-surface-variant opacity-40 leading-tight">
+            * Baseado nas OPs atualmente carregadas no app (Incompletas + Filtro selecionado).
+          </p>
         </div>
-        <div className="bg-surface-container-lowest p-8 rounded-[40px] border border-outline-variant/10 shadow-sm">
+
+        {/* Localização */}
+        <div className="lg:col-span-2 bg-surface-container-lowest p-8 rounded-[40px] border border-outline-variant/10 shadow-sm">
           <h3 className="text-xl font-headline font-black text-on-surface mb-8 flex items-center gap-2">
             <Building2 className="w-5 h-5 text-primary" />
-            Volume por Localização
+            Volume por Localização (Filtro Ativo)
           </h3>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -285,80 +282,7 @@ export default function PerformanceView({
         </div>
       </div>
 
-      {/* Grid of 5 columns */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-        {filteredOrders.map((order) => {
-          const { separation, conference } = calculatePercentages(order.items);
-          return (
-            <motion.div 
-              key={order.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-surface-container-lowest p-5 rounded-[32px] border border-outline-variant/10 shadow-sm flex flex-col gap-4 relative overflow-hidden"
-            >
-              <div className="flex justify-between items-start">
-                <div className="p-2.5 bg-primary/10 rounded-xl text-primary">
-                  <Package className="w-5 h-5" />
-                </div>
-                <div className="text-right">
-                  <h4 className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-40">OP</h4>
-                  <p className="text-base font-headline font-black text-on-surface tracking-tight">#{order.order_number}</p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <h4 className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-40 mb-1">Local / Total</h4>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-on-surface truncate pr-2">{order.product_location || '-'}</p>
-                    <p className="text-xs font-black text-primary">R$ {order.total_amount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                  </div>
-                </div>
-
-                {/* Micro Progress Bars */}
-                <div className="space-y-2 pt-2">
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[8px] font-black uppercase tracking-widest">
-                      <span className="text-primary opacity-60">Sep.</span>
-                      <span className="text-on-surface">{separation}%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
-                      <div className="h-full bg-primary rounded-full" style={{ width: `${separation}%` }} />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[8px] font-black uppercase tracking-widest">
-                      <span className="text-blue-400 opacity-60">Conf.</span>
-                      <span className="text-on-surface">{conference}%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-400 rounded-full" style={{ width: `${conference}%` }} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-outline-variant/10">
-                  <h4 className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-40 mb-1">Conferente</h4>
-                  <p className="text-[10px] font-bold text-on-surface-variant italic truncate">
-                    {order.conferred_by_name || 'Aguardando conferência'}
-                  </p>
-                </div>
-              </div>
-
-              <button 
-                onClick={() => {
-                  setSelectedOrder(order);
-                  setIsTeamModalOpen(true);
-                }}
-                className="mt-2 w-full bg-surface-container-high text-on-surface-variant py-2.5 rounded-xl text-xs font-bold hover:bg-primary/10 hover:text-primary transition-all flex items-center justify-center gap-2 group"
-              >
-                <Users className="w-3.5 h-3.5 group-hover:animate-bounce" />
-                Equipe de Separação
-              </button>
-            </motion.div>
-          );
-        })}
-      </div>
+      {/* Remoção do Grid de Cards de OPs conforme solicitado */}
 
       {/* Team Modal */}
       <AnimatePresence>
