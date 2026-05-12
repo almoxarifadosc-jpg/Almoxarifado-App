@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { KeyRound, ShieldCheck, CheckCircle, XCircle, Loader2, Users, Factory, Plus, Trash2, Pencil, Star, AlertCircle } from 'lucide-react';
+import { KeyRound, ShieldCheck, CheckCircle, XCircle, Loader2, Users, Factory, Plus, Trash2, Pencil, Star, AlertCircle, RefreshCw, Eraser } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
 import { 
   collection, 
@@ -77,6 +77,8 @@ export function AdminView({
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [diagEmail, setDiagEmail] = useState('');
+  const [isDiagLoading, setIsDiagLoading] = useState(false);
 
   const categories = ['Ventisol', 'Conferente', 'Bemplas', 'Recebimento'];
 
@@ -306,6 +308,41 @@ export function AdminView({
     }
   };
 
+  const handleDiagnosticAction = async (action: 'SYNC' | 'DELETE') => {
+    if (!diagEmail.trim()) {
+      alert('Digite o e-mail do usuário.');
+      return;
+    }
+
+    const confirmMsg = action === 'DELETE' 
+      ? `ATENÇÃO: Isso removerá permanentemente a conta de autenticação de ${diagEmail}. O usuário poderá se cadastrar novamente do zero. Confirmar?`
+      : `Isso tentará recriar o perfil de ${diagEmail} no banco de dados se ele já existir na autenticação. Confirmar?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setIsDiagLoading(true);
+    try {
+      const response = await fetch('/api/admin/manage-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: diagEmail.trim().toLowerCase(), action }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao processar ação diagnóstica');
+      }
+
+      alert(data.message || 'Ação concluída com sucesso.');
+      setDiagEmail('');
+    } catch (err: any) {
+      alert('Erro: ' + (err.message || 'Erro desconhecido'));
+    } finally {
+      setIsDiagLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -333,6 +370,55 @@ export function AdminView({
           </div>
 
           <div className="space-y-12">
+            {/* Ferramentas de Diagnóstico */}
+            {(currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br') && (
+              <section className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-amber-500 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    Ferramentas de Recuperação (Usuário Preso)
+                  </h3>
+                </div>
+                <div className="bg-amber-500/5 p-6 rounded-2xl border border-amber-500/20 space-y-4">
+                  <p className="text-xs text-amber-700/70 leading-relaxed font-medium">
+                    Use esta ferramenta se um e-mail estiver tentando se cadastrar e receber "E-mail em uso", mas o usuário não aparece abaixo.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-1">
+                      <input 
+                        type="email"
+                        value={diagEmail}
+                        onChange={(e) => setDiagEmail(e.target.value)}
+                        placeholder="e-mail@exemplo.com.br"
+                        className="w-full bg-surface-container-low text-on-surface border border-outline-variant/20 rounded-xl px-4 py-2.5 focus:ring-1 focus:ring-amber-500 outline-none text-sm pl-10"
+                      />
+                      <AlertCircle className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-500/50" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleDiagnosticAction('SYNC')}
+                        disabled={isDiagLoading}
+                        className="flex-1 sm:flex-none px-4 py-2.5 bg-amber-500/10 text-amber-600 rounded-xl font-bold text-xs hover:bg-amber-500/20 transition-all flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50"
+                        title="Traz o usuário de volta para a lista se ele existir no sistema"
+                      >
+                        {isDiagLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                        Sincronizar
+                      </button>
+                      <button 
+                        onClick={() => handleDiagnosticAction('DELETE')}
+                        disabled={isDiagLoading}
+                        className="flex-1 sm:flex-none px-4 py-2.5 bg-error/10 text-error rounded-xl font-bold text-xs hover:bg-error/20 transition-all flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50"
+                        title="Remove o usuário permanentemente para que ele possa se cadastrar do zero"
+                      >
+                        {isDiagLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eraser className="w-3 h-3" />}
+                        Remover Conta
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
             {/* Configurações da Empresa */}
             <section className="space-y-6">
               <div className="flex items-center justify-between">

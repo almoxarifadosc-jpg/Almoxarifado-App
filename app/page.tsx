@@ -17,7 +17,8 @@ import { PurchaseOrdersView } from '@/components/PurchaseOrdersView';
 import { SortingView } from '@/components/SortingView';
 import { SeparationDashboardView } from '@/components/SeparationDashboardView';
 import PerformanceView from '@/components/PerformanceView';
-import { Factory, Settings, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import NewsView from '@/components/NewsView';
+import { Factory, Settings, CheckCircle2, Loader2, AlertCircle, RefreshCw, Eraser } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, query, where, getDocs, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, orderBy, limit, serverTimestamp } from 'firebase/firestore';
@@ -791,6 +792,13 @@ export default function Page() {
                   setGlobalStartDate(start);
                   setGlobalEndDate(end);
                 }}
+              />
+            )}
+            {currentView === 'NEWS_PORTAL' && (
+              <NewsView 
+                key="news-portal" 
+                isAdmin={currentUser?.is_admin} 
+                currentUserEmail={currentUser?.email || ''} 
               />
             )}
             {currentView === 'ADMIN_PANEL' && (

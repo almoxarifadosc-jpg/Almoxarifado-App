@@ -14,12 +14,15 @@ import {
   ChevronRight,
   Menu,
   X,
-  ClipboardList
+  ClipboardList,
+  Newspaper,
+  RefreshCw,
+  Eraser
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
-export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS' | 'ORDERS' | 'SORTING' | 'PERFORMANCE' | 'SEPARATION_DASHBOARD';
+export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS' | 'ORDERS' | 'SORTING' | 'PERFORMANCE' | 'SEPARATION_DASHBOARD' | 'NEWS_PORTAL';
 
 interface SidebarProps {
   currentView: View;
@@ -42,6 +45,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
         { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
         { id: 'SEPARATION_DASHBOARD' as View, label: 'Painel de Separação', icon: LayoutDashboard },
         { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 },
+        { id: 'NEWS_PORTAL' as View, label: 'Notícias', icon: Newspaper },
       ] : []
     },
     {
