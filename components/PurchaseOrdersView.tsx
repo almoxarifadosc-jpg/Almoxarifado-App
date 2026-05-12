@@ -64,6 +64,7 @@ interface PurchaseOrder {
   created_at: string;
   type?: string;
   sequence?: number | null;
+  source_type?: 'pdf' | 'excel';
 }
 
 export function PurchaseOrdersView({ 
@@ -163,7 +164,8 @@ export function PurchaseOrdersView({
           date: new Date().toISOString().split('T')[0],
           total_amount: items.reduce((acc, curr) => acc + curr.planned_quantity, 0),
           items: items,
-          type: 'Separação'
+          type: 'Separação',
+          source_type: 'excel' as const
         };
 
         setExtractedData(result);
@@ -277,6 +279,7 @@ export function PurchaseOrdersView({
         }));
       }
       
+      result.source_type = 'pdf';
       setExtractedData(result);
     } catch (err: any) {
       console.error('Erro no processamento AI:', err);

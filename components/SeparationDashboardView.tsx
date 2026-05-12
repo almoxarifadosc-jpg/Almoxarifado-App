@@ -13,7 +13,9 @@ import {
   Eye,
   Filter,
   CloudSun,
-  DollarSign
+  DollarSign,
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
@@ -50,6 +52,7 @@ interface PurchaseOrder {
   pis?: string[];
   created_at: string;
   sequence?: number | null;
+  source_type?: 'pdf' | 'excel';
 }
 
 export function SeparationDashboardView({ 
@@ -471,6 +474,12 @@ export function SeparationDashboardView({
                     <span className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-50">OP Nº</span>
                     <div className="flex items-center gap-2">
                       <h4 className="text-lg font-headline font-black text-on-surface">#{order.order_number}</h4>
+                      {order.source_type === 'pdf' && (
+                        <FileText className="w-4 h-4 text-red-500 opacity-60" />
+                      )}
+                      {order.source_type === 'excel' && (
+                        <FileSpreadsheet className="w-4 h-4 text-emerald-600 opacity-60" />
+                      )}
                       {order.sequence !== undefined && order.sequence !== null && (
                         <span className="px-2 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded-lg shadow-sm">
                           SEQ: {order.sequence}
