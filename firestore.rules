@@ -39,11 +39,13 @@ service cloud.firestore {
 
     // Phase 2: Helper constraints
     function isValidProfile(data) {
-      return data.keys().hasAll(['id', 'name', 'email', 'status'])
-        && data.id is string && data.id.size() <= 128
-        && data.name is string && data.name.size() <= 100
-        && data.email is string && data.email.size() <= 100
+      let requiredFields = data.keys().hasAll(['id', 'name', 'email', 'status']);
+      let validTypes = data.id is string 
+        && data.name is string 
+        && data.email is string 
         && data.status in ['PENDING', 'APPROVED', 'REJECTED'];
+      
+      return requiredFields && validTypes;
     }
 
     // 1. Profiles

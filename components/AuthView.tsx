@@ -143,21 +143,21 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
         const email = user.email?.toLowerCase();
         const isPrimaryAdmin = email === 'almoxarifado.sc@ventisol.com.br' || email === 'espinmais@gmail.com';
         
-        if (isPrimaryAdmin) {
-          // Auto-create missing profile for primary admin during login
-          const newProfile = {
-            id: user.uid,
-            email: user.email,
-            name: user.email?.split('@')[0] || 'Admin',
-            status: 'APPROVED',
-            is_admin: true,
-            is_super_admin: true,
-            created_at: serverTimestamp()
-          };
-          await setDoc(doc(db, 'profiles', user.uid), newProfile);
-          profile = newProfile;
-        } else {
-          setError('Perfil não encontrado. Entre em contato com o administrador.');
+        // Auto-create missing profile (even for non-admins, but as PENDING)
+        const newProfile = {
+          id: user.uid,
+          email: user.email,
+          name: user.displayName || user.email?.split('@')[0] || 'Usuário',
+          status: isPrimaryAdmin ? 'APPROVED' : 'PENDING',
+          is_admin: isPrimaryAdmin,
+          is_super_admin: isPrimaryAdmin,
+          created_at: serverTimestamp()
+        };
+        await setDoc(doc(db, 'profiles', user.uid), newProfile);
+        profile = newProfile;
+        
+        if (!isPrimaryAdmin) {
+          setError('Sua conta foi localizada mas o perfil estava ausente. Ele foi recriado. Aguarde a aprovação do administrador.');
           await signOut(auth);
           return;
         }
@@ -243,7 +243,11 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
       setMode('LOGIN');
       await signOut(auth);
     } catch (err: any) {
-      setError(err.message || 'Erro ao realizar cadastro.');
+      if (err.code === 'auth/email-already-in-use') {
+        setError('Este e-mail já possui uma conta no sistema. Tente fazer login em vez de se cadastrar.');
+      } else {
+        setError(err.message || 'Erro ao realizar cadastro.');
+      }
     } finally {
       setLoading(false);
     }

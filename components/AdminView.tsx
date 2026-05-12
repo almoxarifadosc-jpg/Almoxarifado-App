@@ -118,11 +118,18 @@ export function AdminView({
     }
 
     try {
+      console.log('Salvando usuário:', editingUser.id, updateData);
       await updateDoc(doc(db, 'profiles', editingUser.id), updateData);
       setIsUserModalOpen(false);
       alert('Alterações salvas com sucesso!');
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `profiles/${editingUser.id}`);
+      console.error('Erro ao salvar usuário:', err);
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, `profiles/${editingUser.id}`);
+      } catch (firestoreErr: any) {
+        const errorData = JSON.parse(firestoreErr.message);
+        alert(`Erro ao salvar: ${errorData.error}`);
+      }
     }
   };
 
