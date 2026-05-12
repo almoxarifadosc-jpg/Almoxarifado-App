@@ -117,23 +117,41 @@ export function SeparationDashboardView({
     });
   }, [globalOrders, audioEnabled]);
 
-  const announceOrderRelease = (orderNumber: string) => {
-    if (!audioEnabled || !('speechSynthesis' in window)) return;
-
-    // Cancela qualquer fala em andamento para não encavalar
-    window.speechSynthesis.cancel();
+  const announceOrderRelease = async (orderNumber: string) => {
+    if (!audioEnabled) return;
 
     const message = `OP ${orderNumber} está liberada para baixa`;
+
+    try {
+      // Tenta usar ElevenLabs via nossa rota de API
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: message }),
+      });
+
+      if (response.ok) {
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        audio.play();
+        return;
+      }
+    } catch (e) {
+      console.warn('ElevenLabs falhou, usando fallback do sistema', e);
+    }
+
+    // Fallback: SpeechSynthesis (Nativo do navegador)
+    if (!('speechSynthesis' in window)) return;
+
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message);
     
     const speak = () => {
       const voices = window.speechSynthesis.getVoices();
-      
-      // Prioridade: 1. Vozes do Google (mais naturais), 2. Qualquer voz PT-BR
       const ptVoices = voices.filter(v => v.lang.includes('pt-BR'));
       const googleVoice = ptVoices.find(v => v.name.toLowerCase().includes('google'));
       const premiumVoice = ptVoices.find(v => v.name.toLowerCase().includes('natural'));
-      
       const bestVoice = googleVoice || premiumVoice || ptVoices[0];
       
       if (bestVoice) {
@@ -143,11 +161,9 @@ export function SeparationDashboardView({
       utterance.rate = 0.95;
       utterance.pitch = 1;
       utterance.volume = 1;
-      
       window.speechSynthesis.speak(utterance);
     };
 
-    // No Chrome, as vozes são carregadas de forma assíncrona
     if (window.speechSynthesis.getVoices().length === 0) {
       window.speechSynthesis.onvoiceschanged = speak;
     } else {
