@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Newspaper, Send, Trash2, Calendar, User, Loader2 } from 'lucide-react';
+import { Newspaper, Send, Trash2, Calendar, User, Loader2, Search, Plus, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 
@@ -25,6 +26,8 @@ export default function NewsView({ isAdmin, currentUserEmail }: NewsViewProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, 'news_posts'), orderBy('created_at', 'desc'));
@@ -50,6 +53,7 @@ export default function NewsView({ isAdmin, currentUserEmail }: NewsViewProps) {
       });
       setTitle('');
       setContent('');
+      setShowForm(false);
     } catch (err) {
       console.error('Erro ao postar notícia:', err);
       alert('Erro ao postar notícia.');
@@ -83,57 +87,97 @@ export default function NewsView({ isAdmin, currentUserEmail }: NewsViewProps) {
     }
   };
 
+  const filteredPosts = posts.filter(post => 
+    post.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    post.content.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-headline font-extrabold text-on-surface">Portal de Notícias</h2>
           <p className="text-on-surface-variant mt-1">Comunicados e atualizações do almoxarifado</p>
         </div>
-        <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
-          <Newspaper className="w-6 h-6 text-primary" />
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <input 
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar notícias..."
+              className="pl-10 pr-4 py-2.5 bg-surface-container-low border border-outline-variant/20 rounded-xl text-sm focus:ring-1 focus:ring-primary outline-none min-w-[240px]"
+            />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
+          </div>
+          {isAdmin && (
+            <button 
+              onClick={() => setShowForm(!showForm)}
+              className={cn(
+                "p-2.5 rounded-xl border transition-all flex items-center justify-center gap-2",
+                showForm 
+                  ? "bg-error/10 border-error/20 text-error hover:bg-error/20" 
+                  : "bg-primary border-primary text-white hover:opacity-90 shadow-sm"
+              )}
+              title={showForm ? "Fechar formulário" : "Nova publicação"}
+            >
+              {showForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+              <span className="text-xs font-bold hidden sm:inline">{showForm ? 'Cancelar' : 'Nova Notícia'}</span>
+            </button>
+          )}
         </div>
       </div>
 
       {isAdmin && (
-        <section className="bg-surface-container-lowest p-6 rounded-3xl border border-outline-variant/10 shadow-sm">
-          <h3 className="text-lg font-bold text-on-surface mb-4 flex items-center gap-2">
-            <Send className="w-5 h-5 text-primary" />
-            Nova Publicação
-          </h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 px-1">Título da Notícia</label>
-              <input 
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-sm"
-                placeholder="Ex: Novo procedimento de recebimento"
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 px-1">Conteúdo</label>
-              <textarea 
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                rows={5}
-                className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-sm resize-none"
-                placeholder="Escreva a notícia aqui... Pressione Enter para novos parágrafos."
-                required
-              />
-            </div>
-            <button 
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full sm:w-auto px-8 py-3 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
+        <AnimatePresence>
+          {showForm && (
+            <motion.section 
+              initial={{ opacity: 0, height: 0, y: -20 }}
+              animate={{ opacity: 1, height: 'auto', y: 0 }}
+              exit={{ opacity: 0, height: 0, y: -20 }}
+              className="overflow-hidden"
             >
-              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-              Publicar Notícia
-            </button>
-          </form>
-        </section>
+              <div className="bg-surface-container-lowest p-6 rounded-3xl border border-outline-variant/10 shadow-sm mb-8">
+                <h3 className="text-lg font-bold text-on-surface mb-4 flex items-center gap-2">
+                  <Send className="w-5 h-5 text-primary" />
+                  Nova Publicação
+                </h3>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 px-1">Título da Notícia</label>
+                    <input 
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-sm"
+                      placeholder="Ex: Novo procedimento de recebimento"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 px-1">Conteúdo</label>
+                    <textarea 
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      rows={5}
+                      className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-sm resize-none"
+                      placeholder="Escreva a notícia aqui... Pressione Enter para novos parágrafos."
+                      required
+                    />
+                  </div>
+                  <button 
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto px-8 py-3 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
+                  >
+                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                    Publicar Notícia
+                  </button>
+                </form>
+              </div>
+            </motion.section>
+          )}
+        </AnimatePresence>
       )}
 
       <div className="space-y-6">
@@ -142,17 +186,17 @@ export default function NewsView({ isAdmin, currentUserEmail }: NewsViewProps) {
             <Loader2 className="w-10 h-10 text-primary animate-spin" />
             <p className="text-on-surface-variant font-medium">Carregando portal...</p>
           </div>
-        ) : posts.length === 0 ? (
+        ) : filteredPosts.length === 0 ? (
           <div className="py-20 flex flex-col items-center gap-4 text-center">
             <div className="w-16 h-16 bg-surface-container-high rounded-full flex items-center justify-center">
               <Newspaper className="w-8 h-8 text-on-surface-variant/30" />
             </div>
-            <p className="text-on-surface-variant font-bold">Nenhuma notícia encontrada</p>
+            <p className="text-on-surface-variant font-bold">{searchTerm ? 'Nenhuma notícia encontrada com este critério' : 'Nenhuma notícia encontrada'}</p>
           </div>
         ) : (
           <div className="grid gap-6">
             <AnimatePresence mode="popLayout">
-              {posts.map((post) => (
+              {filteredPosts.map((post) => (
                 <motion.article 
                   key={post.id}
                   layout

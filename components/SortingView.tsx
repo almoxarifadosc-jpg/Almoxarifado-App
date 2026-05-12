@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   FileText, 
   Search, 
@@ -145,6 +145,50 @@ export function SortingView({
   const [revertingId, setRevertingId] = useState<string | null>(null);
   const [isConferConfirming, setIsConferConfirming] = useState(false);
   const [isBaixarConfirming, setIsBaixarConfirming] = useState(false);
+
+  // Controle de Notificação por Voz (Broadcast para todos os usuários com o painel aberto)
+  const announcedOpsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    // Monitora ordens que acabaram de ser assinadas
+    const newlySigned = purchaseOrders.filter(o => 
+      o.is_signed && 
+      !announcedOpsRef.current.has(o.id) &&
+      o.status !== 'Baixada' // Não anunciar se já foi baixada (carga inicial)
+    );
+
+    if (newlySigned.length > 0) {
+      newlySigned.forEach(order => {
+        announceOrderRelease(order.order_number);
+        announcedOpsRef.current.add(order.id);
+      });
+    }
+
+    // Limpa do Set OPs que saíram da lista (foram baixadas ou removidas) para manter memória limpa
+    const currentIds = new Set(purchaseOrders.map(o => o.id));
+    announcedOpsRef.current.forEach(id => {
+      if (!currentIds.has(id)) {
+        announcedOpsRef.current.delete(id);
+      }
+    });
+  }, [purchaseOrders]);
+
+  const announceOrderRelease = (orderNumber: string) => {
+    if (!('speechSynthesis' in window)) return;
+
+    const message = `OP ${orderNumber} está liberada para baixa`;
+    const utterance = new SpeechSynthesisUtterance(message);
+    
+    // Tenta encontrar uma voz em Português do Brasil
+    const voices = window.speechSynthesis.getVoices();
+    const ptBrVoice = voices.find(v => v.lang.includes('pt-BR'));
+    if (ptBrVoice) utterance.voice = ptBrVoice;
+    
+    utterance.rate = 0.9; // Um pouco mais devagar para clareza
+    utterance.pitch = 1;
+    
+    window.speechSynthesis.speak(utterance);
+  };
 
   const isItemRestricted = (item: OrderItem) => {
     if (isAdmin || isSuperAdmin || !allowedGroups || allowedGroups.length === 0) return false;
