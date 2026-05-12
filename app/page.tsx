@@ -278,137 +278,169 @@ export default function Page() {
     };
   }, [checkUser]);
 
+  // 1. OPs de Produção (Dashboard, Analytics, Operations)
   useEffect(() => {
-    if (currentUser) {
-      if (listenersStartedRef.current) return;
-      listenersStartedRef.current = true;
-      
-      console.log('Setting up real-time subscriptions...');
-      
-      const unsubOps = onSnapshot(query(collection(db, 'operations'), orderBy('created_at', 'desc'), limit(30)), (snapshot) => {
-        const mappedOps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
-        setOperations(mappedOps);
-      }, (error) => handleFirestoreError(error, OperationType.LIST, 'operations'));
+    if (!currentUser) return;
+    
+    // PCP e Almoxarifado usam estas views
+    const hasRole = ['PCP', 'Almoxarifado', 'Ventisol'].includes(currentUser.category);
+    const needsOps = ['OPERATIONS', 'ANALYTICS', 'DASHBOARD'].includes(currentView);
+    if (!hasRole || !needsOps) {
+      if (operations.length > 0) setOperations([]); // Limpa memória se trocar de papel/view
+      return;
+    }
 
-      const unsubNews = onSnapshot(query(collection(db, 'news_posts'), orderBy('created_at', 'desc'), limit(10)), (snap) => {
+    console.log('Subscribing to Operations (Active View & Role)...');
+    const q = query(collection(db, 'operations'), orderBy('created_at', 'desc'), limit(30));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setOperations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'operations'));
+
+    return () => unsub();
+  }, [currentUser, currentView, currentUser?.category]);
+
+  // 2. Notícias e Configurações (Launch)
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'company_logo'), (snap) => {
+      if (snap.exists()) setLogoUrl(snap.data().value);
+    });
+
+    let unsubNews = () => {};
+    if (currentView === 'LAUNCH') {
+      console.log('Subscribing to News (Active View)...');
+      const q = query(collection(db, 'news_posts'), orderBy('created_at', 'desc'), limit(10));
+      unsubNews = onSnapshot(q, (snap) => {
         setNewsPosts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]);
       });
-
-      const unsubSettings = onSnapshot(doc(db, 'settings', 'company_logo'), (snap) => {
-        if (snap.exists()) setLogoUrl(snap.data().value);
-      });
-
-      return () => {
-        unsubOps();
-        unsubNews();
-        unsubSettings();
-        listenersStartedRef.current = false;
-      };
     }
-  }, [currentUser]);
 
-  // Listeners Globais Adicionais (Centralizados para economizar leituras)
+    return () => {
+      unsubSettings();
+      unsubNews();
+    };
+  }, [currentUser, currentView]);
+
+  // 3. Pedidos de Compra / Separação (Orders, Sorting, Separation, Performance)
   useEffect(() => {
-    if (currentUser) {
-      console.log('Setting up global shared listeners...');
-      
-      const lastWeek = new Date();
-      lastWeek.setDate(lastWeek.getDate() - 7);
-      const lastWeekStr = lastWeek.toISOString().split('T')[0];
+    if (!currentUser) return;
 
-      // Query Unificada para OPs (Reduzindo para 40 documentos no tempo real)
-      const ordersIncompleteQuery = query(
-        collection(db, 'purchase_orders'),
-        where('status', 'in', ['Pendente', 'Separada', 'Conferida', 'Recusado']),
-        limit(40)
-      );
-
-      const opCache = new Map<string, any>();
-      const unsubIncomplete = onSnapshot(ordersIncompleteQuery, (snap) => {
-        snap.docChanges().forEach((change: any) => {
-          if (change.type === 'removed') opCache.delete(change.doc.id);
-          else opCache.set(change.doc.id, { id: change.doc.id, ...change.doc.data() });
-        });
-        const allOps = Array.from(opCache.values());
-        allOps.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-        setPurchaseOrders(allOps);
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'purchase_orders'));
-
-      // 2. Recebimentos (Apenas HOJE por padrão para economizar)
-      const todayStart = new Date();
-      todayStart.setHours(0,0,0,0);
-      
-      const receiptsQuery = query(
-        collection(db, 'receipts'), 
-        where('created_at', '>=', todayStart.toISOString()),
-        orderBy('created_at', 'desc'), 
-        limit(30)
-      );
-
-      const unsubReceipts = onSnapshot(receiptsQuery, (snap) => {
-        setReceipts(snap.docs.map(doc => {
-          const d = doc.data();
-          let createdAt = d.created_at;
-          if (createdAt && typeof createdAt.toDate === 'function') createdAt = createdAt.toDate().toISOString();
-          return { id: doc.id, ...d, created_at: createdAt };
-        }));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'receipts'));
-
-      // 3. Coleções Estáticas com Cache de 12 Horas
-      const fetchStaticData = async () => {
-        if (staticDataFetchedRef.current) return;
-        staticDataFetchedRef.current = true;
-
-        // Tentar carregar do Cache Local primeiro
-        const cachedSuppliers = getCachedData('suppliers');
-        const cachedLoadTypes = getCachedData('load_types');
-        const cachedProfiles = getCachedData('profiles');
-        const cachedLines = getCachedData('production_lines');
-
-        if (cachedSuppliers && cachedLoadTypes && cachedProfiles && cachedLines) {
-          console.log('Using local cache for static collections');
-          setSuppliers(cachedSuppliers);
-          setLoadTypes(cachedLoadTypes);
-          setProfiles(cachedProfiles);
-          setProductionLines(cachedLines);
-          return;
-        }
-        
-        try {
-          console.log('Fetching static data from Firestore (Cache expired/empty)');
-          const [supSnap, loadSnap, profSnap, lineSnap] = await Promise.all([
-            getDocs(query(collection(db, 'suppliers'), orderBy('name'), limit(150))),
-            getDocs(query(collection(db, 'load_types'), orderBy('name'), limit(50))),
-            getDocs(query(collection(db, 'profiles'), limit(80))),
-            getDocs(collection(db, 'production_lines'))
-          ]);
-          
-          const s = supSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          const l = loadSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          const p = profSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          const lines = lineSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-          setSuppliers(s);
-          setLoadTypes(l);
-          setProfiles(p);
-          setProductionLines(lines);
-
-          setCachedData('suppliers', s);
-          setCachedData('load_types', l);
-          setCachedData('profiles', p);
-          setCachedData('production_lines', lines);
-        } catch (err) {
-          console.error('Erro ao carregar dados estáticos:', err);
-        }
-      };
-
-      fetchStaticData();
-
-      return () => {
-        unsubIncomplete();
-        unsubReceipts();
-      };
+    // Conferentes e PCP usam estas views
+    const hasRole = ['PCP', 'Conferente', 'Ventisol', 'Ventisol + Conferente'].includes(currentUser.category);
+    const needsOrders = ['ORDERS', 'SORTING', 'SEPARATION_DASHBOARD', 'PERFORMANCE'].includes(currentView);
+    
+    if (!hasRole || !needsOrders) {
+      if (purchaseOrders.length > 0) setPurchaseOrders([]);
+      return;
     }
+
+    console.log('Subscribing to Purchase Orders (Active View & Role)...');
+    const q = query(
+      collection(db, 'purchase_orders'),
+      where('status', 'in', ['Pendente', 'Separada', 'Conferida', 'Recusado']),
+      limit(40)
+    );
+
+    const opCache = new Map<string, any>();
+    const unsub = onSnapshot(q, (snap) => {
+      snap.docChanges().forEach((change: any) => {
+        if (change.type === 'removed') opCache.delete(change.doc.id);
+        else opCache.set(change.doc.id, { id: change.doc.id, ...change.doc.data() });
+      });
+      const allOps = Array.from(opCache.values());
+      allOps.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      setPurchaseOrders(allOps);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'purchase_orders'));
+
+    return () => unsub();
+  }, [currentUser, currentView, currentUser?.category]);
+
+  // 4. Recebimentos (Receipts, Dashboard de Recebimento)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Recebimento e PCP usam estas views
+    const hasRole = ['PCP', 'Recebimento', 'Ventisol'].includes(currentUser.category);
+    const needsReceipts = ['RECEIPTS', 'RECEIPTS_DASHBOARD'].includes(currentView);
+    
+    if (!hasRole || !needsReceipts) {
+      if (receipts.length > 0) setReceipts([]);
+      return;
+    }
+
+    console.log('Subscribing to Receipts (Active View & Role)...');
+    const todayStart = new Date();
+    todayStart.setHours(0,0,0,0);
+    
+    const q = query(
+      collection(db, 'receipts'), 
+      where('created_at', '>=', todayStart.toISOString()),
+      orderBy('created_at', 'desc'), 
+      limit(30)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      setReceipts(snap.docs.map(doc => {
+        const d = doc.data();
+        let createdAt = d.created_at;
+        if (createdAt && typeof createdAt.toDate === 'function') createdAt = createdAt.toDate().toISOString();
+        return { id: doc.id, ...d, created_at: createdAt };
+      }));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'receipts'));
+
+    return () => unsub();
+  }, [currentUser, currentView, currentUser?.category]);
+
+  // 5. Coleções Estáticas (Fetch Único com Cache Robusto)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const fetchStaticData = async () => {
+      if (staticDataFetchedRef.current) return;
+      staticDataFetchedRef.current = true;
+      
+      const cachedSuppliers = getCachedData('suppliers');
+      const cachedLoadTypes = getCachedData('load_types');
+      const cachedProfiles = getCachedData('profiles');
+      const cachedLines = getCachedData('production_lines');
+
+      if (cachedSuppliers && cachedLoadTypes && cachedProfiles && cachedLines) {
+        setSuppliers(cachedSuppliers);
+        setLoadTypes(cachedLoadTypes);
+        setProfiles(cachedProfiles);
+        setProductionLines(cachedLines);
+        return;
+      }
+      
+      try {
+        const [supSnap, loadSnap, profSnap, lineSnap] = await Promise.all([
+          getDocs(query(collection(db, 'suppliers'), orderBy('name'), limit(150))),
+          getDocs(query(collection(db, 'load_types'), orderBy('name'), limit(50))),
+          getDocs(query(collection(db, 'profiles'), limit(80))),
+          getDocs(collection(db, 'production_lines'))
+        ]);
+        
+        const s = supSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const l = loadSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const p = profSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const lines = lineSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        setSuppliers(s);
+        setLoadTypes(l);
+        setProfiles(p);
+        setProductionLines(lines);
+
+        setCachedData('suppliers', s);
+        setCachedData('load_types', l);
+        setCachedData('profiles', p);
+        setCachedData('production_lines', lines);
+      } catch (err) {
+        console.error('Erro ao carregar dados estáticos:', err);
+      }
+    };
+
+    fetchStaticData();
   }, [currentUser]);
 
   const addNewsPost = async (post: NewsPost) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   FileText, 
   Upload, 
@@ -83,8 +83,10 @@ export function PurchaseOrdersView({
   onDateChange: (start: string, end: string) => void
 }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>(purchaseOrders);
+  const [historicalOrders, setHistoricalOrders] = useState<PurchaseOrder[]>([]);
   const isVentisolOrConferente = userCategory === 'Ventisol' || userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente';
   const [loading, setLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
@@ -439,7 +441,47 @@ export function PurchaseOrdersView({
     }
   };
 
-  const filteredOrders = orders.filter(o => {
+  // Combina pedidos em tempo real com pedidos buscados do histórico
+  const allOrders = useMemo(() => {
+    const combined = [...orders];
+    historicalOrders.forEach(h => {
+      if (!combined.some(c => c.id === h.id)) {
+        combined.push(h);
+      }
+    });
+    return combined.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }, [orders, historicalOrders]);
+
+  const fetchHistoricalData = async () => {
+    if (!startDate || !endDate) return;
+    
+    setIsSearching(true);
+    setError(null);
+    try {
+      console.log(`Buscando dados históricos de ${startDate} até ${endDate}...`);
+      const q = query(
+        collection(db, 'purchase_orders'),
+        where('date', '>=', startDate),
+        where('date', '<=', endDate),
+        limit(50) // Limite razoável para busca manual
+      );
+      
+      const snap = await getDocs(q);
+      const fetched = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as PurchaseOrder[];
+      setHistoricalOrders(fetched);
+      if (fetched.length === 0) {
+        setSuccess('Nenhum documento encontrado neste período.');
+        setTimeout(() => setSuccess(null), 3000);
+      }
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.LIST, 'purchase_orders');
+      setError('Falha ao buscar histórico.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const filteredOrders = allOrders.filter(o => {
     const searchLower = filterText.toLowerCase();
     
     // Busca no fornecedor ou nos produtos (itens)
@@ -565,11 +607,21 @@ export function PurchaseOrdersView({
               </div>
             </div>
             
-            {(filterText || opFilter || startDate || endDate) && (
+            <button 
+              onClick={fetchHistoricalData}
+              disabled={isSearching}
+              className="p-3.5 bg-primary text-white rounded-2xl transition-all border border-primary/20 shadow-lg shadow-primary/10 active:scale-95 disabled:opacity-50"
+              title="Buscar no Firestore"
+            >
+              {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+            </button>
+
+            {(filterText || opFilter || historicalOrders.length > 0) && (
               <button 
                 onClick={() => {
                   setFilterText('');
                   setOpFilter('');
+                  setHistoricalOrders([]);
                   const today = new Date();
                   const y = today.getFullYear();
                   const m = String(today.getMonth() + 1).padStart(2, '0');
