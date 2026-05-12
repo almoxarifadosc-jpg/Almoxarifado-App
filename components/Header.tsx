@@ -20,9 +20,6 @@ interface HeaderProps {
   notificationsEnabled?: boolean;
   onRequestNotifications?: () => void;
   onMenuToggle?: () => void;
-  globalStartDate: string;
-  globalEndDate: string;
-  onDateChange: (start: string, end: string) => void;
 }
 
 export function Header({ 
@@ -37,10 +34,7 @@ export function Header({
   onToggleDarkMode,
   notificationsEnabled,
   onRequestNotifications,
-  onMenuToggle,
-  globalStartDate,
-  globalEndDate,
-  onDateChange
+  onMenuToggle
 }: HeaderProps) {
   const [showLogout, setShowLogout] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -87,29 +81,6 @@ export function Header({
       </div>
       
       <div className="flex items-center gap-4">
-        {/* Global Date Filter UI */}
-        <div className="hidden md:flex items-center gap-2 bg-surface-container-high/50 px-3 py-1.5 rounded-xl border border-outline-variant/10">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-black uppercase tracking-tighter text-on-surface-variant opacity-50">De</span>
-            <input 
-              type="date" 
-              value={globalStartDate}
-              onChange={(e) => onDateChange(e.target.value, globalEndDate)}
-              className="bg-transparent text-xs font-bold text-on-surface outline-none cursor-pointer hover:text-primary transition-colors"
-            />
-          </div>
-          <div className="w-px h-3 bg-outline-variant/20 mx-1" />
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-black uppercase tracking-tighter text-on-surface-variant opacity-50">Até</span>
-            <input 
-              type="date" 
-              value={globalEndDate}
-              onChange={(e) => onDateChange(globalStartDate, e.target.value)}
-              className="bg-transparent text-xs font-bold text-on-surface outline-none cursor-pointer hover:text-primary transition-colors"
-            />
-          </div>
-        </div>
-
         <button 
           onClick={onRequestNotifications}
           className={`p-2 rounded-xl transition-colors border border-outline-variant/15 ${

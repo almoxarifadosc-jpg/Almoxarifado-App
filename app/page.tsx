@@ -657,12 +657,6 @@ export default function Page() {
           notificationsEnabled={notificationsEnabled}
           onRequestNotifications={requestNotificationPermission}
           onMenuToggle={() => setIsMobileMenuOpen(true)}
-          globalStartDate={globalStartDate}
-          globalEndDate={globalEndDate}
-          onDateChange={(start, end) => {
-            setGlobalStartDate(start);
-            setGlobalEndDate(end);
-          }}
         />
         
         <div className="flex-1 overflow-x-hidden">
