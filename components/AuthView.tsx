@@ -10,7 +10,8 @@ import {
   createUserWithEmailAndPassword, 
   signOut, 
   GoogleAuthProvider, 
-  signInWithPopup 
+  signInWithPopup,
+  updatePassword
 } from 'firebase/auth';
 import { 
   collection, 
@@ -36,6 +37,7 @@ interface Profile {
   status: 'PENDING' | 'APPROVED';
   is_admin: boolean;
   is_super_admin?: boolean;
+  force_password_change?: boolean;
 }
 
 interface AuthViewProps {
@@ -52,6 +54,9 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingUsers, setPendingUsers] = useState<Profile[]>([]);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   useEffect(() => {
     if (mode === 'ADMIN_PANEL') {
@@ -178,6 +183,12 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
         return;
       }
 
+      if (profile.force_password_change) {
+        setShowPasswordReset(true);
+        setLoading(false);
+        return;
+      }
+
       onAuthSuccess();
     } catch (err: any) {
       setError('E-mail ou senha inválidos.');
@@ -255,6 +266,109 @@ export function AuthView({ onAuthSuccess, isDarkMode, onToggleDarkMode, logoUrl 
       handleFirestoreError(err, OperationType.DELETE, `profiles/${id}`);
     }
   };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    if (newPassword !== confirmPassword) {
+      setError('As senhas não coincidem.');
+      return;
+    }
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/;
+    if (newPassword.length < 8 || !passwordRegex.test(newPassword)) {
+      setError('A senha deve ter pelo menos 8 caracteres, maiúsculas, minúsculas, números e um caractere especial.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Usuário não autenticado.');
+
+      await updatePassword(user, newPassword);
+      await updateDoc(doc(db, 'profiles', user.uid), {
+        force_password_change: false
+      });
+
+      setSuccess('Senha alterada com sucesso! Você já pode acessar o sistema.');
+      setShowPasswordReset(false);
+      onAuthSuccess();
+    } catch (err: any) {
+      setError('Erro ao atualizar senha: ' + (err.message || 'Tente novamente.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (showPasswordReset) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-surface transition-colors duration-300">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-surface-container-lowest p-8 rounded-3xl shadow-2xl w-full max-w-md border border-outline-variant/10 relative"
+        >
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-primary/5 rounded-3xl flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-10 h-10 text-primary" />
+            </div>
+            <h2 className="text-3xl font-headline font-extrabold text-on-surface">Nova Senha</h2>
+            <p className="text-on-surface-variant mt-2">Sua senha foi resetada. Por favor, cadastre uma nova senha para continuar.</p>
+          </div>
+
+          {error && (
+            <div className="bg-error/10 text-error p-4 rounded-xl text-sm font-bold mb-6 flex items-center gap-2">
+              <XCircle className="w-4 h-4" />
+              {error}
+            </div>
+          )}
+
+          <form className="space-y-5" onSubmit={handleUpdatePassword}>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 px-1">Nova Senha</label>
+              <div className="relative">
+                <input 
+                  type="password"
+                  className="w-full bg-surface-container-low border-0 rounded-xl px-4 py-3 pl-11 focus:ring-1 focus:ring-primary outline-none text-sm" 
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                />
+                <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70 px-1">Confirmar Senha</label>
+              <div className="relative">
+                <input 
+                  type="password"
+                  className="w-full bg-surface-container-low border-0 rounded-xl px-4 py-3 pl-11 focus:ring-1 focus:ring-primary outline-none text-sm" 
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+                <Lock className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
+              </div>
+            </div>
+
+            <button 
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+              Salvar Nova Senha
+            </button>
+          </form>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (mode === 'ADMIN_PANEL') {
     return (

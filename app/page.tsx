@@ -402,38 +402,32 @@ export default function Page() {
       
       const cachedSuppliers = getCachedData('suppliers');
       const cachedLoadTypes = getCachedData('load_types');
-      const cachedProfiles = getCachedData('profiles');
       const cachedLines = getCachedData('production_lines');
 
-      if (cachedSuppliers && cachedLoadTypes && cachedProfiles && cachedLines) {
+      if (cachedSuppliers && cachedLoadTypes && cachedLines) {
         setSuppliers(cachedSuppliers);
         setLoadTypes(cachedLoadTypes);
-        setProfiles(cachedProfiles);
         setProductionLines(cachedLines);
-        return;
+        // Profiles will be handled by a separate real-time listener
       }
       
       try {
-        const [supSnap, loadSnap, profSnap, lineSnap] = await Promise.all([
+        const [supSnap, loadSnap, lineSnap] = await Promise.all([
           getDocs(query(collection(db, 'suppliers'), orderBy('name'), limit(150))),
           getDocs(query(collection(db, 'load_types'), orderBy('name'), limit(50))),
-          getDocs(query(collection(db, 'profiles'), limit(80))),
           getDocs(collection(db, 'production_lines'))
         ]);
         
         const s = supSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const l = loadSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const p = profSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const lines = lineSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
         setSuppliers(s);
         setLoadTypes(l);
-        setProfiles(p);
         setProductionLines(lines);
 
         setCachedData('suppliers', s);
         setCachedData('load_types', l);
-        setCachedData('profiles', p);
         setCachedData('production_lines', lines);
       } catch (err) {
         console.error('Erro ao carregar dados estáticos:', err);
@@ -441,6 +435,20 @@ export default function Page() {
     };
 
     fetchStaticData();
+  }, [currentUser]);
+
+  // 6. Perfis em Tempo Real (Admin e Sorting precisam de dados frescos)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    console.log('Subscribing to Profiles (Real-time)...');
+    const q = query(collection(db, 'profiles'), limit(100));
+    const unsub = onSnapshot(q, (snap) => {
+      const p = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setProfiles(p);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'profiles'));
+
+    return () => unsub();
   }, [currentUser]);
 
   const addNewsPost = async (post: NewsPost) => {

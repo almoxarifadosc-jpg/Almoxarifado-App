@@ -33,6 +33,7 @@ interface Profile {
   is_auto_assign: boolean;
   category?: string;
   allowed_groups?: string[];
+  force_password_change?: boolean;
 }
 
 interface ProductionLine {
@@ -266,13 +267,27 @@ export function AdminView({
     }
   };
 
-  const handleResetPassword = async (email: string) => {
-    if (!confirm(`Enviar e-mail de redefinição de senha para ${email}?`)) return;
+  const handleResetPassword = async (userId: string, email: string) => {
+    if (!confirm(`Redefinir senha para ${email}? A nova senha será Espin@123. O usuário deverá alterá-la no próximo acesso.`)) return;
     try {
-      await sendPasswordResetEmail(auth, email);
-      alert('E-mail de redefinição enviado com sucesso! O usuário receberá um link para criar uma nova senha.');
+      setLoading(true);
+      const response = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, email }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao resetar senha');
+      }
+      
+      alert('Senha resetada com sucesso para Espin@123! Informe o usuário.');
     } catch (err: any) {
-      alert('Erro ao enviar e-mail: ' + (err.message || 'Erro desconhecido'));
+      alert('Erro ao resetar senha: ' + (err.message || 'Erro desconhecido'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -457,7 +472,7 @@ export function AdminView({
                     </div>
                     <div className="flex gap-2">
                       <button 
-                        onClick={() => handleResetPassword(user.email)}
+                        onClick={() => handleResetPassword(user.id, user.email)}
                         className="p-2 text-amber-500 hover:bg-amber-500/10 rounded-xl transition-colors"
                         title="Resetar Senha"
                       >
