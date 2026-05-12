@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   ClipboardList, 
   Search, 
@@ -15,7 +15,8 @@ import {
   CloudSun,
   DollarSign,
   FileSpreadsheet,
-  FileText
+  FileText,
+  Volume2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
@@ -87,6 +88,72 @@ export function SeparationDashboardView({
   const [showFilters, setShowFilters] = useState(true);
   const [weather, setWeather] = useState<{ temp: number } | null>(null);
   const [dollarRate, setDollarRate] = useState<string | null>(null);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+
+  // Controle de Notificação por Voz
+  const announcedOpsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    // Monitora ordens que acabaram de ser assinadas
+    const newlySigned = globalOrders.filter(o => 
+      o.is_signed && 
+      !announcedOpsRef.current.has(o.id) &&
+      o.status !== 'Baixada'
+    );
+
+    if (newlySigned.length > 0 && audioEnabled) {
+      newlySigned.forEach(order => {
+        announceOrderRelease(order.order_number);
+        announcedOpsRef.current.add(order.id);
+      });
+    }
+
+    // Limpeza de memória
+    const currentIds = new Set(globalOrders.map(o => o.id));
+    announcedOpsRef.current.forEach(id => {
+      if (!currentIds.has(id)) {
+        announcedOpsRef.current.delete(id);
+      }
+    });
+  }, [globalOrders, audioEnabled]);
+
+  const announceOrderRelease = (orderNumber: string) => {
+    if (!audioEnabled || !('speechSynthesis' in window)) return;
+
+    // Cancela qualquer fala em andamento para não encavalar
+    window.speechSynthesis.cancel();
+
+    const message = `OP ${orderNumber} está liberada para baixa`;
+    const utterance = new SpeechSynthesisUtterance(message);
+    
+    const speak = () => {
+      const voices = window.speechSynthesis.getVoices();
+      
+      // Prioridade: 1. Vozes do Google (mais naturais), 2. Qualquer voz PT-BR
+      const ptVoices = voices.filter(v => v.lang.includes('pt-BR'));
+      const googleVoice = ptVoices.find(v => v.name.toLowerCase().includes('google'));
+      const premiumVoice = ptVoices.find(v => v.name.toLowerCase().includes('natural'));
+      
+      const bestVoice = googleVoice || premiumVoice || ptVoices[0];
+      
+      if (bestVoice) {
+        utterance.voice = bestVoice;
+      }
+      
+      utterance.rate = 0.95;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+      
+      window.speechSynthesis.speak(utterance);
+    };
+
+    // No Chrome, as vozes são carregadas de forma assíncrona
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.onvoiceschanged = speak;
+    } else {
+      speak();
+    }
+  };
 
   useEffect(() => {
     const fetchExternalData = async () => {
@@ -325,7 +392,29 @@ export function SeparationDashboardView({
       )}>
         <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
           <div>
-            <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight">Painel de Separação</h2>
+            <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight flex items-center gap-3">
+              Painel de Separação
+              {(!audioEnabled && 'speechSynthesis' in window) && (
+                <button 
+                  onClick={() => {
+                    setAudioEnabled(true);
+                    const ut = new SpeechSynthesisUtterance("Notificações ativadas");
+                    ut.lang = 'pt-BR';
+                    window.speechSynthesis.speak(ut);
+                  }}
+                  className="px-3 py-1 bg-amber-500/20 text-amber-500 text-[10px] font-black rounded-xl border border-amber-500/30 hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 animate-pulse"
+                >
+                  <Volume2 size={14} />
+                  ATIVAR ÁUDIO
+                </button>
+              )}
+              {audioEnabled && (
+                <div className="flex items-center gap-1.5 text-[10px] text-emerald-500 font-black uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+                  <Volume2 size={12} />
+                  Áudio Ativo
+                </div>
+              )}
+            </h2>
             <p className="text-on-surface-variant font-medium">Monitoramento em tempo real da separação de OPs.</p>
           </div>
 
