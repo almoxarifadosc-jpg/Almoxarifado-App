@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { 
   FileText, 
   Upload, 
@@ -110,14 +111,70 @@ export function PurchaseOrdersView({
     const file = e.target.files?.[0];
     if (!file) return;
     
-    if (file.type !== 'application/pdf') {
-      setError('Por favor, selecione um arquivo PDF.');
+    const isPDF = file.type === 'application/pdf';
+    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || file.type === 'application/vnd.ms-excel';
+
+    if (!isPDF && !isExcel) {
+      setError('Por favor, selecione um arquivo PDF ou Excel.');
       return;
     }
 
     setSelectedFile(file);
     setIsProcessing(true);
     setError(null);
+
+    if (isExcel) {
+      try {
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer);
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+
+        if (jsonData.length < 2) {
+          throw new Error('Arquivo Excel inválido. Precisa ter ao menos o número da OP e a Linha de Produção.');
+        }
+
+        const opNumber = String(jsonData[0][0] || '').replace(/OP[:\s]*/i, '').trim();
+        const productionLine = String(jsonData[1][0] || '').trim();
+        
+        const items: OrderItem[] = [];
+        // Se a linha 3 for cabeçalho, pular
+        let startRow = 2;
+        if (jsonData[2] && (String(jsonData[2][0]).toLowerCase().includes('matéria') || String(jsonData[2][1]).toLowerCase().includes('descri'))) {
+          startRow = 3;
+        }
+
+        for (let i = startRow; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          if (!row || (!row[0] && !row[1])) continue;
+          
+          items.push({
+            code: String(row[0] || ''),
+            description: String(row[1] || ''),
+            planned_quantity: Number(row[2]) || 0,
+            quantity: null,
+            location: ''
+          });
+        }
+
+        const result = {
+          order_number: opNumber,
+          supplier_name: productionLine,
+          date: new Date().toISOString().split('T')[0],
+          total_amount: items.reduce((acc, curr) => acc + curr.planned_quantity, 0),
+          items: items,
+          type: 'Separação'
+        };
+
+        setExtractedData(result);
+      } catch (err: any) {
+        console.error('Erro Excel:', err);
+        setError('Erro ao ler Excel: ' + (err.message || 'Formato inválido'));
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
 
     try {
       const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
@@ -547,7 +604,7 @@ export function PurchaseOrdersView({
           className="bg-primary text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all"
         >
           <Upload className="w-5 h-5" />
-          Importar PDF
+          Importar PDF / Excel
         </button>
       </div>
 
@@ -814,7 +871,7 @@ export function PurchaseOrdersView({
                   <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-outline-variant/30 rounded-[32px] bg-surface-container-low transition-colors hover:bg-surface-container-high/50 cursor-pointer relative">
                     <input 
                       type="file" 
-                      accept="application/pdf"
+                      accept=".pdf,.xlsx,.xls"
                       className="absolute inset-0 opacity-0 cursor-pointer"
                       onChange={handleFileUpload}
                       disabled={isProcessing}
@@ -823,8 +880,8 @@ export function PurchaseOrdersView({
                       <div className="flex flex-col items-center gap-4">
                         <Loader2 className="w-16 h-16 animate-spin text-primary" />
                         <div className="text-center">
-                          <p className="font-black text-on-surface">Processando PDF com IA...</p>
-                          <p className="text-sm text-on-surface-variant">Geralmente leva cerca de 10-15 segundos.</p>
+                          <p className="font-black text-on-surface">Processando arquivo...</p>
+                          <p className="text-sm text-on-surface-variant">Extraindo dados automaticamente.</p>
                         </div>
                       </div>
                     ) : (
@@ -832,8 +889,8 @@ export function PurchaseOrdersView({
                         <div className="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center text-primary mb-6">
                           <Plus className="w-8 h-8" />
                         </div>
-                        <h4 className="text-xl font-bold text-on-surface mb-2">Selecione o arquivo PDF</h4>
-                        <p className="text-on-surface-variant text-sm text-center px-8">Clique ou arraste o arquivo do pedido padrão aqui para começar a extração inteligente.</p>
+                        <h4 className="text-xl font-bold text-on-surface mb-2">Selecione o arquivo PDF ou Excel</h4>
+                        <p className="text-on-surface-variant text-sm text-center px-8">Clique ou arraste o arquivo da OP aqui para começar a extração.</p>
                       </>
                     )}
                   </div>
@@ -952,7 +1009,7 @@ export function PurchaseOrdersView({
                             </div>
                             <div className="overflow-hidden">
                               <p className="text-sm font-bold text-on-surface truncate">{selectedFile?.name}</p>
-                              <p className="text-xs text-on-surface-variant">{((selectedFile?.size || 0) / 1024 / 1024).toFixed(2)} MB • PDF</p>
+                              <p className="text-xs text-on-surface-variant">{((selectedFile?.size || 0) / 1024 / 1024).toFixed(2)} MB • {selectedFile?.type.includes('pdf') ? 'PDF' : 'Excel'}</p>
                             </div>
                           </div>
                         </div>

@@ -605,7 +605,7 @@ export function SeparationDashboardView({
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 p-6 gap-6">
                       <div className="space-y-1">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Fornecedor</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Linha de Produção</p>
                         <p className="font-bold text-on-surface">{selectedOrder.supplier_name}</p>
                       </div>
                       <div className="space-y-1">
@@ -667,10 +667,11 @@ export function SeparationDashboardView({
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-surface-container-low/50">
-                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 border-b border-outline-variant/10">Material</th>
+                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 border-b border-outline-variant/10">Matéria-Prima</th>
+                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 border-b border-outline-variant/10">Descrição da Matéria-Prima</th>
                             <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Local</th>
-                            <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Planejado</th>
-                            <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Separado</th>
+                            <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Qtd. Necessária</th>
+                            <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Qtd. Separada</th>
                             <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Dif.</th>
                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 text-center border-b border-outline-variant/10">Status</th>
                           </tr>
@@ -678,9 +679,11 @@ export function SeparationDashboardView({
                         <tbody className="divide-y divide-outline-variant/10">
                           {selectedOrder.items?.map((item, idx) => (
                             <tr key={idx} className="hover:bg-surface-container-low/30 transition-colors">
+                              <td className="px-6 py-4 font-mono text-xs font-bold text-on-surface-variant uppercase">
+                                {item.code || 'S/ RED'}
+                              </td>
                               <td className="px-6 py-4 uppercase">
                                 <p className="text-sm font-bold text-on-surface leading-tight">{item.description}</p>
-                                <p className="text-[10px] font-black text-on-surface-variant opacity-50 mt-0.5">{item.code || 'S/ RED'}</p>
                               </td>
                               <td className="px-4 py-4 text-center">
                                 <span className="text-[10px] font-black text-amber-600 bg-amber-500/10 px-2 py-1 rounded-md">
@@ -688,7 +691,7 @@ export function SeparationDashboardView({
                                 </span>
                               </td>
                               <td className="px-4 py-4 text-center font-bold text-on-surface">{item.planned_quantity}</td>
-                              <td className="px-4 py-4 text-center font-bold text-primary">{item.quantity ?? '-'}</td>
+                              <td className="px-4 py-4 text-center font-bold text-primary">{item.quantity ?? ''}</td>
                               <td className="px-4 py-4 text-center">
                                 <span className={cn(
                                   "text-[11px] font-black px-2 py-0.5 rounded-md",
@@ -716,7 +719,7 @@ export function SeparationDashboardView({
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 shadow-sm text-center">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-1">Total Planejado</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-1">Total Necessário</p>
                       <p className="text-xl font-headline font-black text-on-surface">
                         {selectedOrder.items?.reduce((acc, i) => acc + i.planned_quantity, 0)}
                       </p>
