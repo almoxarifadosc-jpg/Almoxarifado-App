@@ -11,7 +11,9 @@ import {
   AlertCircle,
   Truck,
   Eye,
-  Filter
+  Filter,
+  CloudSun,
+  DollarSign
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
@@ -80,6 +82,34 @@ export function SeparationDashboardView({
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [searchOP, setSearchOP] = useState<string>('');
   const [showFilters, setShowFilters] = useState(true);
+  const [weather, setWeather] = useState<{ temp: number } | null>(null);
+  const [dollarRate, setDollarRate] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchExternalData = async () => {
+      try {
+        // Palhoça Weather
+        const wRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-27.64&longitude=-48.67&current_weather=true');
+        const wData = await wRes.json();
+        if (wData.current_weather) {
+          setWeather({ temp: Math.round(wData.current_weather.temperature) });
+        }
+
+        // Dollar Rate
+        const dRes = await fetch('https://economia.awesomeapi.com.br/last/USD-BRL');
+        const dData = await dRes.json();
+        if (dData.USDBRL) {
+          setDollarRate(Number(dData.USDBRL.bid).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        }
+      } catch (e) {
+        console.error('Failed to fetch external weather/dollar data', e);
+      }
+    };
+
+    fetchExternalData();
+    const interval = setInterval(fetchExternalData, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const isOrderRestricted = (order: PurchaseOrder) => {
     if (isAdmin || isSuperAdmin || !allowedGroups || allowedGroups.length === 0) return false;
@@ -290,9 +320,33 @@ export function SeparationDashboardView({
         "mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-all duration-300 overflow-hidden",
         !showFilters && "md:h-0 md:mb-0 md:opacity-0 md:pointer-events-none"
       )}>
-        <div>
-          <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight">Painel de Separação</h2>
-          <p className="text-on-surface-variant font-medium">Monitoramento em tempo real da separação de OPs.</p>
+        <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
+          <div>
+            <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight">Painel de Separação</h2>
+            <p className="text-on-surface-variant font-medium">Monitoramento em tempo real da separação de OPs.</p>
+          </div>
+
+          {/* Weather & Dollar Widgets */}
+          <div className="flex items-center gap-4">
+            {weather !== null && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-sky-500/10 rounded-2xl border border-sky-500/20 shadow-sm animate-in fade-in slide-in-from-left-4 duration-700">
+                <CloudSun className="w-5 h-5 text-sky-600" />
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black uppercase tracking-widest text-sky-600/70 leading-none">Palhoça</span>
+                  <span className="text-sm font-black text-sky-700 leading-tight">{weather.temp}°C</span>
+                </div>
+              </div>
+            )}
+            {dollarRate && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 shadow-sm animate-in fade-in slide-in-from-left-4 duration-1000">
+                <DollarSign className="w-5 h-5 text-emerald-600" />
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600/70 leading-none">Dólar Hoje</span>
+                  <span className="text-sm font-black text-emerald-700 leading-tight">R$ {dollarRate}</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
