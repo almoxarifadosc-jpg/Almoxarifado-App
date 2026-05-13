@@ -340,7 +340,7 @@ export default function Page() {
     const q = query(
       collection(db, 'purchase_orders'),
       where('status', 'in', ['Pendente', 'Separada', 'Conferida', 'Recusado', 'Baixada']),
-      limit(200)
+      limit(500)
     );
 
     const opCache = new Map<string, any>();

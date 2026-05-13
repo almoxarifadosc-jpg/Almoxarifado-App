@@ -117,6 +117,24 @@ export function SeparationDashboardView({
     });
   }, [globalOrders, audioEnabled]);
 
+  // Pré-carregamento de vozes para o TTS nativo
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
+        // Edge às vezes precisa desse trigger para popular a lista
+        if (voices.length > 0) {
+          console.log('TTS: Vozes carregadas com sucesso:', voices.length);
+        }
+      };
+      
+      loadVoices();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+      }
+    }
+  }, []);
+
   const announceText = async (message: string) => {
     if (!audioEnabled && !message.includes("Notificações ativadas")) return;
 
@@ -149,36 +167,41 @@ export function SeparationDashboardView({
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message);
-    utterance.lang = 'pt-BR';
     
     const speak = () => {
       const voices = window.speechSynthesis.getVoices();
       
-      // Busca exaustiva por vozes em Português
-      const ptBRVoices = voices.filter(v => 
-        v.lang.toLowerCase().replace('_', '-').startsWith('pt-br') ||
-        (v.lang.toLowerCase().startsWith('pt') && v.name.toLowerCase().includes('brazil'))
-      );
+      // Filtro rigoroso: Apenas vozes em português, garantindo que NÃO sejam em espanhol
+      const ptBRVoices = voices.filter(v => {
+        const l = v.lang.toLowerCase().replace('_', '-');
+        const n = v.name.toLowerCase();
+        // Critérios para PT-BR
+        const isPT = l.startsWith('pt');
+        const isBR = l.includes('br') || n.includes('brazil') || n.includes('portuguese (brazil)');
+        const isSpanish = l.startsWith('es') || n.includes('spanish') || n.includes('espanol');
+        return isPT && isBR && !isSpanish;
+      });
 
-      // Se não achar especificamente BR, tenta qualquer Português (melhor que Espanhol)
-      const anyPT = ptBRVoices.length > 0 ? ptBRVoices : voices.filter(v => v.lang.toLowerCase().startsWith('pt'));
+      // Se não achar BR, tenta qualquer PT que não seja espanhol
+      const anyPT = ptBRVoices.length > 0 
+        ? ptBRVoices 
+        : voices.filter(v => v.lang.toLowerCase().startsWith('pt') && !v.lang.toLowerCase().startsWith('es'));
 
-      // Prioridades: 
-      // 1. Vozes "Natural" do Edge PT-BR (são as melhores)
-      // 2. Vozes do Google PT-BR
-      // 3. Qualquer voz pt-BR
-      // 4. Qualquer voz em Português (Portugal, etc)
+      // Prioridades Edge/Chrome:
+      // 1. Natural PT-BR (Edge)
+      // 2. Google PT-BR (Chrome)
+      // 3. Qualquer PT-BR
+      // 4. Fallback se nada for achado
       const edgeNatural = ptBRVoices.find(v => v.name.toLowerCase().includes('natural'));
       const googleVoice = ptBRVoices.find(v => v.name.toLowerCase().includes('google'));
       const bestVoice = edgeNatural || googleVoice || ptBRVoices[0] || anyPT[0];
       
       if (bestVoice) {
         utterance.voice = bestVoice;
-        utterance.lang = bestVoice.lang; // Sincroniza o lang com a voz escolhida
+        utterance.lang = bestVoice.lang;
         console.log(`TTS Fallback: Voz selecionada: ${bestVoice.name} (${bestVoice.lang})`);
       } else {
-        console.warn('TTS Fallback: Nenhuma voz em português encontrada no sistema.');
-        // Se não achamos nenhuma voz PT, forçar lang PT-BR no utterance pode ajudar o SO a decidir melhor
+        console.warn('TTS Fallback: Nenhuma voz em português confiável encontrada. Forçando lang pt-BR.');
         utterance.lang = 'pt-BR';
       }
       
