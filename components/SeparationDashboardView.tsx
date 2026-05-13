@@ -154,24 +154,32 @@ export function SeparationDashboardView({
     const speak = () => {
       const voices = window.speechSynthesis.getVoices();
       
-      // Filtragem refinada para PT-BR
+      // Busca exaustiva por vozes em Português
       const ptBRVoices = voices.filter(v => 
-        v.lang === 'pt-BR' || 
-        v.lang === 'pt_BR' || 
-        (v.lang.includes('pt') && v.name.toLowerCase().includes('brazil'))
+        v.lang.toLowerCase().replace('_', '-').startsWith('pt-br') ||
+        (v.lang.toLowerCase().startsWith('pt') && v.name.toLowerCase().includes('brazil'))
       );
 
+      // Se não achar especificamente BR, tenta qualquer Português (melhor que Espanhol)
+      const anyPT = ptBRVoices.length > 0 ? ptBRVoices : voices.filter(v => v.lang.toLowerCase().startsWith('pt'));
+
       // Prioridades: 
-      // 1. Vozes "Natural" do Edge (Excelentes)
-      // 2. Vozes do Google (Boas)
-      // 3. Qualquer voz pt-BR disponível
+      // 1. Vozes "Natural" do Edge PT-BR (são as melhores)
+      // 2. Vozes do Google PT-BR
+      // 3. Qualquer voz pt-BR
+      // 4. Qualquer voz em Português (Portugal, etc)
       const edgeNatural = ptBRVoices.find(v => v.name.toLowerCase().includes('natural'));
       const googleVoice = ptBRVoices.find(v => v.name.toLowerCase().includes('google'));
-      const bestVoice = edgeNatural || googleVoice || ptBRVoices[0];
+      const bestVoice = edgeNatural || googleVoice || ptBRVoices[0] || anyPT[0];
       
       if (bestVoice) {
         utterance.voice = bestVoice;
-        console.log('TTS Fallback: Voz selecionada:', bestVoice.name);
+        utterance.lang = bestVoice.lang; // Sincroniza o lang com a voz escolhida
+        console.log(`TTS Fallback: Voz selecionada: ${bestVoice.name} (${bestVoice.lang})`);
+      } else {
+        console.warn('TTS Fallback: Nenhuma voz em português encontrada no sistema.');
+        // Se não achamos nenhuma voz PT, forçar lang PT-BR no utterance pode ajudar o SO a decidir melhor
+        utterance.lang = 'pt-BR';
       }
       
       utterance.rate = 1.0;
@@ -499,7 +507,7 @@ export function SeparationDashboardView({
                   const end = new Date(endDate);
                   const diff = Math.abs(end.getTime() - s.getTime());
                   const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                  if (days > 30) {
+                  if (days > 31) { // Flexibilidade de 1 dia
                     alert("O período máximo permitido é de 30 dias.");
                     return;
                   }
@@ -517,7 +525,7 @@ export function SeparationDashboardView({
                   const s = new Date(startDate);
                   const diff = Math.abs(end.getTime() - s.getTime());
                   const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                  if (days > 30) {
+                  if (days > 31) { // Flexibilidade de 1 dia
                     alert("O período máximo permitido é de 30 dias.");
                     return;
                   }

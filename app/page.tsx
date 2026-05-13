@@ -339,8 +339,8 @@ export default function Page() {
     console.log('Subscribing to Purchase Orders (Active View & Role)...');
     const q = query(
       collection(db, 'purchase_orders'),
-      where('status', 'in', ['Pendente', 'Separada', 'Conferida', 'Recusado']),
-      limit(40)
+      where('status', 'in', ['Pendente', 'Separada', 'Conferida', 'Recusado', 'Baixada']),
+      limit(200)
     );
 
     const opCache = new Map<string, any>();
