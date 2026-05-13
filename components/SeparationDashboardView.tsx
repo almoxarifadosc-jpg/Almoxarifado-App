@@ -171,7 +171,7 @@ export function SeparationDashboardView({
       
       if (bestVoice) {
         utterance.voice = bestVoice;
-        console.log('TTS: Voz selecionada:', bestVoice.name);
+        console.log('TTS Fallback: Voz selecionada:', bestVoice.name);
       }
       
       utterance.rate = 1.0;
@@ -347,18 +347,17 @@ export function SeparationDashboardView({
       if (!orderDate) return false;
       
       const { separation, conference } = calculatePercentages(order.items);
-      const isFullyFinished = order.status === 'Baixada';
-
-      // Se não estiver finalizada, aparece independente do filtro
-      if (!isFullyFinished) return true;
-
+      
       const start = parseISODate(startDate);
       start.setHours(0, 0, 0, 0);
       
       const end = parseISODate(endDate);
       end.setHours(23, 59, 59, 999);
       
-      return orderDate >= start && orderDate <= end;
+      const isInDateRange = orderDate >= start && orderDate <= end;
+
+      // Se houver busca por OP, o filtro de data continua valendo para restringir aos 30 dias
+      return isInDateRange;
     }).sort((a, b) => {
       const dA = parseAnyDate(a.date || a.created_at);
       const dB = parseAnyDate(b.date || b.created_at);
@@ -494,14 +493,36 @@ export function SeparationDashboardView({
               <input 
                 type="date" 
                 value={startDate}
-                onChange={(e) => onDateChange(e.target.value, endDate)}
+                onChange={(e) => {
+                  const newStart = e.target.value;
+                  const s = new Date(newStart);
+                  const end = new Date(endDate);
+                  const diff = Math.abs(end.getTime() - s.getTime());
+                  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                  if (days > 30) {
+                    alert("O período máximo permitido é de 30 dias.");
+                    return;
+                  }
+                  onDateChange(newStart, endDate);
+                }}
                 className="bg-transparent text-xs font-bold text-on-surface outline-none"
               />
               <span className="text-on-surface-variant text-xs font-bold px-1">até</span>
               <input 
                 type="date" 
                 value={endDate}
-                onChange={(e) => onDateChange(startDate, e.target.value)}
+                onChange={(e) => {
+                  const newEnd = e.target.value;
+                  const end = new Date(newEnd);
+                  const s = new Date(startDate);
+                  const diff = Math.abs(end.getTime() - s.getTime());
+                  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                  if (days > 30) {
+                    alert("O período máximo permitido é de 30 dias.");
+                    return;
+                  }
+                  onDateChange(startDate, newEnd);
+                }}
                 className="bg-transparent text-xs font-bold text-on-surface outline-none"
               />
             </div>
