@@ -62,10 +62,18 @@ export default function Page() {
   
   // Filtros Globais para reduzir leituras Firestore
   const [globalStartDate, setGlobalStartDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   });
   const [globalEndDate, setGlobalEndDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   });
 
   const [logoUrl, setLogoUrl] = useState<string>('/app-logo.png');

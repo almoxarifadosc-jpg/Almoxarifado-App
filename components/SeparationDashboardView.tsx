@@ -89,6 +89,12 @@ export function SeparationDashboardView({
   const [weather, setWeather] = useState<{ temp: number } | null>(null);
   const [dollarRate, setDollarRate] = useState<string | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceName, setSelectedVoiceName] = useState<string | null>(null);
+  const [voiceSettings, setVoiceSettings] = useState({ rate: 1.0, pitch: 1.0 });
+  const [useSystemVoiceOnly, setUseSystemVoiceOnly] = useState<boolean>(true);
+  const [ttsStatus, setTtsStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [ttsErrorMessage, setTtsErrorMessage] = useState<string | null>(null);
 
   // Controle de Notificação por Voz
   const announcedOpsRef = useRef<Set<string>>(new Set());
@@ -122,7 +128,16 @@ export function SeparationDashboardView({
     if ('speechSynthesis' in window) {
       const loadVoices = () => {
         const voices = window.speechSynthesis.getVoices();
-        // Edge às vezes precisa desse trigger para popular a lista
+        
+        // Filtro para vozes em português
+        const ptVoices = voices.filter(v => 
+          v.lang.toLowerCase().startsWith('pt') || 
+          v.name.toLowerCase().includes('portuguese') ||
+          v.name.toLowerCase().includes('brazil')
+        );
+
+        setAvailableVoices(ptVoices);
+        
         if (voices.length > 0) {
           console.log('TTS: Vozes carregadas com sucesso:', voices.length);
         }
@@ -135,35 +150,54 @@ export function SeparationDashboardView({
     }
   }, []);
 
-  const announceText = async (message: string) => {
+  const announceText = async (message: string, forceSystem: boolean = false) => {
     if (!audioEnabled && !message.includes("Notificações ativadas")) return;
 
-    try {
-      console.log('TTS: Solicitando áudio para:', message);
-      const response = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: message }),
-      });
+    setTtsStatus('loading');
+    setTtsErrorMessage(null);
 
-      if (response.ok) {
-        console.log('TTS: Áudio ElevenLabs recebido.');
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        await audio.play();
-        return;
-      } else {
-        const errorData = await response.json();
-        console.warn('TTS: ElevenLabs falhou (API):', errorData.error);
+    // Se NÃO for forçado sistema E não estiver no modo apenas sistema, tenta ElevenLabs
+    if (!useSystemVoiceOnly && !forceSystem) {
+      try {
+        console.log('TTS: Solicitando áudio para:', message);
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: message }),
+        });
+
+        if (response.ok) {
+          console.log('TTS: Áudio ElevenLabs recebido.');
+          const audioBlob = await response.blob();
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const audio = new Audio(audioUrl);
+          await audio.play();
+          setTtsStatus('idle');
+          return;
+        } else {
+          const errorData = await response.json();
+          console.warn('TTS: ElevenLabs falhou (API):', response.status, errorData.error);
+          
+          if (response.status === 402) {
+            setTtsErrorMessage("Cota ElevenLabs excedida (Erro 402). Usando voz do sistema.");
+            // Se der erro de cota, força o sistema para o usuário não ficar sem áudio
+            setUseSystemVoiceOnly(true);
+            localStorage.setItem('tts_use_local_only', 'true');
+          } else {
+            setTtsErrorMessage(`Erro ElevenLabs (${response.status})`);
+          }
+        }
+      } catch (e) {
+        console.warn('TTS: Erro ao conectar com API de TTS:', e);
+        setTtsErrorMessage("Erro de conexão com ElevenLabs.");
       }
-    } catch (e) {
-      console.warn('TTS: Erro ao conectar com API de TTS:', e);
     }
 
     // Fallback: SpeechSynthesis (Nativo do navegador)
-    console.log('TTS: Usando voz nativa do sistema como fallback.');
-    if (!('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window)) {
+      setTtsStatus('error');
+      return;
+    }
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message);
@@ -171,43 +205,43 @@ export function SeparationDashboardView({
     const speak = () => {
       const voices = window.speechSynthesis.getVoices();
       
-      // Filtro rigoroso: Apenas vozes em português, garantindo que NÃO sejam em espanhol
-      const ptBRVoices = voices.filter(v => {
-        const l = v.lang.toLowerCase().replace('_', '-');
-        const n = v.name.toLowerCase();
-        // Critérios para PT-BR
-        const isPT = l.startsWith('pt');
-        const isBR = l.includes('br') || n.includes('brazil') || n.includes('portuguese (brazil)');
-        const isSpanish = l.startsWith('es') || n.includes('spanish') || n.includes('espanol');
-        return isPT && isBR && !isSpanish;
-      });
+      // Tenta usar a voz selecionada pelo usuário
+      let bestVoice = voices.find(v => v.name === selectedVoiceName);
 
-      // Se não achar BR, tenta qualquer PT que não seja espanhol
-      const anyPT = ptBRVoices.length > 0 
-        ? ptBRVoices 
-        : voices.filter(v => v.lang.toLowerCase().startsWith('pt') && !v.lang.toLowerCase().startsWith('es'));
+      if (!bestVoice) {
+        // Filtro rigoroso: Apenas vozes em português, garantindo que NÃO sejam em espanhol
+        const ptBRVoices = voices.filter(v => {
+          const l = v.lang.toLowerCase().replace('_', '-');
+          const n = v.name.toLowerCase();
+          const isPT = l.startsWith('pt');
+          const isBR = l.includes('br') || n.includes('brazil') || n.includes('portuguese (brazil)');
+          const isSpanish = l.startsWith('es') || n.includes('spanish') || n.includes('espanol');
+          return isPT && isBR && !isSpanish;
+        });
 
-      // Prioridades Edge/Chrome:
-      // 1. Natural PT-BR (Edge)
-      // 2. Google PT-BR (Chrome)
-      // 3. Qualquer PT-BR
-      // 4. Fallback se nada for achado
-      const edgeNatural = ptBRVoices.find(v => v.name.toLowerCase().includes('natural'));
-      const googleVoice = ptBRVoices.find(v => v.name.toLowerCase().includes('google'));
-      const bestVoice = edgeNatural || googleVoice || ptBRVoices[0] || anyPT[0];
+        const anyPT = ptBRVoices.length > 0 
+          ? ptBRVoices 
+          : voices.filter(v => v.lang.toLowerCase().startsWith('pt') && !v.lang.toLowerCase().startsWith('es'));
+
+        const edgeNatural = ptBRVoices.find(v => v.name.toLowerCase().includes('natural'));
+        const googleVoice = ptBRVoices.find(v => v.name.toLowerCase().includes('google'));
+        bestVoice = edgeNatural || googleVoice || ptBRVoices[0] || anyPT[0];
+      }
       
       if (bestVoice) {
         utterance.voice = bestVoice;
         utterance.lang = bestVoice.lang;
-        console.log(`TTS Fallback: Voz selecionada: ${bestVoice.name} (${bestVoice.lang})`);
       } else {
-        console.warn('TTS Fallback: Nenhuma voz em português confiável encontrada. Forçando lang pt-BR.');
         utterance.lang = 'pt-BR';
       }
       
-      utterance.rate = 1.0;
-      utterance.pitch = 1;
+      utterance.rate = voiceSettings.rate;
+      utterance.pitch = voiceSettings.pitch;
       utterance.volume = 1;
+
+      utterance.onend = () => setTtsStatus('idle');
+      utterance.onerror = () => setTtsStatus('error');
+
       window.speechSynthesis.speak(utterance);
     };
 
@@ -485,9 +519,97 @@ export function SeparationDashboardView({
                 </button>
               )}
               {audioEnabled && (
-                <div className="flex items-center gap-1.5 text-[10px] text-emerald-500 font-black uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
-                  <Volume2 size={12} />
-                  Áudio Ativo
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className={cn(
+                    "flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg border",
+                    ttsStatus === 'loading' ? "text-amber-500 bg-amber-500/10 border-amber-500/20" : 
+                    ttsStatus === 'error' ? "text-red-500 bg-red-500/10 border-red-500/20" :
+                    "text-emerald-500 bg-emerald-500/10 border-emerald-500/20"
+                  )}>
+                    <Volume2 size={12} className={cn(ttsStatus === 'loading' && "animate-pulse")} />
+                    {ttsStatus === 'loading' ? "Gerando..." : "Áudio Ativo"}
+                  </div>
+
+                  {/* Configurações de Voz */}
+                  <div className="flex items-center gap-2 bg-surface-container-low px-2 py-1 rounded-xl border border-outline-variant/10">
+                    <button 
+                      onClick={() => {
+                        const next = !useSystemVoiceOnly;
+                        setUseSystemVoiceOnly(next);
+                        localStorage.setItem('tts_use_local_only', next.toString());
+                      }}
+                      className={cn(
+                        "text-[9px] font-black px-2 py-1 rounded-lg border transition-all",
+                        useSystemVoiceOnly 
+                          ? "bg-amber-500 text-white border-amber-600 shadow-sm" 
+                          : "bg-surface-container-high text-on-surface-variant/40 border-outline-variant/10"
+                      )}
+                      title={useSystemVoiceOnly ? "Usando vozes gratuitas do navegador" : "Usando ElevenLabs (Pode gerar custos)"}
+                    >
+                      {useSystemVoiceOnly ? "GRÁTIS (LOCAL)" : "PREMIUM"}
+                    </button>
+
+                    <div className="h-4 w-px bg-outline-variant/20 mx-0.5" />
+
+                    <select 
+                      value={selectedVoiceName || ''}
+                      onChange={(e) => {
+                        const name = e.target.value;
+                        setSelectedVoiceName(name);
+                        localStorage.setItem('tts_selected_voice', name);
+                        announceText("Voz alterada", true);
+                      }}
+                      className="bg-transparent text-[10px] font-bold text-on-surface-variant outline-none max-w-[120px] truncate"
+                    >
+                      <option value="">Voz Padrão</option>
+                      {availableVoices.map(v => (
+                        <option key={v.name} value={v.name}>{v.name}</option>
+                      ))}
+                    </select>
+
+                    <button 
+                      onClick={() => announceText("Teste de voz", true)}
+                      className="p-1 px-2 hover:bg-primary/10 text-primary rounded-lg transition-colors border border-primary/20"
+                      title="Testar voz selecionada"
+                    >
+                      <Volume2 size={10} />
+                    </button>
+
+                    <div className="h-4 w-px bg-outline-variant/20 mx-1" />
+
+                    <div className="flex items-center gap-2">
+                       <span className="text-[9px] font-black opacity-40">VEL:</span>
+                       <input 
+                        type="range" 
+                        min="0.5" 
+                        max="1.5" 
+                        step="0.1" 
+                        value={voiceSettings.rate}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setVoiceSettings(prev => ({ ...prev, rate: val }));
+                          localStorage.setItem('tts_voice_rate', val.toString());
+                        }}
+                        className="w-12 h-1 accent-primary"
+                       />
+                       <span className="text-[9px] font-black text-on-surface-variant min-w-[20px]">{voiceSettings.rate}x</span>
+                    </div>
+
+                    <div className="h-4 w-px bg-outline-variant/20 mx-1" />
+
+                    <button 
+                      onClick={() => setAudioEnabled(false)}
+                      className="text-[9px] font-black text-error hover:opacity-70"
+                    >
+                      DESATIVAR
+                    </button>
+                  </div>
+
+                  {ttsErrorMessage && (
+                    <div className="text-[9px] font-bold text-red-500 animate-in fade-in slide-in-from-top-1">
+                      {ttsErrorMessage}
+                    </div>
+                  )}
                 </div>
               )}
             </h2>

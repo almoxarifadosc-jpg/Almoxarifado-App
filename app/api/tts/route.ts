@@ -34,9 +34,20 @@ export async function POST(request: Request) {
     );
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('TTS: Erro na resposta da ElevenLabs:', response.status, errorText);
-      return NextResponse.json({ error: `Erro ElevenLabs (${response.status})` }, { status: response.status });
+      let detail = 'Erro desconhecido.';
+      try {
+        const errorData = await response.json();
+        detail = errorData.detail?.message || errorData.detail || JSON.stringify(errorData);
+        console.error('TTS: Erro na resposta da ElevenLabs:', response.status, errorData);
+      } catch (e) {
+        const errorText = await response.text();
+        detail = errorText.substring(0, 100);
+        console.error('TTS: Erro (texto) na resposta da ElevenLabs:', response.status, errorText);
+      }
+      
+      return NextResponse.json({ 
+        error: `Erro ElevenLabs (${response.status}): ${detail}` 
+      }, { status: response.status });
     }
 
     const audioBuffer = await response.arrayBuffer();

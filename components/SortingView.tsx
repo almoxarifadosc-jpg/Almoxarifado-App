@@ -569,6 +569,13 @@ export function SortingView({
     }
   };
 
+  const formatToISODate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const filteredOrders = orders.filter(o => {
     // 0. Regra de Grupos Permitidos
     if (isOrderRestricted(o)) return false;
@@ -598,7 +605,7 @@ export function SortingView({
 
     // 4. Filtro de data e status dinâmico
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = formatToISODate(today);
     
     let matchLogic = false;
     if (o.date) {
@@ -633,7 +640,7 @@ export function SortingView({
   }).sort((a, b) => {
     // Nova Lógica de Priorização: Atrasadas e Não Finalizadas no Topo
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = formatToISODate(today);
     
     const { separation: sepA, conference: confA } = calculatePercentages(a.items);
     const { separation: sepB, conference: confB } = calculatePercentages(b.items);
