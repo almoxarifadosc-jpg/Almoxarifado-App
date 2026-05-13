@@ -156,43 +156,6 @@ export function SeparationDashboardView({
     setTtsStatus('loading');
     setTtsErrorMessage(null);
 
-    // Se NÃO for forçado sistema E não estiver no modo apenas sistema, tenta ElevenLabs
-    if (!useSystemVoiceOnly && !forceSystem) {
-      try {
-        console.log('TTS: Solicitando áudio para:', message);
-        const response = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: message }),
-        });
-
-        if (response.ok) {
-          console.log('TTS: Áudio ElevenLabs recebido.');
-          const audioBlob = await response.blob();
-          const audioUrl = URL.createObjectURL(audioBlob);
-          const audio = new Audio(audioUrl);
-          await audio.play();
-          setTtsStatus('idle');
-          return;
-        } else {
-          const errorData = await response.json();
-          console.warn('TTS: ElevenLabs falhou (API):', response.status, errorData.error);
-          
-          if (response.status === 402) {
-            setTtsErrorMessage("Cota ElevenLabs excedida (Erro 402). Usando voz do sistema.");
-            // Se der erro de cota, força o sistema para o usuário não ficar sem áudio
-            setUseSystemVoiceOnly(true);
-            localStorage.setItem('tts_use_local_only', 'true');
-          } else {
-            setTtsErrorMessage(`Erro ElevenLabs (${response.status})`);
-          }
-        }
-      } catch (e) {
-        console.warn('TTS: Erro ao conectar com API de TTS:', e);
-        setTtsErrorMessage("Erro de conexão com ElevenLabs.");
-      }
-    }
-
     // Fallback: SpeechSynthesis (Nativo do navegador)
     if (!('speechSynthesis' in window)) {
       setTtsStatus('error');
@@ -213,16 +176,26 @@ export function SeparationDashboardView({
         const ptBRVoices = voices.filter(v => {
           const l = v.lang.toLowerCase().replace('_', '-');
           const n = v.name.toLowerCase();
+          
+          // BLOQUEIO EXPLÍCITO DE ESPANHOL
+          const isSpanish = l.startsWith('es') || n.includes('spanish') || n.includes('espanol');
+          if (isSpanish) return false;
+
           const isPT = l.startsWith('pt');
           const isBR = l.includes('br') || n.includes('brazil') || n.includes('portuguese (brazil)');
-          const isSpanish = l.startsWith('es') || n.includes('spanish') || n.includes('espanol');
-          return isPT && isBR && !isSpanish;
+          return isPT && isBR;
         });
 
+        // Fallback para qualquer português que não seja espanhol (Portugal, etc)
         const anyPT = ptBRVoices.length > 0 
           ? ptBRVoices 
-          : voices.filter(v => v.lang.toLowerCase().startsWith('pt') && !v.lang.toLowerCase().startsWith('es'));
+          : voices.filter(v => 
+              v.lang.toLowerCase().startsWith('pt') && 
+              !v.lang.toLowerCase().startsWith('es') &&
+              !v.name.toLowerCase().includes('spanish')
+            );
 
+        // Prioridade Edge Natural -> Google Chrome -> Outros
         const edgeNatural = ptBRVoices.find(v => v.name.toLowerCase().includes('natural'));
         const googleVoice = ptBRVoices.find(v => v.name.toLowerCase().includes('google'));
         bestVoice = edgeNatural || googleVoice || ptBRVoices[0] || anyPT[0];
@@ -230,7 +203,7 @@ export function SeparationDashboardView({
       
       if (bestVoice) {
         utterance.voice = bestVoice;
-        utterance.lang = bestVoice.lang;
+        utterance.lang = 'pt-BR'; // Força idioma PT-BR no utterance independente da voz
       } else {
         utterance.lang = 'pt-BR';
       }

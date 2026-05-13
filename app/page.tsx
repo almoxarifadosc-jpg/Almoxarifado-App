@@ -346,16 +346,16 @@ export default function Page() {
 
     console.log('Subscribing to Purchase Orders (Active View & Role)...');
     
-    // Cálculo dos últimos 4 dias para o filtro do banco
-    const fourDaysAgo = new Date();
-    fourDaysAgo.setDate(fourDaysAgo.getDate() - 4);
-    fourDaysAgo.setHours(0, 0, 0, 0);
-    const dateLimit = fourDaysAgo.toISOString().split('T')[0];
+    // Cálculo das últimas 48 horas para o filtro do banco
+    const fortyEightHoursAgo = new Date();
+    fortyEightHoursAgo.setDate(fortyEightHoursAgo.getDate() - 2);
+    fortyEightHoursAgo.setHours(0, 0, 0, 0);
+    const dateLimit = fortyEightHoursAgo.toISOString().split('T')[0];
 
     const q = query(
       collection(db, 'purchase_orders'),
       where('date', '>=', dateLimit),
-      limit(100)
+      limit(50)
     );
 
     const opCache = new Map<string, any>();
