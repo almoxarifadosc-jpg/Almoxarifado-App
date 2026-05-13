@@ -149,19 +149,32 @@ export function SeparationDashboardView({
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message);
+    utterance.lang = 'pt-BR';
     
     const speak = () => {
       const voices = window.speechSynthesis.getVoices();
-      const ptVoices = voices.filter(v => v.lang.includes('pt-BR'));
-      const googleVoice = ptVoices.find(v => v.name.toLowerCase().includes('google'));
-      const premiumVoice = ptVoices.find(v => v.name.toLowerCase().includes('natural'));
-      const bestVoice = googleVoice || premiumVoice || ptVoices[0];
+      
+      // Filtragem refinada para PT-BR
+      const ptBRVoices = voices.filter(v => 
+        v.lang === 'pt-BR' || 
+        v.lang === 'pt_BR' || 
+        (v.lang.includes('pt') && v.name.toLowerCase().includes('brazil'))
+      );
+
+      // Prioridades: 
+      // 1. Vozes "Natural" do Edge (Excelentes)
+      // 2. Vozes do Google (Boas)
+      // 3. Qualquer voz pt-BR disponível
+      const edgeNatural = ptBRVoices.find(v => v.name.toLowerCase().includes('natural'));
+      const googleVoice = ptBRVoices.find(v => v.name.toLowerCase().includes('google'));
+      const bestVoice = edgeNatural || googleVoice || ptBRVoices[0];
       
       if (bestVoice) {
         utterance.voice = bestVoice;
+        console.log('TTS: Voz selecionada:', bestVoice.name);
       }
       
-      utterance.rate = 0.95;
+      utterance.rate = 1.0;
       utterance.pitch = 1;
       utterance.volume = 1;
       window.speechSynthesis.speak(utterance);
