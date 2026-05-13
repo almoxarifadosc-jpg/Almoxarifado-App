@@ -4,11 +4,14 @@ export async function POST(request: Request) {
   try {
     const { text } = await request.json();
     const apiKey = process.env.ELEVEN_LABS_API_KEY;
-    const voiceId = process.env.ELEVEN_LABS_VOICE_ID || 'pNInz6obpg8nEByWQX7d'; // Default voice
+    const voiceId = process.env.ELEVEN_LABS_VOICE_ID || 'pNInz6obpg8nEByWQX7d'; // Voz padrão (Fernanda ou similar)
 
     if (!apiKey) {
+      console.error('TTS: ELEVEN_LABS_API_KEY não configurada no ambiente.');
       return NextResponse.json({ error: 'Configuração do ElevenLabs ausente.' }, { status: 500 });
     }
+
+    console.log(`TTS: Gerando áudio para: "${text.substring(0, 30)}..." usando voz: ${voiceId}`);
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -31,8 +34,9 @@ export async function POST(request: Request) {
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail?.status || 'Erro no ElevenLabs');
+      const errorText = await response.text();
+      console.error('TTS: Erro na resposta da ElevenLabs:', response.status, errorText);
+      return NextResponse.json({ error: `Erro ElevenLabs (${response.status})` }, { status: response.status });
     }
 
     const audioBuffer = await response.arrayBuffer();

@@ -117,13 +117,11 @@ export function SeparationDashboardView({
     });
   }, [globalOrders, audioEnabled]);
 
-  const announceOrderRelease = async (orderNumber: string) => {
-    if (!audioEnabled) return;
-
-    const message = `OP ${orderNumber} está liberada para baixa`;
+  const announceText = async (message: string) => {
+    if (!audioEnabled && !message.includes("Notificações ativadas")) return;
 
     try {
-      // Tenta usar ElevenLabs via nossa rota de API
+      console.log('TTS: Solicitando áudio para:', message);
       const response = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -131,17 +129,22 @@ export function SeparationDashboardView({
       });
 
       if (response.ok) {
+        console.log('TTS: Áudio ElevenLabs recebido.');
         const audioBlob = await response.blob();
         const audioUrl = URL.createObjectURL(audioBlob);
         const audio = new Audio(audioUrl);
-        audio.play();
+        await audio.play();
         return;
+      } else {
+        const errorData = await response.json();
+        console.warn('TTS: ElevenLabs falhou (API):', errorData.error);
       }
     } catch (e) {
-      console.warn('ElevenLabs falhou, usando fallback do sistema', e);
+      console.warn('TTS: Erro ao conectar com API de TTS:', e);
     }
 
     // Fallback: SpeechSynthesis (Nativo do navegador)
+    console.log('TTS: Usando voz nativa do sistema como fallback.');
     if (!('speechSynthesis' in window)) return;
 
     window.speechSynthesis.cancel();
@@ -169,6 +172,10 @@ export function SeparationDashboardView({
     } else {
       speak();
     }
+  };
+
+  const announceOrderRelease = (orderNumber: string) => {
+    announceText(`OP ${orderNumber} está liberada para baixa`);
   };
 
   useEffect(() => {
@@ -414,9 +421,7 @@ export function SeparationDashboardView({
                 <button 
                   onClick={() => {
                     setAudioEnabled(true);
-                    const ut = new SpeechSynthesisUtterance("Notificações ativadas");
-                    ut.lang = 'pt-BR';
-                    window.speechSynthesis.speak(ut);
+                    announceText("Notificações ativadas");
                   }}
                   className="px-3 py-1 bg-amber-500/20 text-amber-500 text-[10px] font-black rounded-xl border border-amber-500/30 hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 animate-pulse"
                 >
