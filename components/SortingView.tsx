@@ -596,26 +596,28 @@ export function SortingView({
     // 3. Filtro específico de OP
     const matchOP = opFilter === '' || o.order_number.toLowerCase().includes(opFilter.toLowerCase());
 
-    // 4. Filtro de data com exceção para OPs não finalizadas
-    const { separation, conference } = calculatePercentages(o.items);
-    const isFullyFinished = o.status === 'Baixada';
+    // 4. Filtro de data e status dinâmico
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
     
-    let matchDate = true;
+    let matchLogic = true;
     if (o.date) {
       const orderDate = o.date.split('T')[0];
-      // Se NÃO está finalizada, ignora o filtro de data (sempre true)
-      // Se ESTÁ finalizada, respeita o filtro de data
-      if (isFullyFinished) {
-        matchDate = (!startDate || orderDate >= startDate) && (!endDate || orderDate <= endDate);
+      const isToday = orderDate === todayStr;
+      const isFinished = o.status === 'Baixada';
+
+      // Regra: Hoje mostra tudo. Dias passados apenas não concluídas (Baixadas).
+      if (isToday) {
+        matchLogic = true;
       } else {
-        matchDate = true;
+        matchLogic = !isFinished;
       }
     } else {
-      // Se não tem data, mostramos se estiver nos filtros ou se não estiver finalizada
-      matchDate = (!startDate && !endDate) || !isFullyFinished;
+      // Sem data (fallback), mostra se não estiver concluída
+      matchLogic = o.status !== 'Baixada';
     }
 
-    return matchText && matchOP && matchDate;
+    return matchText && matchOP && matchLogic;
   }).sort((a, b) => {
     // Nova Lógica de Priorização: Atrasadas e Não Finalizadas no Topo
     const today = new Date();

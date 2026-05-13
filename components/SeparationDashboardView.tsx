@@ -374,26 +374,19 @@ export function SeparationDashboardView({
         return false;
       }
 
-      const orderDate = parseAnyDate(order.date || order.created_at);
-      if (!orderDate) return false;
+      const d = parseAnyDate(order.date || order.created_at);
+      if (!d) return false;
       
-      const { separation, conference } = calculatePercentages(order.items);
-      
-      // Regra: Não 100% conferida OR não 100% separada OR pendente de assinatura OR status não Baixada
-      const isPending = separation < 100 || conference < 100 || !order.is_signed || order.status !== 'Baixada';
-      
-      if (!isPending) return false;
+      const orderDateStr = formatToISODate(d);
+      const isToday = orderDateStr === todayISO;
+      const isFinished = order.status === 'Baixada';
 
-      const start = parseISODate(startDate);
-      start.setHours(0, 0, 0, 0);
-      
-      const end = parseISODate(endDate);
-      end.setHours(23, 59, 59, 999);
-      
-      const isInDateRange = orderDate >= start && orderDate <= end;
-
-      // Se houver busca por OP, o filtro de data continua valendo para restringir aos 30 dias
-      return isInDateRange;
+      // Regra: Hoje mostra tudo independente do status. Dias passados apenas não concluídas.
+      if (isToday) {
+        return true;
+      } else {
+        return !isFinished;
+      }
     }).sort((a, b) => {
       const dA = parseAnyDate(a.date || a.created_at);
       const dB = parseAnyDate(b.date || b.created_at);

@@ -339,10 +339,17 @@ export default function Page() {
     }
 
     console.log('Subscribing to Purchase Orders (Active View & Role)...');
+    
+    // Cálculo dos últimos 4 dias para o filtro do banco
+    const fourDaysAgo = new Date();
+    fourDaysAgo.setDate(fourDaysAgo.getDate() - 4);
+    fourDaysAgo.setHours(0, 0, 0, 0);
+    const dateLimit = fourDaysAgo.toISOString().split('T')[0];
+
     const q = query(
       collection(db, 'purchase_orders'),
-      where('status', 'in', ['Pendente', 'Separada', 'Conferida', 'Recusado', 'Baixada']),
-      limit(500)
+      where('date', '>=', dateLimit),
+      limit(100)
     );
 
     const opCache = new Map<string, any>();
