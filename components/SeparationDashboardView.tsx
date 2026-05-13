@@ -381,12 +381,26 @@ export function SeparationDashboardView({
       const isToday = orderDateStr === todayISO;
       const isFinished = order.status === 'Baixada';
 
-      // Regra: Hoje mostra tudo independente do status. Dias passados apenas não concluídas.
-      if (isToday) {
+      // Está no intervalo de datas selecionado?
+      const isInRange = (!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate);
+
+      // Regra: 
+      // 1. Se está no intervalo e é de hoje -> mostra (independente de status)
+      // 2. Se está no intervalo e é passado -> mostra apenas se não finalizada
+      // 3. Se está fora do intervalo mas é pendente/atrasada (passado e não finalizada) -> mostra também
+      
+      if (isInRange) {
+        if (isToday) {
+          return true;
+        } else {
+          return !isFinished;
+        }
+      } else if (orderDateStr < todayISO && !isFinished) {
+        // Fora do intervalo, mas é uma pendência de dias anteriores
         return true;
-      } else {
-        return !isFinished;
       }
+
+      return false;
     }).sort((a, b) => {
       const dA = parseAnyDate(a.date || a.created_at);
       const dB = parseAnyDate(b.date || b.created_at);

@@ -600,17 +600,29 @@ export function SortingView({
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
     
-    let matchLogic = true;
+    let matchLogic = false;
     if (o.date) {
       const orderDate = o.date.split('T')[0];
       const isToday = orderDate === todayStr;
       const isFinished = o.status === 'Baixada';
+      
+      // Está no intervalo de datas selecionado?
+      const isInRange = (!startDate || orderDate >= startDate) && (!endDate || orderDate <= endDate);
 
-      // Regra: Hoje mostra tudo. Dias passados apenas não concluídas (Baixadas).
-      if (isToday) {
+      // Regra: 
+      // 1. Se está no intervalo e é de hoje -> mostra (independente de status)
+      // 2. Se está no intervalo e é passado -> mostra apenas se não finalizada
+      // 3. Se está fora do intervalo mas é pendente/atrasada (passado e não finalizada) -> mostra também
+      
+      if (isInRange) {
+        if (isToday) {
+          matchLogic = true;
+        } else {
+          matchLogic = !isFinished;
+        }
+      } else if (orderDate < todayStr && !isFinished) {
+        // Fora do intervalo, mas é uma pendência de dias anteriores
         matchLogic = true;
-      } else {
-        matchLogic = !isFinished;
       }
     } else {
       // Sem data (fallback), mostra se não estiver concluída

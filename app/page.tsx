@@ -62,9 +62,7 @@ export default function Page() {
   
   // Filtros Globais para reduzir leituras Firestore
   const [globalStartDate, setGlobalStartDate] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
+    return new Date().toISOString().split('T')[0];
   });
   const [globalEndDate, setGlobalEndDate] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
