@@ -40,13 +40,13 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
   const sections = [
     {
       title: 'OPs',
-      items: ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? [
-        { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText },
-        { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
-        { id: 'SEPARATION_DASHBOARD' as View, label: 'Painel de Separação', icon: LayoutDashboard },
-        { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 },
-        { id: 'NEWS_PORTAL' as View, label: 'Notícias', icon: Newspaper },
-      ] : []
+      items: [
+        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText } : null,
+        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList } : null,
+        isAdmin ? { id: 'SEPARATION_DASHBOARD' as View, label: 'Painel de Separação', icon: LayoutDashboard } : null,
+        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 } : null,
+        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'NEWS_PORTAL' as View, label: 'Notícias', icon: Newspaper } : null,
+      ].filter(Boolean) as any
     },
     {
       title: 'Intercompany',
@@ -115,7 +115,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
               )}
               
               <div className="space-y-1">
-                {section.items.map((tab) => {
+                {section.items.map((tab: any) => {
                   const Icon = tab.icon;
                   const isActive = currentView === tab.id;
 

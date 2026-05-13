@@ -379,6 +379,11 @@ export function SeparationDashboardView({
       
       const { separation, conference } = calculatePercentages(order.items);
       
+      // Regra: Não 100% conferida OR não 100% separada OR pendente de assinatura OR status não Baixada
+      const isPending = separation < 100 || conference < 100 || !order.is_signed || order.status !== 'Baixada';
+      
+      if (!isPending) return false;
+
       const start = parseISODate(startDate);
       start.setHours(0, 0, 0, 0);
       

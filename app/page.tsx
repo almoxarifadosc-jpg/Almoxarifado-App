@@ -62,7 +62,9 @@ export default function Page() {
   
   // Filtros Globais para reduzir leituras Firestore
   const [globalStartDate, setGlobalStartDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0]; // Padrão: Hoje (para carregamentos)
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
   });
   const [globalEndDate, setGlobalEndDate] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
@@ -763,7 +765,7 @@ export default function Page() {
                 }}
               />
             )}
-            {currentView === 'SEPARATION_DASHBOARD' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
+            {currentView === 'SEPARATION_DASHBOARD' && currentUser?.is_admin && (
               <SeparationDashboardView 
                 key="separation-dashboard" 
                 isAdmin={currentUser?.is_admin}
