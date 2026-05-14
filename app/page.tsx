@@ -289,28 +289,29 @@ export default function Page() {
 
   // 1. OPs de Produção (Dashboard, Analytics, Operations)
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?.id) return;
     
     // PCP e Almoxarifado usam estas views
-    const hasRole = ['PCP', 'Almoxarifado', 'Ventisol'].includes(currentUser.category);
+    const category = currentUser?.category || '';
+    const hasRole = ['PCP', 'Almoxarifado', 'Ventisol'].includes(category);
     const needsOps = ['OPERATIONS', 'ANALYTICS', 'DASHBOARD'].includes(currentView);
     if (!hasRole || !needsOps) {
       if (operations.length > 0) setOperations([]); // Limpa memória se trocar de papel/view
       return;
     }
 
-    console.log('Subscribing to Operations (Active View & Role)...');
+    console.log(`[Firestore] Subscribing to Operations... (Role: ${category}, View: ${currentView})`);
     const q = query(collection(db, 'operations'), orderBy('created_at', 'desc'), limit(30));
     const unsub = onSnapshot(q, (snapshot) => {
       setOperations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'operations'));
 
     return () => unsub();
-  }, [currentUser, currentView, currentUser?.category]);
+  }, [currentUser?.id, currentUser?.category, currentView]);
 
   // 2. Notícias e Configurações (Launch)
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?.id) return;
     
     const unsubSettings = onSnapshot(doc(db, 'settings', 'company_logo'), (snap) => {
       if (snap.exists()) setLogoUrl(snap.data().value);
@@ -318,7 +319,7 @@ export default function Page() {
 
     let unsubNews = () => {};
     if (currentView === 'LAUNCH') {
-      console.log('Subscribing to News (Active View)...');
+      console.log('[Firestore] Subscribing to News...');
       const q = query(collection(db, 'news_posts'), orderBy('created_at', 'desc'), limit(10));
       unsubNews = onSnapshot(q, (snap) => {
         setNewsPosts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]);
@@ -329,14 +330,15 @@ export default function Page() {
       unsubSettings();
       unsubNews();
     };
-  }, [currentUser, currentView]);
+  }, [currentUser?.id, currentView]);
 
   // 3. Pedidos de Compra / Separação (Orders, Sorting, Separation, Performance)
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?.id) return;
 
     // Conferentes e PCP usam estas views
-    const hasRole = ['PCP', 'Conferente', 'Ventisol', 'Ventisol + Conferente'].includes(currentUser.category);
+    const category = currentUser?.category || '';
+    const hasRole = ['PCP', 'Conferente', 'Ventisol', 'Ventisol + Conferente'].includes(category);
     const needsOrders = ['ORDERS', 'SORTING', 'SEPARATION_DASHBOARD', 'PERFORMANCE'].includes(currentView);
     
     if (!hasRole || !needsOrders) {
@@ -344,9 +346,9 @@ export default function Page() {
       return;
     }
 
-    console.log('Subscribing to Purchase Orders (Active View & Role)...');
+    console.log(`[Firestore] Subscribing to Purchase Orders... (Role: ${category}, View: ${currentView})`);
     
-    // Cálculo das últimas 48 horas para o filtro do banco
+    // Cálculo das últimas 48 horas (Conforme pedido pelo usuário para diminuir leituras)
     const fortyEightHoursAgo = new Date();
     fortyEightHoursAgo.setDate(fortyEightHoursAgo.getDate() - 2);
     fortyEightHoursAgo.setHours(0, 0, 0, 0);
@@ -355,7 +357,7 @@ export default function Page() {
     const q = query(
       collection(db, 'purchase_orders'),
       where('date', '>=', dateLimit),
-      limit(50)
+      limit(30)
     );
 
     const opCache = new Map<string, any>();
@@ -370,14 +372,15 @@ export default function Page() {
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'purchase_orders'));
 
     return () => unsub();
-  }, [currentUser, currentView, currentUser?.category]);
+  }, [currentUser?.id, currentUser?.category, currentView]);
 
   // 4. Recebimentos (Receipts, Dashboard de Recebimento)
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?.id) return;
 
     // Recebimento e PCP usam estas views
-    const hasRole = ['PCP', 'Recebimento', 'Ventisol'].includes(currentUser.category);
+    const category = currentUser?.category || '';
+    const hasRole = ['PCP', 'Recebimento', 'Ventisol'].includes(category);
     const needsReceipts = ['RECEIPTS', 'RECEIPTS_DASHBOARD'].includes(currentView);
     
     if (!hasRole || !needsReceipts) {
@@ -385,7 +388,7 @@ export default function Page() {
       return;
     }
 
-    console.log('Subscribing to Receipts (Active View & Role)...');
+    console.log(`[Firestore] Subscribing to Receipts... (Role: ${category}, View: ${currentView})`);
     const todayStart = new Date();
     todayStart.setHours(0,0,0,0);
     
@@ -406,11 +409,11 @@ export default function Page() {
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'receipts'));
 
     return () => unsub();
-  }, [currentUser, currentView, currentUser?.category]);
+  }, [currentUser?.id, currentUser?.category, currentView]);
 
   // 5. Coleções Estáticas (Fetch Único com Cache Robusto)
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?.id) return;
 
     const fetchStaticData = async () => {
       if (staticDataFetchedRef.current) return;
@@ -424,10 +427,10 @@ export default function Page() {
         setSuppliers(cachedSuppliers);
         setLoadTypes(cachedLoadTypes);
         setProductionLines(cachedLines);
-        // Profiles will be handled by a separate real-time listener
       }
       
       try {
+        console.log('[Firestore] Fetching Static Data (Once)');
         const [supSnap, loadSnap, lineSnap] = await Promise.all([
           getDocs(query(collection(db, 'suppliers'), orderBy('name'), limit(150))),
           getDocs(query(collection(db, 'load_types'), orderBy('name'), limit(50))),
@@ -451,7 +454,7 @@ export default function Page() {
     };
 
     fetchStaticData();
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
   // 6. Perfis em Tempo Real (Admin e Sorting precisam de dados frescos)
   useEffect(() => {

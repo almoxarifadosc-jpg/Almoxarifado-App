@@ -92,7 +92,6 @@ export function SeparationDashboardView({
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState<string | null>(null);
   const [voiceSettings, setVoiceSettings] = useState({ rate: 1.0, pitch: 1.0 });
-  const [useSystemVoiceOnly, setUseSystemVoiceOnly] = useState<boolean>(true);
   const [ttsStatus, setTtsStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [ttsErrorMessage, setTtsErrorMessage] = useState<string | null>(null);
 
@@ -129,17 +128,21 @@ export function SeparationDashboardView({
       const loadVoices = () => {
         const voices = window.speechSynthesis.getVoices();
         
-        // Filtro para vozes em português
-        const ptVoices = voices.filter(v => 
-          v.lang.toLowerCase().startsWith('pt') || 
-          v.name.toLowerCase().includes('portuguese') ||
-          v.name.toLowerCase().includes('brazil')
-        );
+        // Filtro rigoroso para vozes em português BR, excluindo explicitamente espanhol
+        const ptVoices = voices.filter(v => {
+          const l = v.lang.toLowerCase().replace('_', '-');
+          const n = v.name.toLowerCase();
+          const isSpanish = l.startsWith('es') || n.includes('spanish') || n.includes('espanol');
+          const isPT = l.startsWith('pt');
+          // No Edge, algumas vozes pt-PT podem aparecer, priorizamos pt-BR
+          const isBR = l.includes('br') || n.includes('brazil') || n.includes('portuguese (brazil)');
+          return isPT && isBR && !isSpanish;
+        });
 
         setAvailableVoices(ptVoices);
         
         if (voices.length > 0) {
-          console.log('TTS: Vozes carregadas com sucesso:', voices.length);
+          console.log('TTS: Vozes BR carregadas:', ptVoices.length);
         }
       };
       
@@ -159,12 +162,16 @@ export function SeparationDashboardView({
     // Fallback: SpeechSynthesis (Nativo do navegador)
     if (!('speechSynthesis' in window)) {
       setTtsStatus('error');
+      setTtsErrorMessage("Navegador sem suporte a voz.");
       return;
     }
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(message);
     
+    // Força idioma PT-BR no nível do objeto para evitar confusão de idioma padrão do SO
+    utterance.lang = 'pt-BR';
+
     const speak = () => {
       const voices = window.speechSynthesis.getVoices();
       
@@ -172,40 +179,28 @@ export function SeparationDashboardView({
       let bestVoice = voices.find(v => v.name === selectedVoiceName);
 
       if (!bestVoice) {
-        // Filtro rigoroso: Apenas vozes em português, garantindo que NÃO sejam em espanhol
+        // Filtro de emergência caso a lista do estado esteja vazia
         const ptBRVoices = voices.filter(v => {
           const l = v.lang.toLowerCase().replace('_', '-');
           const n = v.name.toLowerCase();
-          
-          // BLOQUEIO EXPLÍCITO DE ESPANHOL
           const isSpanish = l.startsWith('es') || n.includes('spanish') || n.includes('espanol');
-          if (isSpanish) return false;
-
           const isPT = l.startsWith('pt');
-          const isBR = l.includes('br') || n.includes('brazil') || n.includes('portuguese (brazil)');
-          return isPT && isBR;
+          const isBR = l.includes('br') || n.includes('brazil');
+          return isPT && isBR && !isSpanish;
         });
 
-        // Fallback para qualquer português que não seja espanhol (Portugal, etc)
-        const anyPT = ptBRVoices.length > 0 
-          ? ptBRVoices 
-          : voices.filter(v => 
-              v.lang.toLowerCase().startsWith('pt') && 
-              !v.lang.toLowerCase().startsWith('es') &&
-              !v.name.toLowerCase().includes('spanish')
-            );
-
-        // Prioridade Edge Natural -> Google Chrome -> Outros
+        // Prioridades: 
+        // 1. Microsft Edge Natural Online
+        // 2. Google Português do Brasil
+        // 3. Qualquer PT-BR que sobrar
         const edgeNatural = ptBRVoices.find(v => v.name.toLowerCase().includes('natural'));
-        const googleVoice = ptBRVoices.find(v => v.name.toLowerCase().includes('google'));
-        bestVoice = edgeNatural || googleVoice || ptBRVoices[0] || anyPT[0];
+        const googleVoice = ptBRVoices.find(v => v.name.toLowerCase().includes('google') && v.lang.includes('BR'));
+        bestVoice = edgeNatural || googleVoice || ptBRVoices[0];
       }
       
       if (bestVoice) {
         utterance.voice = bestVoice;
-        utterance.lang = 'pt-BR'; // Força idioma PT-BR no utterance independente da voz
-      } else {
-        utterance.lang = 'pt-BR';
+        utterance.lang = 'pt-BR'; 
       }
       
       utterance.rate = voiceSettings.rate;
@@ -213,13 +208,17 @@ export function SeparationDashboardView({
       utterance.volume = 1;
 
       utterance.onend = () => setTtsStatus('idle');
-      utterance.onerror = () => setTtsStatus('error');
+      utterance.onerror = (e) => {
+        console.error("TTS Error:", e);
+        setTtsStatus('error');
+      };
 
       window.speechSynthesis.speak(utterance);
     };
 
     if (window.speechSynthesis.getVoices().length === 0) {
-      window.speechSynthesis.onvoiceschanged = speak;
+      // Pequeno delay para navegadores lentos em carregar vozes
+      setTimeout(speak, 100);
     } else {
       speak();
     }
@@ -504,23 +503,11 @@ export function SeparationDashboardView({
                   </div>
 
                   {/* Configurações de Voz */}
-                  <div className="flex items-center gap-2 bg-surface-container-low px-2 py-1 rounded-xl border border-outline-variant/10">
-                    <button 
-                      onClick={() => {
-                        const next = !useSystemVoiceOnly;
-                        setUseSystemVoiceOnly(next);
-                        localStorage.setItem('tts_use_local_only', next.toString());
-                      }}
-                      className={cn(
-                        "text-[9px] font-black px-2 py-1 rounded-lg border transition-all",
-                        useSystemVoiceOnly 
-                          ? "bg-amber-500 text-white border-amber-600 shadow-sm" 
-                          : "bg-surface-container-high text-on-surface-variant/40 border-outline-variant/10"
-                      )}
-                      title={useSystemVoiceOnly ? "Usando vozes gratuitas do navegador" : "Usando ElevenLabs (Pode gerar custos)"}
-                    >
-                      {useSystemVoiceOnly ? "GRÁTIS (LOCAL)" : "PREMIUM"}
-                    </button>
+                  <div className="flex flex-wrap items-center gap-2 bg-surface-container-low px-2 py-1 rounded-xl border border-outline-variant/10 shadow-sm">
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 text-emerald-600 rounded-lg border border-emerald-500/20">
+                      <Volume2 size={10} />
+                      <span className="text-[9px] font-black tracking-widest uppercase">Voz Local</span>
+                    </div>
 
                     <div className="h-4 w-px bg-outline-variant/20 mx-0.5" />
 
@@ -532,7 +519,7 @@ export function SeparationDashboardView({
                         localStorage.setItem('tts_selected_voice', name);
                         announceText("Voz alterada", true);
                       }}
-                      className="bg-transparent text-[10px] font-bold text-on-surface-variant outline-none max-w-[120px] truncate"
+                      className="bg-transparent text-[10px] font-bold text-on-surface-variant outline-none max-w-[120px] truncate cursor-pointer"
                     >
                       <option value="">Voz Padrão</option>
                       {availableVoices.map(v => (
@@ -542,7 +529,7 @@ export function SeparationDashboardView({
 
                     <button 
                       onClick={() => announceText("Teste de voz", true)}
-                      className="p-1 px-2 hover:bg-primary/10 text-primary rounded-lg transition-colors border border-primary/20"
+                      className="p-1 px-2 hover:bg-primary/10 text-primary rounded-lg transition-all border border-primary/20 active:scale-95"
                       title="Testar voz selecionada"
                     >
                       <Volume2 size={10} />
@@ -563,7 +550,7 @@ export function SeparationDashboardView({
                           setVoiceSettings(prev => ({ ...prev, rate: val }));
                           localStorage.setItem('tts_voice_rate', val.toString());
                         }}
-                        className="w-12 h-1 accent-primary"
+                        className="w-12 h-1 accent-primary cursor-pointer"
                        />
                        <span className="text-[9px] font-black text-on-surface-variant min-w-[20px]">{voiceSettings.rate}x</span>
                     </div>
@@ -572,7 +559,7 @@ export function SeparationDashboardView({
 
                     <button 
                       onClick={() => setAudioEnabled(false)}
-                      className="text-[9px] font-black text-error hover:opacity-70"
+                      className="text-[9px] font-black text-error hover:opacity-70 transition-opacity"
                     >
                       DESATIVAR
                     </button>
