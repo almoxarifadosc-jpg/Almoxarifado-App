@@ -62,13 +62,12 @@ export default function Page() {
   
   // Filtros Globais para reduzir leituras Firestore
   const [globalStartDate, setGlobalStartDate] = useState<string>(() => {
-    const now = new Date();
-    // Início da semana atual (Domingo)
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - now.getDay());
-    const year = weekStart.getFullYear();
-    const month = String(weekStart.getMonth() + 1).padStart(2, '0');
-    const day = String(weekStart.getDate()).padStart(2, '0');
+    const date = new Date();
+    // Voltamos 1 dia para garantir que OPs lançadas no turnover de ontem/hoje apareçam
+    date.setDate(date.getDate() - 1);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   });
   const [globalEndDate, setGlobalEndDate] = useState<string>(() => {
@@ -352,13 +351,13 @@ export default function Page() {
     console.log(`[Firestore] Subscribing to Purchase Orders... (Role: ${category}, View: ${currentView})`);
     
     // Sincronizar filtro do Firestore com a data de início selecionada pelo usuário
-    // fallback para garantir que sempre carregue pelo menos 2 dias se não houver data
-    const dateLimit = globalStartDate || new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // fallback para garantir que sempre carregue pelo menos 24 horas se não houver data
+    const dateLimit = globalStartDate || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const q = query(
       collection(db, 'purchase_orders'),
       where('date', '>=', dateLimit),
-      limit(150)
+      limit(100)
     );
 
     const opCache = new Map<string, any>();

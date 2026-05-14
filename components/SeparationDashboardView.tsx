@@ -9,6 +9,7 @@ import {
   Package,
   Calendar,
   AlertCircle,
+  MapPin,
   Truck,
   Eye,
   X,
@@ -390,11 +391,14 @@ export function SeparationDashboardView({
       const isInRange = (!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate);
 
       // Mostra se estiver no intervalo. 
-      // Adicionalmente, mostra PENDENTES de datas anteriores mesmo que fora do intervalo (para não sumir serviço)
+      // Adicionalmente, mostra PENDENTES de datas muito recentes (últimas 48h) para garantir que nada se perca no turnover
       const isFinished = order.status === 'Baixada';
-      const isLatePending = orderDateStr < (startDate || todayISO) && !isFinished;
+      const fortyEightHoursAgo = new Date();
+      fortyEightHoursAgo.setDate(fortyEightHoursAgo.getDate() - 2);
+      const limitISO = formatToISODate(fortyEightHoursAgo);
+      const isRecentPending = orderDateStr >= limitISO && !isFinished;
 
-      return isInRange || isLatePending;
+      return isInRange || isRecentPending;
     }).sort((a, b) => {
       const dA = parseAnyDate(a.date || a.created_at);
       const dB = parseAnyDate(b.date || b.created_at);
@@ -614,8 +618,8 @@ export function SeparationDashboardView({
                     const end = new Date(endDate);
                     const diff = Math.abs(end.getTime() - s.getTime());
                     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                    if (days > 31) {
-                      alert("O período máximo permitido é de 30 dias.");
+                    if (days > 7) {
+                      alert("Para evitar lentidão, o período máximo permitido para consulta é de 7 dias.");
                       return;
                     }
                     onDateChange(newStart, endDate);
@@ -748,10 +752,10 @@ export function SeparationDashboardView({
                         setSelectedOrder(order);
                         setIsReviewModalOpen(true);
                       }}
-                      className="w-8 h-8 bg-surface-container-high hover:bg-primary/10 text-on-surface-variant hover:text-primary rounded-xl flex items-center justify-center transition-all border border-outline-variant/10 active:scale-95 group/view"
+                      className="w-10 h-10 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-2xl flex items-center justify-center transition-all border border-primary/20 active:scale-95 group/view shadow-sm"
                       title="Visualizar Detalhes"
                     >
-                      <Eye size={16} className="group-hover/view:scale-110 transition-transform" />
+                      <Eye size={20} className="group-hover/view:scale-110 transition-transform" />
                     </button>
                     {isFullyComplete && (
                       <div className="w-8 h-8 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center border border-emerald-500/20">
@@ -765,7 +769,7 @@ export function SeparationDashboardView({
                   <div>
                     <span className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 block mb-1">Local</span>
                     <div className="flex items-center gap-1.5 text-on-surface">
-                      <Eye className="w-3 h-3 text-primary" />
+                      <MapPin className="w-3 h-3 text-primary" />
                       <span className="text-xs font-bold truncate">{order.product_location || 'N/A'}</span>
                     </div>
                   </div>
