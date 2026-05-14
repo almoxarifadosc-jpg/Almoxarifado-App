@@ -371,11 +371,16 @@ export function SeparationDashboardView({
     today.setHours(0, 0, 0, 0);
     const todayISO = formatToISODate(today);
 
+    // Identificar o início da semana atual (Domingo)
+    const currentWeekStart = new Date(today);
+    currentWeekStart.setDate(today.getDate() - today.getDay());
+    const weekStartISO = formatToISODate(currentWeekStart);
+
     return orders.filter(order => {
       // Regra de Grupos Permitidos
       if (isOrderRestricted(order)) return false;
 
-      // Filtro de Busca por OP
+      // Filtro de Busca por OP (Sempre disponível)
       if (searchOP.trim() && !order.order_number.toLowerCase().includes(searchOP.toLowerCase())) {
         return false;
       }
@@ -387,7 +392,18 @@ export function SeparationDashboardView({
       const isToday = orderDateStr === todayISO;
       const isFinished = order.status === 'Baixada';
 
-      // Está no intervalo de datas selecionado?
+      // Se NÃO for admin, só vê OPs da semana atual (Segurança adicional)
+      if (!isAdmin && orderDateStr < weekStartISO) {
+        // No entanto, se for pendente, talvez queira ver? 
+        // O pedido diz "Até a semana atual", então limitamos o histórico visível.
+        if (!isFinished) {
+          // Mantém pendentes mesmo sendo de semanas passadas para não "sumir" trabalho
+        } else {
+          return false;
+        }
+      }
+
+      // Filtro de datas (intervalo selecionado)
       const isInRange = (!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate);
 
       // Regra: 
@@ -612,74 +628,83 @@ export function SeparationDashboardView({
             />
           </div>
 
-          <div className="flex items-center gap-3 bg-surface-container-low p-2 rounded-2xl border border-outline-variant/10">
-            <div className="flex items-center gap-2 px-3">
-              <Calendar className="w-4 h-4 text-primary" />
-              <input 
-                type="date" 
-                value={startDate}
-                onChange={(e) => {
-                  const newStart = e.target.value;
-                  const s = new Date(newStart);
-                  const end = new Date(endDate);
-                  const diff = Math.abs(end.getTime() - s.getTime());
-                  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                  if (days > 31) { // Flexibilidade de 1 dia
-                    alert("O período máximo permitido é de 30 dias.");
-                    return;
-                  }
-                  onDateChange(newStart, endDate);
-                }}
-                className="bg-transparent text-xs font-bold text-on-surface outline-none"
-              />
-              <span className="text-on-surface-variant text-xs font-bold px-1">até</span>
-              <input 
-                type="date" 
-                value={endDate}
-                onChange={(e) => {
-                  const newEnd = e.target.value;
-                  const end = new Date(newEnd);
-                  const s = new Date(startDate);
-                  const diff = Math.abs(end.getTime() - s.getTime());
-                  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                  if (days > 31) { // Flexibilidade de 1 dia
-                    alert("O período máximo permitido é de 30 dias.");
-                    return;
-                  }
-                  onDateChange(startDate, newEnd);
-                }}
-                className="bg-transparent text-xs font-bold text-on-surface outline-none"
-              />
+          {isAdmin && (
+            <div className="flex items-center gap-3 bg-surface-container-low p-2 rounded-2xl border border-outline-variant/10">
+              <div className="flex items-center gap-2 px-3">
+                <Calendar className="w-4 h-4 text-primary" />
+                <input 
+                  type="date" 
+                  value={startDate}
+                  onChange={(e) => {
+                    const newStart = e.target.value;
+                    const s = new Date(newStart);
+                    
+                    // Início da semana atual (Domingo)
+                    const now = new Date();
+                    const weekStart = new Date(now);
+                    weekStart.setDate(now.getDate() - now.getDay());
+                    weekStart.setHours(0,0,0,0);
+
+                    if (s < weekStart) {
+                      alert("O período permitido nesta visualização é apenas para a semana atual.");
+                      return;
+                    }
+
+                    const end = new Date(endDate);
+                    const diff = Math.abs(end.getTime() - s.getTime());
+                    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                    if (days > 31) {
+                      alert("O período máximo permitido é de 30 dias.");
+                      return;
+                    }
+                    onDateChange(newStart, endDate);
+                  }}
+                  className="bg-transparent text-xs font-bold text-on-surface outline-none"
+                />
+                <span className="text-on-surface-variant text-xs font-bold px-1">até</span>
+                <input 
+                  type="date" 
+                  value={endDate}
+                  onChange={(e) => {
+                    const newEnd = e.target.value;
+                    const end = new Date(newEnd);
+                    onDateChange(startDate, newEnd);
+                  }}
+                  className="bg-transparent text-xs font-bold text-on-surface outline-none"
+                />
+              </div>
+              <button 
+                onClick={() => {}}
+                className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-colors"
+              >
+                <Filter className="w-4 h-4" />
+              </button>
             </div>
-            <button 
-              onClick={() => {}}
-              className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-colors"
-            >
-              <Filter className="w-4 h-4" />
-            </button>
-          </div>
+          )}
         </div>
       </section>
 
-      {/* Botão de Esconder/Mostrar - Somente Desktop */}
-      <div className="hidden md:flex justify-end mb-4">
-        <button 
-          onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2 px-4 py-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant rounded-xl border border-outline-variant/10 transition-all text-xs font-bold"
-        >
-          {showFilters ? (
-            <>
-              <Eye className="w-4 h-4" />
-              Esconder Filtros
-            </>
-          ) : (
-            <>
-              <Filter className="w-4 h-4" />
-              Mostrar Filtros
-            </>
-          )}
-        </button>
-      </div>
+      {/* Botão de Esconder/Mostrar - Somente Desktop e Admin */}
+      {isAdmin && (
+        <div className="hidden md:flex justify-end mb-4">
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 px-4 py-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant rounded-xl border border-outline-variant/10 transition-all text-xs font-bold"
+          >
+            {showFilters ? (
+              <>
+                <Eye className="w-4 h-4" />
+                Esconder Filtros
+              </>
+            ) : (
+              <>
+                <Filter className="w-4 h-4" />
+                Mostrar Filtros
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">

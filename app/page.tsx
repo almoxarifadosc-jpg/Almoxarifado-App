@@ -63,9 +63,12 @@ export default function Page() {
   // Filtros Globais para reduzir leituras Firestore
   const [globalStartDate, setGlobalStartDate] = useState<string>(() => {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
+    // Início da semana atual (Domingo)
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    const year = weekStart.getFullYear();
+    const month = String(weekStart.getMonth() + 1).padStart(2, '0');
+    const day = String(weekStart.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   });
   const [globalEndDate, setGlobalEndDate] = useState<string>(() => {
