@@ -11,6 +11,7 @@ import {
   AlertCircle,
   Truck,
   Eye,
+  X,
   Filter,
   CloudSun,
   DollarSign,
@@ -723,7 +724,7 @@ export function SeparationDashboardView({
                       : "border-l-4 border-l-transparent"
                 )}
               >
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-start mb-2">
                   <div className="flex flex-col">
                     <span className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-50">OP Nº</span>
                     <div className="flex items-center gap-2">
@@ -741,11 +742,23 @@ export function SeparationDashboardView({
                       )}
                     </div>
                   </div>
-                  {isFullyComplete && (
-                    <div className="w-7 h-7 bg-emerald-500/10 text-emerald-500 rounded-lg flex items-center justify-center">
-                      <CheckCircle2 className="w-4 h-4" />
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        setIsReviewModalOpen(true);
+                      }}
+                      className="w-8 h-8 bg-surface-container-high hover:bg-primary/10 text-on-surface-variant hover:text-primary rounded-xl flex items-center justify-center transition-all border border-outline-variant/10 active:scale-95 group/view"
+                      title="Visualizar Detalhes"
+                    >
+                      <Eye size={16} className="group-hover/view:scale-110 transition-transform" />
+                    </button>
+                    {isFullyComplete && (
+                      <div className="w-8 h-8 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center border border-emerald-500/20">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -853,9 +866,9 @@ export function SeparationDashboardView({
                     setIsReviewModalOpen(false);
                     setSelectedOrder(null);
                   }}
-                  className="p-2 hover:bg-surface-container-high rounded-full transition-colors"
+                  className="p-2 hover:bg-surface-container-high rounded-full transition-colors text-on-surface-variant"
                 >
-                  <Eye className="w-6 h-6" />
+                  <X className="w-6 h-6" />
                 </button>
               </div>
 
