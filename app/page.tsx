@@ -351,16 +351,14 @@ export default function Page() {
 
     console.log(`[Firestore] Subscribing to Purchase Orders... (Role: ${category}, View: ${currentView})`);
     
-    // Cálculo das últimas 48 horas (Conforme pedido pelo usuário para diminuir leituras)
-    const fortyEightHoursAgo = new Date();
-    fortyEightHoursAgo.setDate(fortyEightHoursAgo.getDate() - 2);
-    fortyEightHoursAgo.setHours(0, 0, 0, 0);
-    const dateLimit = fortyEightHoursAgo.toISOString().split('T')[0];
+    // Sincronizar filtro do Firestore com a data de início selecionada pelo usuário
+    // fallback para garantir que sempre carregue pelo menos 2 dias se não houver data
+    const dateLimit = globalStartDate || new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const q = query(
       collection(db, 'purchase_orders'),
       where('date', '>=', dateLimit),
-      limit(30)
+      limit(150)
     );
 
     const opCache = new Map<string, any>();
@@ -399,7 +397,7 @@ export default function Page() {
       collection(db, 'receipts'), 
       where('created_at', '>=', todayStart.toISOString()),
       orderBy('created_at', 'desc'), 
-      limit(30)
+      limit(100)
     );
 
     const unsub = onSnapshot(q, (snap) => {

@@ -371,58 +371,29 @@ export function SeparationDashboardView({
     today.setHours(0, 0, 0, 0);
     const todayISO = formatToISODate(today);
 
-    // Identificar o início da semana atual (Domingo)
-    const currentWeekStart = new Date(today);
-    currentWeekStart.setDate(today.getDate() - today.getDay());
-    const weekStartISO = formatToISODate(currentWeekStart);
-
     return orders.filter(order => {
-      // Regra de Grupos Permitidos
+      // Regra de Grupos Permitidos (Sempre respeitada)
       if (isOrderRestricted(order)) return false;
 
-      // Filtro de Busca por OP (Sempre disponível)
-      if (searchOP.trim() && !order.order_number.toLowerCase().includes(searchOP.toLowerCase())) {
-        return false;
+      // Se houver busca por texto (OP), prioriza isso e ignora datas para facilitar achar OPs específicas
+      if (searchOP.trim()) {
+        return order.order_number.toLowerCase().includes(searchOP.toLowerCase());
       }
 
       const d = parseAnyDate(order.date || order.created_at);
       if (!d) return false;
       
       const orderDateStr = formatToISODate(d);
-      const isToday = orderDateStr === todayISO;
-      const isFinished = order.status === 'Baixada';
-
-      // Se NÃO for admin, só vê OPs da semana atual (Segurança adicional)
-      if (!isAdmin && orderDateStr < weekStartISO) {
-        // No entanto, se for pendente, talvez queira ver? 
-        // O pedido diz "Até a semana atual", então limitamos o histórico visível.
-        if (!isFinished) {
-          // Mantém pendentes mesmo sendo de semanas passadas para não "sumir" trabalho
-        } else {
-          return false;
-        }
-      }
-
+      
       // Filtro de datas (intervalo selecionado)
       const isInRange = (!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate);
 
-      // Regra: 
-      // 1. Se está no intervalo e é de hoje -> mostra (independente de status)
-      // 2. Se está no intervalo e é passado -> mostra apenas se não finalizada
-      // 3. Se está fora do intervalo mas é pendente/atrasada (passado e não finalizada) -> mostra também
-      
-      if (isInRange) {
-        if (isToday) {
-          return true;
-        } else {
-          return !isFinished;
-        }
-      } else if (orderDateStr < todayISO && !isFinished) {
-        // Fora do intervalo, mas é uma pendência de dias anteriores
-        return true;
-      }
+      // Mostra se estiver no intervalo. 
+      // Adicionalmente, mostra PENDENTES de datas anteriores mesmo que fora do intervalo (para não sumir serviço)
+      const isFinished = order.status === 'Baixada';
+      const isLatePending = orderDateStr < (startDate || todayISO) && !isFinished;
 
-      return false;
+      return isInRange || isLatePending;
     }).sort((a, b) => {
       const dA = parseAnyDate(a.date || a.created_at);
       const dB = parseAnyDate(b.date || b.created_at);
@@ -639,17 +610,6 @@ export function SeparationDashboardView({
                     const newStart = e.target.value;
                     const s = new Date(newStart);
                     
-                    // Início da semana atual (Domingo)
-                    const now = new Date();
-                    const weekStart = new Date(now);
-                    weekStart.setDate(now.getDate() - now.getDay());
-                    weekStart.setHours(0,0,0,0);
-
-                    if (s < weekStart) {
-                      alert("O período permitido nesta visualização é apenas para a semana atual.");
-                      return;
-                    }
-
                     const end = new Date(endDate);
                     const diff = Math.abs(end.getTime() - s.getTime());
                     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
