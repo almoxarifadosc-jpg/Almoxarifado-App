@@ -91,6 +91,7 @@ export function SeparationDashboardView({
   const [weather, setWeather] = useState<{ temp: number } | null>(null);
   const [dollarRate, setDollarRate] = useState<string | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
+  const [premiumVoiceEnabled, setPremiumVoiceEnabled] = useState(false);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState<string | null>(null);
   const [voiceSettings, setVoiceSettings] = useState({ rate: 1.0, pitch: 1.0 });
@@ -160,6 +161,39 @@ export function SeparationDashboardView({
 
     setTtsStatus('loading');
     setTtsErrorMessage(null);
+
+    // Estratégia Premium: ElevenLabs via API Route
+    if (premiumVoiceEnabled && !forceSystem) {
+      try {
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: message }),
+        });
+
+        if (!response.ok) throw new Error('Erro ao gerar voz premium');
+
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        
+        audio.onended = () => {
+          setTtsStatus('idle');
+          URL.revokeObjectURL(audioUrl);
+        };
+
+        audio.onerror = () => {
+          setTtsStatus('error');
+          setTtsErrorMessage("Erro ao reproduzir áudio premium");
+        };
+
+        await audio.play();
+        return;
+      } catch (error) {
+        console.error('Premium TTS Error, falling back to Native:', error);
+        // Se falhar o premium, não interrompe, tenta o nativo abaixo
+      }
+    }
 
     // Fallback: SpeechSynthesis (Nativo do navegador)
     if (!('speechSynthesis' in window)) {
@@ -496,38 +530,66 @@ export function SeparationDashboardView({
 
                   {/* Configurações de Voz */}
                   <div className="flex flex-wrap items-center gap-2 bg-surface-container-low px-2 py-1 rounded-xl border border-outline-variant/10 shadow-sm">
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 text-emerald-600 rounded-lg border border-emerald-500/20">
-                      <Volume2 size={10} />
-                      <span className="text-[9px] font-black tracking-widest uppercase">Voz Local</span>
-                    </div>
+                    <button
+                      onClick={() => {
+                        setPremiumVoiceEnabled(!premiumVoiceEnabled);
+                        if (!premiumVoiceEnabled) {
+                          announceText("Voz premium ativada", true);
+                        }
+                      }}
+                      className={cn(
+                        "flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all active:scale-95",
+                        premiumVoiceEnabled 
+                          ? "bg-amber-500 text-white border-amber-600 shadow-sm shadow-amber-500/20" 
+                          : "bg-surface-container-high text-on-surface-variant border-outline-variant/10 hover:bg-surface-container-highest"
+                      )}
+                    >
+                      <div className={cn("w-1.5 h-1.5 rounded-full", premiumVoiceEnabled ? "bg-white animate-pulse" : "bg-on-surface-variant opacity-40")} />
+                      <span className="text-[9px] font-black tracking-widest uppercase">Premium (ElevenLabs)</span>
+                    </button>
 
                     <div className="h-4 w-px bg-outline-variant/20 mx-0.5" />
 
-                    <select 
-                      value={selectedVoiceName || ''}
-                      onChange={(e) => {
-                        const name = e.target.value;
-                        setSelectedVoiceName(name);
-                        localStorage.setItem('tts_selected_voice', name);
-                        announceText("Voz alterada", true);
-                      }}
-                      className="bg-transparent text-[10px] font-bold text-on-surface-variant outline-none max-w-[120px] truncate cursor-pointer"
-                    >
-                      <option value="">Voz Padrão</option>
-                      {availableVoices.map(v => (
-                        <option key={v.name} value={v.name}>{v.name}</option>
-                      ))}
-                    </select>
+                    {!premiumVoiceEnabled ? (
+                      <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 text-emerald-600 rounded-lg border border-emerald-500/20">
+                        <Volume2 size={10} />
+                        <span className="text-[9px] font-black tracking-widest uppercase">Local</span>
+                      </div>
+                    ) : (
+                      <span className="text-[9px] font-black text-on-surface-variant opacity-40 px-2 uppercase tracking-widest">Local</span>
+                    )}
 
-                    <button 
-                      onClick={() => announceText("Teste de voz", true)}
-                      className="p-1 px-2 hover:bg-primary/10 text-primary rounded-lg transition-all border border-primary/20 active:scale-95"
-                      title="Testar voz selecionada"
-                    >
-                      <Volume2 size={10} />
-                    </button>
+                    <div className="h-4 w-px bg-outline-variant/20 mx-0.5" />
 
-                    <div className="h-4 w-px bg-outline-variant/20 mx-1" />
+                    {!premiumVoiceEnabled && (
+                      <>
+                        <select 
+                          value={selectedVoiceName || ''}
+                          onChange={(e) => {
+                            const name = e.target.value;
+                            setSelectedVoiceName(name);
+                            localStorage.setItem('tts_selected_voice', name);
+                            announceText("Voz alterada", true);
+                          }}
+                          className="bg-transparent text-[10px] font-bold text-on-surface-variant outline-none max-w-[120px] truncate cursor-pointer"
+                        >
+                          <option value="">Voz Padrão</option>
+                          {availableVoices.map(v => (
+                            <option key={v.name} value={v.name}>{v.name}</option>
+                          ))}
+                        </select>
+
+                        <button 
+                          onClick={() => announceText("Teste de voz", true)}
+                          className="p-1 px-2 hover:bg-primary/10 text-primary rounded-lg transition-all border border-primary/20 active:scale-95"
+                          title="Testar voz selecionada"
+                        >
+                          <Volume2 size={10} />
+                        </button>
+
+                        <div className="h-4 w-px bg-outline-variant/20 mx-1" />
+                      </>
+                    )}
 
                     <div className="flex items-center gap-2">
                        <span className="text-[9px] font-black opacity-40">VEL:</span>
