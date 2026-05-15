@@ -266,7 +266,7 @@ export function SeparationDashboardView({
   };
 
   const announceOrderRelease = (orderNumber: string) => {
-    announceText(`Mateus Antunes OP ${orderNumber} está liberada para baixa`);
+    announceText(`OP ${orderNumber} está liberada para baixa`);
   };
 
   useEffect(() => {
@@ -513,7 +513,7 @@ export function SeparationDashboardView({
                 <button 
                   onClick={() => {
                     setAudioEnabled(true);
-                    announceText("Notificações ativadas", true);
+                    announceText("Notificações ativadas");
                   }}
                   className="px-3 py-1 bg-amber-500/20 text-amber-500 text-[10px] font-black rounded-xl border border-amber-500/30 hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 animate-pulse"
                 >
@@ -541,7 +541,7 @@ export function SeparationDashboardView({
                         setPremiumVoiceEnabled(newState);
                         localStorage.setItem('tts_premium_enabled', newState.toString());
                         if (newState) {
-                          announceText("Voz premium ativada", true);
+                          announceText("Voz premium ativada");
                         }
                       }}
                       className={cn(
@@ -576,7 +576,7 @@ export function SeparationDashboardView({
                             const name = e.target.value;
                             setSelectedVoiceName(name);
                             localStorage.setItem('tts_selected_voice', name);
-                            announceText("Voz alterada", true);
+                            announceText("Voz alterada");
                           }}
                           className="bg-transparent text-[10px] font-bold text-on-surface-variant outline-none max-w-[120px] truncate cursor-pointer"
                         >
@@ -587,7 +587,7 @@ export function SeparationDashboardView({
                         </select>
 
                         <button 
-                          onClick={() => announceText("Teste de voz", true)}
+                          onClick={() => announceText("Teste de voz")}
                           className="p-1 px-2 hover:bg-primary/10 text-primary rounded-lg transition-all border border-primary/20 active:scale-95"
                           title="Testar voz selecionada"
                         >
