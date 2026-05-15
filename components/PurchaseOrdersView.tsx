@@ -541,6 +541,47 @@ export function PurchaseOrdersView({
     }
   };
 
+  const parseAnyDate = (rawDate: any): Date | null => {
+    if (!rawDate) return null;
+    let d: Date;
+    
+    try {
+      if (typeof rawDate === 'object' && 'seconds' in rawDate) {
+        d = (rawDate as any).toDate();
+      } else if (typeof rawDate === 'string') {
+        if (rawDate.includes('/')) {
+          const parts = rawDate.split(' ')[0].split('/');
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10);
+          const year = parseInt(parts[2], 10);
+          d = new Date(year, month - 1, day, 0, 0, 0, 0);
+        } else if (rawDate.includes('-')) {
+          const parts = rawDate.split('T')[0].split('-');
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10);
+          const day = parseInt(parts[2], 10);
+          d = new Date(year, month - 1, day, 0, 0, 0, 0);
+        } else {
+          d = new Date(rawDate);
+        }
+      } else if (typeof rawDate === 'number') {
+        d = new Date(rawDate);
+      } else {
+        d = new Date(rawDate);
+      }
+      return isNaN(d.getTime()) ? null : d;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const formatToISODate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const filteredOrders = allOrders.filter(o => {
     const searchLower = filterText.toLowerCase();
     
@@ -554,9 +595,10 @@ export function PurchaseOrdersView({
     
     // Filtro de data
     let matchDate = true;
-    if (o.date) {
-      const orderDate = o.date.split('T')[0];
-      matchDate = (!startDate || orderDate >= startDate) && (!endDate || orderDate <= endDate);
+    const d = parseAnyDate(o.date || o.created_at);
+    if (d) {
+      const orderDateStr = formatToISODate(d);
+      matchDate = (!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate);
     } else {
       // Se não tem data, só mostramos se os filtros de data estiverem vazios
       matchDate = !startDate && !endDate;

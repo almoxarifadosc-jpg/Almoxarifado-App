@@ -62,12 +62,10 @@ export default function Page() {
   
   // Filtros Globais para reduzir leituras Firestore
   const [globalStartDate, setGlobalStartDate] = useState<string>(() => {
-    const date = new Date();
-    // Voltamos 1 dia para garantir que OPs lançadas no turnover de ontem/hoje apareçam
-    date.setDate(date.getDate() - 1);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   });
   const [globalEndDate, setGlobalEndDate] = useState<string>(() => {
@@ -77,6 +75,21 @@ export default function Page() {
     const day = String(now.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   });
+
+  const handleDateChange = (start: string, end: string) => {
+    const s = new Date(start);
+    const e = new Date(end);
+    const diffTime = Math.abs(e.getTime() - s.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Permitimos 1 dia de diferença (Ex: 27 até 27 = 0 dias, 27 até 28 = 1 dia)
+    if (diffDays > 1) {
+      alert("A consulta está restrita ao período máximo de 24 horas (1 dia).");
+      return;
+    }
+    setGlobalStartDate(start);
+    setGlobalEndDate(end);
+  };
 
   const [logoUrl, setLogoUrl] = useState<string>('/app-logo.png');
   const [loading, setLoading] = useState(true);
@@ -350,14 +363,12 @@ export default function Page() {
 
     console.log(`[Firestore] Subscribing to Purchase Orders... (Role: ${category}, View: ${currentView})`);
     
-    // Sincronizar filtro do Firestore com a data de início selecionada pelo usuário
-    // fallback para garantir que sempre carregue pelo menos 24 horas se não houver data
-    const dateLimit = globalStartDate || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
+    // Usamos created_at para garantir que buscaremos as OPs mais recentes de forma confiável,
+    // independente do formato de string no campo 'date', evitando o problema de sumiço de OPs.
     const q = query(
       collection(db, 'purchase_orders'),
-      where('date', '>=', dateLimit),
-      limit(100)
+      orderBy('created_at', 'desc'),
+      limit(300)
     );
 
     const opCache = new Map<string, any>();
@@ -733,10 +744,7 @@ export default function Page() {
                 loadTypes={loadTypes}
                 startDate={globalStartDate}
                 endDate={globalEndDate}
-                onDateChange={(start, end) => {
-                  setGlobalStartDate(start);
-                  setGlobalEndDate(end);
-                }}
+                onDateChange={handleDateChange}
               />
             )}
             {currentView === 'RECEIPTS_DASHBOARD' && !currentUser?.is_viewer && (
@@ -754,10 +762,7 @@ export default function Page() {
                 purchaseOrders={purchaseOrders}
                 startDate={globalStartDate}
                 endDate={globalEndDate}
-                onDateChange={(start, end) => {
-                  setGlobalStartDate(start);
-                  setGlobalEndDate(end);
-                }}
+                onDateChange={handleDateChange}
               />
             )}
             {currentView === 'SORTING' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
@@ -775,10 +780,7 @@ export default function Page() {
                 profiles={profiles}
                 startDate={globalStartDate}
                 endDate={globalEndDate}
-                onDateChange={(start, end) => {
-                  setGlobalStartDate(start);
-                  setGlobalEndDate(end);
-                }}
+                onDateChange={handleDateChange}
               />
             )}
             {currentView === 'SEPARATION_DASHBOARD' && currentUser?.is_admin && (
@@ -793,10 +795,7 @@ export default function Page() {
                 purchaseOrders={purchaseOrders}
                 startDate={globalStartDate}
                 endDate={globalEndDate}
-                onDateChange={(start, end) => {
-                  setGlobalStartDate(start);
-                  setGlobalEndDate(end);
-                }}
+                onDateChange={handleDateChange}
               />
             )}
             {currentView === 'PERFORMANCE' && (currentUser?.is_admin || currentUser?.category === 'Ventisol' || currentUser?.category === 'Conferente' || currentUser?.category === 'Ventisol + Conferente' || currentUser?.is_viewer) && (
@@ -806,10 +805,7 @@ export default function Page() {
                 profiles={profiles} 
                 startDate={globalStartDate}
                 endDate={globalEndDate}
-                onDateChange={(start, end) => {
-                  setGlobalStartDate(start);
-                  setGlobalEndDate(end);
-                }}
+                onDateChange={handleDateChange}
               />
             )}
             {currentView === 'NEWS_PORTAL' && (

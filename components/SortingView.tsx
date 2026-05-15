@@ -569,6 +569,40 @@ export function SortingView({
     }
   };
 
+  const parseAnyDate = (rawDate: any): Date | null => {
+    if (!rawDate) return null;
+    let d: Date;
+    
+    try {
+      if (typeof rawDate === 'object' && 'seconds' in rawDate) {
+        d = (rawDate as any).toDate();
+      } else if (typeof rawDate === 'string') {
+        if (rawDate.includes('/')) {
+          const parts = rawDate.split(' ')[0].split('/');
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10);
+          const year = parseInt(parts[2], 10);
+          d = new Date(year, month - 1, day, 0, 0, 0, 0);
+        } else if (rawDate.includes('-')) {
+          const parts = rawDate.split('T')[0].split('-');
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10);
+          const day = parseInt(parts[2], 10);
+          d = new Date(year, month - 1, day, 0, 0, 0, 0);
+        } else {
+          d = new Date(rawDate);
+        }
+      } else if (typeof rawDate === 'number') {
+        d = new Date(rawDate);
+      } else {
+        d = new Date(rawDate);
+      }
+      return isNaN(d.getTime()) ? null : d;
+    } catch (e) {
+      return null;
+    }
+  };
+
   const formatToISODate = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -608,26 +642,17 @@ export function SortingView({
     const todayStr = formatToISODate(today);
     
     let matchLogic = false;
-    if (o.date) {
-      const orderDate = o.date.split('T')[0];
-      const isToday = orderDate === todayStr;
+    const d = parseAnyDate(o.date || o.created_at);
+    if (d) {
+      const orderDateStr = formatToISODate(d);
       const isFinished = o.status === 'Baixada';
       
       // Está no intervalo de datas selecionado?
-      const isInRange = (!startDate || orderDate >= startDate) && (!endDate || orderDate <= endDate);
+      const isInRange = (!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate);
 
-      // Regra: 
-      // 1. Se está no intervalo e é de hoje -> mostra (independente de status)
-      // 2. Se está no intervalo e é passado -> mostra apenas se não finalizada
-      // 3. Se está fora do intervalo mas é pendente/atrasada (passado e não finalizada) -> mostra também
-      
       if (isInRange) {
-        if (isToday) {
-          matchLogic = true;
-        } else {
-          matchLogic = !isFinished;
-        }
-      } else if (orderDate < todayStr && !isFinished) {
+        matchLogic = true;
+      } else if (orderDateStr < todayStr && !isFinished) {
         // Fora do intervalo, mas é uma pendência de dias anteriores
         matchLogic = true;
       }
@@ -1266,7 +1291,7 @@ export function SortingView({
                                 setEditingOrder({ ...editingOrder, sequence: val });
                               }}
                               placeholder="Ex: 1"
-                              className="flex-1 bg-surface-container-highest border-0 rounded-xl md:rounded-2xl px-5 py-4 focus:ring-2 focus:ring-amber-500 outline-none transition-all font-black text-xl disabled:opacity-50"
+                              className="flex-1 bg-surface-container-highest border-0 rounded-xl md:rounded-2xl px-5 py-4 focus:ring-2 focus:ring-amber-500 outline-none transition-all font-black text-xl disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                             <div className={cn(
                               "w-12 h-12 rounded-xl flex items-center justify-center",
@@ -1349,7 +1374,7 @@ export function SortingView({
                                   !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')
                                 }
                                 className={cn(
-                                  "w-14 md:w-16 bg-surface-container-high md:bg-surface-container-low text-center font-black p-2 rounded-xl outline-none focus:ring-2 ring-primary/30 text-sm disabled:opacity-50",
+                                  "w-14 md:w-16 bg-surface-container-high md:bg-surface-container-low text-center font-black p-2 rounded-xl outline-none focus:ring-2 ring-primary/30 text-sm disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                                   item.quantity !== null && (item.quantity as number) < item.planned_quantity && "ring-2 ring-error/50 text-error bg-error/5",
                                   isItemRestricted(item) && "opacity-20 grayscale"
                                 )}

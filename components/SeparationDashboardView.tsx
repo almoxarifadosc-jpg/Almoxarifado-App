@@ -227,7 +227,7 @@ export function SeparationDashboardView({
   };
 
   const announceOrderRelease = (orderNumber: string) => {
-    announceText(`OP ${orderNumber} está liberada para baixa`);
+    announceText(`Mateus Antunes OP ${orderNumber} está liberada para baixa`);
   };
 
   useEffect(() => {
@@ -618,8 +618,8 @@ export function SeparationDashboardView({
                     const end = new Date(endDate);
                     const diff = Math.abs(end.getTime() - s.getTime());
                     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                    if (days > 7) {
-                      alert("Para evitar lentidão, o período máximo permitido para consulta é de 7 dias.");
+                    if (days > 1) {
+                      alert("Para evitar lentidão, o período máximo permitido para consulta é de 24 horas (1 dia).");
                       return;
                     }
                     onDateChange(newStart, endDate);
