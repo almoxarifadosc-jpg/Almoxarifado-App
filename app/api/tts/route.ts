@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const { text } = await req.json();
-    const apiKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = process.env.NEXT_PUBLIC_ELEVENLABS_VOICE_ID || 'pNInz6obpg8ndclK7Ab3'; // Adam as default
+    const apiKey = process.env.ELEVEN_LABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+    const voiceId = process.env.NEXT_PUBLIC_ELEVENLABS_VOICE_ID || process.env.ELEVEN_LABS_VOICE_ID || 'pNInz6obpg8ndclK7Ab3'; // Adam as default
 
     if (!apiKey) {
       return NextResponse.json({ error: 'API Key da ElevenLabs não configurada' }, { status: 500 });

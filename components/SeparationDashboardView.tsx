@@ -162,13 +162,16 @@ export function SeparationDashboardView({
   }, []);
 
   const announceText = async (message: string, forceSystem: boolean = false) => {
-    if (!audioEnabled && !message.includes("Notificações ativadas")) return;
+    // Se áudio desativado, permite falar apenas se for ativação de notificações ou premium
+    const isActivationMsg = message.includes("ativadas") || message.includes("ativada");
+    if (!audioEnabled && !isActivationMsg) return;
 
     setTtsStatus('loading');
     setTtsErrorMessage(null);
 
     // Estratégia Premium: ElevenLabs via API Route
-    if (premiumVoiceEnabled && !forceSystem) {
+    // Usamos premium se estiver habilitado OU se for a mensagem de ativação do premium
+    if ((premiumVoiceEnabled || isActivationMsg) && !forceSystem) {
       try {
         const response = await fetch('/api/tts', {
           method: 'POST',
