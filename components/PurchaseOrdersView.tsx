@@ -1036,7 +1036,7 @@ export function PurchaseOrdersView({
                                 placeholder="Digite o número da sequência..."
                                 name="sequence"
                                 id="sequence-input"
-                                className="w-full bg-surface-container-highest border-0 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-bold text-lg"
+                                className="w-full bg-surface-container-highest border-0 rounded-2xl px-5 py-4 focus:ring-2 focus:ring-primary outline-none transition-all font-bold text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                               <div className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant/30">
                                 <Package className="w-5 h-5" />
@@ -1177,7 +1177,7 @@ export function PurchaseOrdersView({
                           setEditingOrder({ ...editingOrder, sequence: val });
                         }}
                         placeholder="Ex: 1"
-                        className="w-24 h-12 bg-surface-container-high rounded-xl text-on-surface text-center font-black outline-none focus:ring-2 focus:ring-amber-500/50 border-none ring-1 ring-outline-variant/10"
+                        className="w-24 h-12 bg-surface-container-high rounded-xl text-on-surface text-center font-black outline-none focus:ring-2 focus:ring-amber-500/50 border-none ring-1 ring-outline-variant/10 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                   </div>
@@ -1243,7 +1243,7 @@ export function PurchaseOrdersView({
                                   (isVentisolOrConferente && !isAdmin && !!(item.location && item.location !== '-' && item.location !== ''))
                                 }
                                 onChange={(e) => handleEditItemQuantity(idx, Number(e.target.value))}
-                                className="w-20 h-10 bg-surface-container-high rounded-xl text-on-surface text-center font-black outline-none focus:ring-2 focus:ring-primary/20 border-none mx-auto ring-1 ring-outline-variant/10 disabled:opacity-50"
+                                className="w-20 h-10 bg-surface-container-high rounded-xl text-on-surface text-center font-black outline-none focus:ring-2 focus:ring-primary/20 border-none mx-auto ring-1 ring-outline-variant/10 disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                             </td>
                             <td className="px-6 py-4 text-center">

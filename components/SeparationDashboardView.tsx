@@ -91,7 +91,12 @@ export function SeparationDashboardView({
   const [weather, setWeather] = useState<{ temp: number } | null>(null);
   const [dollarRate, setDollarRate] = useState<string | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [premiumVoiceEnabled, setPremiumVoiceEnabled] = useState(false);
+  const [premiumVoiceEnabled, setPremiumVoiceEnabled] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('tts_premium_enabled') === 'true';
+    }
+    return false;
+  });
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState<string | null>(null);
   const [voiceSettings, setVoiceSettings] = useState({ rate: 1.0, pitch: 1.0 });
@@ -508,7 +513,7 @@ export function SeparationDashboardView({
                 <button 
                   onClick={() => {
                     setAudioEnabled(true);
-                    announceText("Notificações ativadas");
+                    announceText("Notificações ativadas", true);
                   }}
                   className="px-3 py-1 bg-amber-500/20 text-amber-500 text-[10px] font-black rounded-xl border border-amber-500/30 hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 animate-pulse"
                 >
@@ -532,8 +537,10 @@ export function SeparationDashboardView({
                   <div className="flex flex-wrap items-center gap-2 bg-surface-container-low px-2 py-1 rounded-xl border border-outline-variant/10 shadow-sm">
                     <button
                       onClick={() => {
-                        setPremiumVoiceEnabled(!premiumVoiceEnabled);
-                        if (!premiumVoiceEnabled) {
+                        const newState = !premiumVoiceEnabled;
+                        setPremiumVoiceEnabled(newState);
+                        localStorage.setItem('tts_premium_enabled', newState.toString());
+                        if (newState) {
                           announceText("Voz premium ativada", true);
                         }
                       }}

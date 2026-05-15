@@ -543,7 +543,7 @@ export function OperationsView({
                   <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">ID da Operação (Número)</label>
                   <input 
                     type="number"
-                    className="w-full bg-surface-container-low text-on-surface border-0 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none" 
+                    className="w-full bg-surface-container-low text-on-surface border-0 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
                     placeholder="ex: 20240001"
                     value={formData.id}
                     onChange={(e) => setFormData({ ...formData, id: e.target.value })}
@@ -569,7 +569,7 @@ export function OperationsView({
                   <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Quantidade da OP</label>
                   <input 
                     type="number"
-                    className="w-full bg-surface-container-low text-on-surface border-0 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none" 
+                    className="w-full bg-surface-container-low text-on-surface border-0 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
                     placeholder="0"
                     value={formData.quantity || ''}
                     onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
