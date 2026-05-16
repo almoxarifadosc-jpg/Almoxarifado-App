@@ -20,6 +20,10 @@ export interface Operation {
   timestamp: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   date: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  isAtrasada?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  isUrgente?: any;
   userEmail?: string;
 }
 
