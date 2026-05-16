@@ -6,6 +6,7 @@ import { Header } from '@/components/Header';
 import SeparationDashboardView from '@/components/SeparationDashboardView';
 import ApiView from '@/components/ApiView';
 import DashboardView from '@/components/DashboardView';
+import OperationsView from '@/components/OperationsView';
 import { auth } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
@@ -25,6 +26,7 @@ export interface Operation {
   isLicitacao?: boolean;
   isCompleted?: boolean;
   userEmail?: string;
+  iconType?: 'factory' | 'settings' | 'check';
 }
 
 export interface NewsPost {
@@ -73,6 +75,8 @@ export default function Home() {
         return <ApiView />;
       case 'DASHBOARD':
         return <DashboardView operations={[]} />; // Idealmente passar as operações do Firebase aqui
+      case 'REPORTS':
+        return <OperationsView operations={[]} />;
       case 'ADMIN_PANEL':
         return <div className="p-8 text-slate-500 font-bold uppercase tracking-widest text-xs">Configurações em Breve...</div>;
       default:
