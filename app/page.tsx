@@ -29,9 +29,10 @@ export interface Operation {
 export interface NewsPost {
   id: string;
   title: string;
-  content: string;
+  text: string;
+  author: string;
   date: string;
-  image?: string;
+  imageUrl?: string;
 }
 
 export default function Home() {
