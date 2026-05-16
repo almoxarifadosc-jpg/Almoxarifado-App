@@ -24,6 +24,8 @@ export interface Operation {
   isAtrasada?: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   isUrgente?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  isLicitacao?: any;
   userEmail?: string;
 }
 
