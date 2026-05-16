@@ -5,6 +5,7 @@ import { Sidebar, View } from '@/components/Sidebar';
 import { Header } from '@/components/Header';
 import SeparationDashboardView from '@/components/SeparationDashboardView';
 import ApiView from '@/components/ApiView';
+import DashboardView from '@/components/DashboardView';
 import { auth } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
@@ -28,7 +29,7 @@ export interface Operation {
 
 export interface NewsPost {
   id: string;
-  title: string;
+  title?: string;
   text: string;
   author: string;
   date: string;
@@ -71,7 +72,9 @@ export default function Home() {
       case 'API_DASHBOARD':
         return <ApiView />;
       case 'DASHBOARD':
-        return <SeparationDashboardView />; // Temporário até ter o DashboardView final
+        return <DashboardView operations={[]} />; // Idealmente passar as operações do Firebase aqui
+      case 'ADMIN_PANEL':
+        return <div className="p-8 text-slate-500 font-bold uppercase tracking-widest text-xs">Configurações em Breve...</div>;
       default:
         return <SeparationDashboardView />;
     }
