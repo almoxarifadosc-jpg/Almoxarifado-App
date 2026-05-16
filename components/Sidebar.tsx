@@ -8,7 +8,7 @@ import {
   Network
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export type View = 'DASHBOARD' | 'SEPARATION_DASHBOARD' | 'API_DASHBOARD' | 'ADMIN_PANEL' | 'REPORTS';
 
