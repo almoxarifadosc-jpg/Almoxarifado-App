@@ -26,6 +26,14 @@ export interface Operation {
   userEmail?: string;
 }
 
+export interface NewsPost {
+  id: string;
+  title: string;
+  content: string;
+  date: string;
+  image?: string;
+}
+
 export default function Home() {
   const [currentView, setCurrentView] = useState<View>('SEPARATION_DASHBOARD');
   const [loading, setLoading] = useState(true);
@@ -61,6 +69,8 @@ export default function Home() {
         return <SeparationDashboardView />;
       case 'API_DASHBOARD':
         return <ApiView />;
+      case 'DASHBOARD':
+        return <SeparationDashboardView />; // Temporário até ter o DashboardView final
       default:
         return <SeparationDashboardView />;
     }
