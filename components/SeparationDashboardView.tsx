@@ -1,18 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Volume2, 
-  Settings, 
   CheckCircle, 
   AlertTriangle, 
   Package, 
   Search,
-  Bell,
-  Mic
+  ArrowRight
 } from 'lucide-react';
-import { sendGoogleChatNotification } from '@/lib/notifications';
 
 interface SeparationItem {
   id: string;
@@ -31,45 +28,10 @@ export default function SeparationDashboardView() {
   ]);
 
   const [isTtsEnabled, setIsTtsEnabled] = useState(true);
-  const [isPremiumTts, setIsPremiumTts] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  const announceText = async (text: string) => {
-    if (!isTtsEnabled) return;
-
-    if (isPremiumTts) {
-      try {
-        setIsSpeaking(true);
-        const response = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text })
-        });
-
-        if (!response.ok) throw new Error('Erro ao gerar voz premium');
-
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        
-        audio.onended = () => {
-          setIsSpeaking(false);
-          URL.revokeObjectURL(audioUrl);
-        };
-
-        await audio.play();
-      } catch (error) {
-        console.error('Premium TTS Error, falling back to Native:', error);
-        // Fallback para fala nativa do navegador
-        fallbackToNative(text);
-      }
-    } else {
-      fallbackToNative(text);
-    }
-  };
-
-  const fallbackToNative = (text: string) => {
-    if (!window.speechSynthesis) return;
+  const announceText = (text: string) => {
+    if (!isTtsEnabled || !window.speechSynthesis) return;
     
     setIsSpeaking(true);
     const utterance = new SpeechSynthesisUtterance(text);
@@ -83,155 +45,157 @@ export default function SeparationDashboardView() {
     if (item) {
       setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'completed' } : i));
       announceText(`Item ${item.description} separado com sucesso.`);
-      sendGoogleChatNotification(`✅ Item ${item.code} - ${item.description} foi separado.`);
     }
   };
 
   return (
     <div className="bg-slate-50 min-h-screen p-4 md:p-8 font-sans">
-      {/* Header */}
+      {/* Header Info */}
       <header className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-blue-900 flex items-center gap-2">
-            <Package className="w-8 h-8 text-blue-600" />
-            Almoxarifado Ventisol
-          </h1>
-          <p className="text-slate-500">Painel de Separação de Pedidos</p>
+        <div className="flex items-center gap-4">
+          <div className="bg-blue-600 p-4 rounded-3xl shadow-lg shadow-blue-200">
+            <Package className="text-white" size={32} />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black text-slate-800 tracking-tighter">Fluxo de Separação</h1>
+            <p className="text-slate-500 font-medium tracking-tight">Otimização de Almoxarifado Ventisol</p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-          <button 
-            id="toggle-tts"
-            onClick={() => setIsTtsEnabled(!isTtsEnabled)}
-            className={`p-2 rounded-xl transition-colors ${isTtsEnabled ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'}`}
-            title="Ativar/Desativar Notificações por Voz"
-          >
-            {isTtsEnabled ? <Volume2 size={24} /> : <Volume2 className="opacity-40" size={24} />}
-          </button>
-
-          <div className="h-6 w-px bg-slate-200" />
-
-          <div className="flex items-center gap-2 px-2">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Premium AI Voice</span>
-            <button
-              id="toggle-premium-tts"
-              onClick={() => setIsPremiumTts(!isPremiumTts)}
-              className={`w-12 h-6 rounded-full p-1 transition-colors ${isPremiumTts ? 'bg-blue-600' : 'bg-slate-300'}`}
-            >
-              <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isPremiumTts ? 'translate-x-6' : 'translate-x-0'}`} />
-            </button>
+        <div className="flex items-center gap-4 bg-white p-2 rounded-3xl shadow-sm border border-slate-100">
+          <div className="px-4 py-2">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Status de Voz</span>
+            <span className="text-sm font-bold text-blue-600">{isTtsEnabled ? 'ATIVADO' : 'DESATIVADO'}</span>
           </div>
+          <button 
+            onClick={() => setIsTtsEnabled(!isTtsEnabled)}
+            className={`p-3 rounded-2xl transition-all ${isTtsEnabled ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-100 text-slate-400'}`}
+          >
+            <Volume2 size={24} />
+          </button>
         </div>
       </header>
 
-      {/* Stats e Search */}
-      <section className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-          <span className="text-sm text-slate-500 mb-1 block">Pendentes</span>
-          <span className="text-3xl font-bold text-slate-800">{items.filter(i => i.status !== 'completed').length}</span>
+      {/* Quick Stats */}
+      <section className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden group">
+          <div className="relative z-10">
+            <span className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">Pendentes</span>
+            <span className="text-4xl font-black text-slate-900">{items.filter(i => i.status !== 'completed').length}</span>
+          </div>
+          <div className="absolute top-0 right-0 p-8 text-blue-50 group-hover:text-blue-100 transition-colors">
+            <Search size={80} />
+          </div>
         </div>
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-          <span className="text-sm text-slate-500 mb-1 block">Concluídos</span>
-          <span className="text-3xl font-bold text-green-600">{items.filter(i => i.status === 'completed').length}</span>
+
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden group">
+          <div className="relative z-10">
+            <span className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">Concluídos</span>
+            <span className="text-4xl font-black text-green-600">{items.filter(i => i.status === 'completed').length}</span>
+          </div>
+          <div className="absolute top-0 right-0 p-8 text-green-50 group-hover:text-green-100 transition-colors">
+            <CheckCircle size={80} />
+          </div>
         </div>
-        <div className="md:col-span-2 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input 
-            type="text" 
-            placeholder="Buscar por código ou descrição..." 
-            className="w-full h-full bg-white rounded-3xl p-4 pl-12 shadow-sm border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-          />
+
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex items-center justify-between">
+           <div className="w-full">
+            <span className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-2">Filtrar por Local</span>
+            <div className="flex gap-2 font-black text-xs">
+              {['Ala A', 'Ala B', 'Ala C'].map(ala => (
+                <button key={ala} className="bg-slate-100 px-4 py-2 rounded-xl hover:bg-blue-600 hover:text-white transition-all">
+                  {ala}
+                </button>
+              ))}
+            </div>
+           </div>
         </div>
       </section>
 
-      {/* Main Content */}
-      <main className="max-w-6xl mx-auto">
-        <div className="grid gap-4">
-          <AnimatePresence>
-            {items.map((item) => (
-              <motion.div
-                id={`item-${item.id}`}
-                key={item.id}
-                layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className={`bg-white p-6 rounded-3xl shadow-sm border-2 transition-colors ${
-                  item.status === 'completed' ? 'border-green-100 bg-green-50/20' : 
-                  item.status === 'urgent' ? 'border-amber-100' : 'border-transparent'
-                }`}
-              >
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <div className="flex gap-4 items-center">
-                    <div className={`p-4 rounded-2xl ${
-                      item.status === 'completed' ? 'bg-green-100 text-green-600' : 
-                      item.status === 'urgent' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      <Package size={24} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-blue-600 uppercase tracking-tighter bg-blue-50 px-2 py-0.5 rounded">
-                          {item.location}
-                        </span>
-                        <h3 className="font-bold text-slate-800 tracking-tight">{item.code}</h3>
-                        {item.status === 'urgent' && (
-                          <span className="flex items-center gap-1 text-[10px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-full uppercase">
-                            <AlertTriangle size={10} /> Urgente
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-slate-600 text-lg leading-tight mt-1">{item.description}</p>
-                    </div>
+      {/* Items List */}
+      <main className="max-w-6xl mx-auto space-y-4">
+        <AnimatePresence mode="popLayout">
+          {items.map((item) => (
+            <motion.div
+              layout
+              key={item.id}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`bg-white p-6 rounded-[2.5rem] border-2 transition-all ${
+                item.status === 'completed' ? 'border-green-100 bg-green-50/10' : 
+                item.status === 'urgent' ? 'border-amber-100 shadow-xl shadow-amber-100/50' : 'border-transparent shadow-sm'
+              }`}
+            >
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="flex gap-6 items-center">
+                  <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center ${
+                    item.status === 'completed' ? 'bg-green-100 text-green-600' : 
+                    item.status === 'urgent' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    <Package size={28} />
                   </div>
-
-                  <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-4 md:pt-0">
-                    <div className="text-center md:text-right">
-                      <span className="text-xs text-slate-400 block uppercase font-bold tracking-widest">QTD</span>
-                      <span className="text-2xl font-black text-slate-800">{item.quantity}</span>
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <span className="text-[10px] font-black bg-blue-600 text-white px-3 py-1 rounded-full uppercase tracking-widest">
+                        {item.location}
+                      </span>
+                      <h3 className="font-black text-xl text-slate-800 tracking-tighter">{item.code}</h3>
+                      {item.status === 'urgent' && (
+                        <span className="flex items-center gap-1 text-[10px] font-black bg-amber-500 text-white px-3 py-1 rounded-full uppercase italic">
+                          <AlertTriangle size={12} /> Urgente
+                        </span>
+                      )}
                     </div>
-
-                    <button
-                      id={`complete-btn-${item.id}`}
-                      disabled={item.status === 'completed'}
-                      onClick={() => handleCompleteItem(item.id)}
-                      className={`h-14 px-8 rounded-2xl font-bold transition-all flex items-center gap-2 ${
-                        item.status === 'completed' 
-                        ? 'bg-green-600 text-white cursor-default' 
-                        : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95 shadow-lg shadow-blue-200'
-                      }`}
-                    >
-                      {item.status === 'completed' ? <CheckCircle size={20} /> : <div className="w-1 h-1" />}
-                      {item.status === 'completed' ? 'Concluído' : 'Separar Item'}
-                    </button>
+                    <p className="text-slate-600 font-medium text-lg leading-tight">{item.description}</p>
                   </div>
                 </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
+
+                <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-6 md:pt-0">
+                  <div className="text-center md:text-right">
+                    <span className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] block mb-1">Quantidade</span>
+                    <span className="text-4xl font-black text-slate-800 leading-none">{item.quantity}</span>
+                  </div>
+
+                  <button
+                    disabled={item.status === 'completed'}
+                    onClick={() => handleCompleteItem(item.id)}
+                    className={`h-16 px-10 rounded-3xl font-black text-sm uppercase tracking-widest transition-all flex items-center gap-3 ${
+                      item.status === 'completed' 
+                      ? 'bg-green-600 text-white cursor-default' 
+                      : 'bg-slate-800 text-white hover:bg-blue-600 hover:scale-105 active:scale-95 shadow-xl'
+                    }`}
+                  >
+                    {item.status === 'completed' ? <CheckCircle size={20} /> : <ArrowRight size={20} />}
+                    {item.status === 'completed' ? 'Finalizado' : 'Separar'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </main>
 
-      {/* Voice Assistant Indicator */}
+      {/* Voice Assistant Overlay */}
       <AnimatePresence>
         {isSpeaking && (
           <motion.div
-            initial={{ opacity: 0, bottom: -20 }}
-            animate={{ opacity: 1, bottom: 20 }}
-            exit={{ opacity: 0, bottom: -20 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-blue-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 z-50 border border-blue-400/30 backdrop-blur-xl"
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-full shadow-2xl flex items-center gap-4 z-50 border border-white/10"
           >
-            <div className="flex gap-1 items-end h-4">
-              {[0.4, 0.7, 0.3, 0.9, 0.5].map((h, i) => (
+             <div className="flex gap-1 items-end h-5">
+              {[0.4, 0.7, 0.3, 0.9, 0.5, 0.8].map((h, i) => (
                 <motion.div
                   key={i}
                   animate={{ height: ['40%', '100%', '40%'] }}
                   transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1 }}
-                  className="w-1 bg-blue-300 rounded-full"
+                  className="w-1.5 bg-blue-400 rounded-full"
                 />
               ))}
             </div>
-            <span className="text-sm font-bold tracking-wide">Anunciando voz inteligente...</span>
+            <span className="text-sm font-black uppercase tracking-widest">Anunciando voz inteligente...</span>
           </motion.div>
         )}
       </AnimatePresence>

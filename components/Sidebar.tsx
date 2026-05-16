@@ -1,234 +1,131 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { 
-  Rocket, 
-  Network, 
-  BarChart3, 
-  ShieldCheck, 
   LayoutDashboard, 
-  Truck,
-  Users,
-  FileText,
-  ChevronLeft,
-  ChevronRight,
-  Menu,
-  X,
-  ClipboardList,
-  Newspaper,
-  RefreshCw,
-  Eraser
+  Package, 
+  ShieldCheck, 
+  Network
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS' | 'ORDERS' | 'SORTING' | 'PERFORMANCE' | 'SEPARATION_DASHBOARD' | 'NEWS_PORTAL';
+export type View = 'DASHBOARD' | 'SEPARATION_DASHBOARD' | 'API_DASHBOARD' | 'ADMIN_PANEL' | 'REPORTS';
 
 interface SidebarProps {
   currentView: View;
   onViewChange: (view: View) => void;
-  isAdmin?: boolean;
-  isViewer?: boolean;
   category?: string;
   isMobileOpen?: boolean;
   onClose?: () => void;
 }
 
-export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category, isMobileOpen, onClose }: SidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
-  const sections = [
+export function Sidebar({ currentView, onViewChange, category, isMobileOpen, onClose }: SidebarProps) {
+  const menuGroups = [
     {
-      title: 'OPs',
+      title: 'Operacional',
       items: [
-        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText } : null,
-        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList } : null,
-        isAdmin ? { id: 'SEPARATION_DASHBOARD' as View, label: 'Painel de Separação', icon: LayoutDashboard } : null,
-        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 } : null,
-        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'NEWS_PORTAL' as View, label: 'Notícias', icon: Newspaper } : null,
-      ].filter(Boolean) as any
-    },
-    {
-      title: 'Intercompany',
-      items: [
-        { id: 'RECEIPTS' as View, label: 'Carregamentos', icon: Truck },
-        { id: 'RECEIPTS_DASHBOARD' as View, label: 'Dash Rec.', icon: LayoutDashboard },
-        { id: 'SUPPLIERS' as View, label: 'Fornecedores', icon: Users },
-      ].filter(() => !isViewer)
+        { id: 'SEPARATION_DASHBOARD' as View, label: 'Separação', icon: Package },
+        { id: 'DASHBOARD' as View, label: 'Dashboard Geral', icon: LayoutDashboard },
+      ]
     },
     {
       title: 'Admin',
-      items: isAdmin && category !== 'Bemplas' && category !== 'Recebimento' ? [
-        { id: 'ADMIN_PANEL' as View, label: 'Admin', icon: ShieldCheck }
-      ] : []
+      items: [
+        { id: 'API_DASHBOARD' as View, label: 'API', icon: Network },
+        { id: 'ADMIN_PANEL' as View, label: 'Configurações', icon: ShieldCheck }
+      ]
     }
   ];
 
-  const sidebarContent = (isMobile: boolean) => (
-    <>
-      {/* Header / Toggle */}
-      <div className="p-6 flex items-center justify-between">
-        {(!isCollapsed || isMobile) && (
-          <motion.span 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="font-headline font-bold text-primary tracking-tight text-lg overflow-hidden whitespace-nowrap"
-          >
-            Menu
-          </motion.span>
-        )}
-        {isMobile ? (
-          <button 
-            onClick={onClose}
-            className="p-2 hover:bg-surface-container-high rounded-xl transition-colors text-on-surface-variant"
-          >
-            <X size={20} />
-          </button>
-        ) : (
-          <button 
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-2 hover:bg-surface-container-high rounded-xl transition-colors text-on-surface-variant"
-          >
-            {isCollapsed ? <Menu size={20} /> : <ChevronLeft size={20} />}
-          </button>
-        )}
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full bg-slate-900 text-slate-300 p-6">
+      <div className="flex items-center gap-3 mb-10 px-2">
+        <div className="bg-blue-600 p-2 rounded-xl">
+          <Package className="text-white" size={24} />
+        </div>
+        <span className="text-xl font-black text-white tracking-tighter">VENTISOL</span>
       </div>
 
-      {/* Navigation Links */}
-      <nav className="flex-1 px-3 space-y-6 overflow-y-auto overflow-x-hidden pt-2">
-        {sections.map((section, idx) => {
-          if (section.items.length === 0) return null;
-
-          return (
-            <div key={idx} className="space-y-1">
-              {(!isCollapsed || isMobile) && (
-                <motion.h3
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="px-4 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-3"
+      <nav className="flex-1 space-y-8">
+        {menuGroups.map((group, idx) => (
+          <div key={idx} className="space-y-4">
+            <h3 className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+              {group.title}
+            </h3>
+            <div className="space-y-1">
+              {group.items.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    onViewChange(item.id);
+                    onClose?.();
+                  }}
+                  className={cn(
+                    "w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all group",
+                    currentView === item.id 
+                      ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50" 
+                      : "hover:bg-slate-800 hover:text-white"
+                  )}
                 >
-                  {section.title}
-                </motion.h3>
-              )}
-              {(isCollapsed && !isMobile) && (
-                <div className="h-[1px] bg-outline-variant/10 mx-4 mb-4" />
-              )}
-              
-              <div className="space-y-1">
-                {section.items.map((tab: any) => {
-                  const Icon = tab.icon;
-                  const isActive = currentView === tab.id;
-
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => {
-                        onViewChange(tab.id);
-                        if (isMobile && onClose) onClose();
-                      }}
-                      className={cn(
-                        "w-full flex items-center gap-4 p-3 rounded-2xl transition-all group relative",
-                        isActive 
-                          ? "bg-primary text-white shadow-lg shadow-primary/20" 
-                          : "text-on-surface-variant hover:bg-surface-container-high hover:text-primary"
-                      )}
-                    >
-                      <div className={cn(
-                        "flex items-center justify-center min-w-[24px]",
-                        isActive ? "text-white" : "group-hover:scale-110 transition-transform text-primary/70 group-hover:text-primary"
-                      )}>
-                        <Icon size={20} />
-                      </div>
-                      
-                      {(!isCollapsed || isMobile) && (
-                        <motion.span
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className="font-body font-semibold text-sm whitespace-nowrap"
-                        >
-                          {tab.label}
-                        </motion.span>
-                      )}
-
-                      {(isCollapsed && !isMobile) && (
-                        <div className="absolute left-full ml-4 px-3 py-2 bg-on-surface text-surface text-xs font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
-                          {tab.label}
-                        </div>
-                      )}
-
-                      {isActive && !isCollapsed && (
-                        <motion.div 
-                          layoutId="active-indicator"
-                          className="absolute right-2 w-1.5 h-1.5 rounded-full bg-white"
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                  <div className="flex items-center gap-3">
+                    <item.icon size={20} className={cn(
+                      currentView === item.id ? "text-white" : "text-slate-500 group-hover:text-blue-400"
+                    )} />
+                    <span className="font-bold text-sm tracking-tight">{item.label}</span>
+                  </div>
+                  {currentView === item.id && (
+                    <motion.div layoutId="active" className="w-1.5 h-1.5 bg-white rounded-full" />
+                  )}
+                </button>
+              ))}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </nav>
 
-      {/* Footer Info */}
-      <div className="p-4 border-t border-outline-variant/10">
-        {(!isCollapsed || isMobile) ? (
-          <div className="flex items-center gap-3 p-2">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-              {category?.[0] || 'V'}
-            </div>
-            <div className="overflow-hidden">
-              <p className="text-xs font-bold text-on-surface truncate">{category || 'Ventisol'}</p>
-              <p className="text-[10px] text-on-surface-variant truncate">Sistema de Gestão</p>
-            </div>
+      <div className="pt-6 border-t border-slate-800 mt-auto">
+        <div className="bg-slate-800/50 p-4 rounded-[1.5rem] flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
+            V
           </div>
-        ) : (
-          <div className="flex justify-center">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-              {category?.[0] || 'V'}
-            </div>
+          <div className="overflow-hidden">
+            <p className="text-xs font-bold text-white truncate">Ventisol Almoxarifado</p>
+            <p className="text-[10px] text-slate-500 truncate">{category || 'Operador'}</p>
           </div>
-        )}
+        </div>
       </div>
-    </>
+    </div>
   );
 
   return (
     <>
       {/* Desktop Sidebar */}
-      <motion.aside
-        initial={false}
-        animate={{ width: isCollapsed ? '80px' : '260px' }}
-        className="hidden md:flex flex-col h-screen sticky top-0 bg-surface border-r border-outline-variant/10 z-40 transition-colors duration-300"
-      >
-        {sidebarContent(false)}
-      </motion.aside>
+      <aside className="hidden lg:block w-72 h-screen flex-shrink-0">
+        <SidebarContent />
+      </aside>
 
-      {/* Mobile Drawer */}
+      {/* Mobile Sidebar */}
       <AnimatePresence>
         {isMobileOpen && (
-          <div className="fixed inset-0 z-[100] md:hidden">
-            {/* Overlay */}
+          <>
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
             />
-            
-            {/* Drawer */}
             <motion.aside
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="absolute left-0 top-0 bottom-0 w-[280px] bg-surface flex flex-col shadow-2xl"
+              className="fixed inset-y-0 left-0 w-80 z-50 lg:hidden"
             >
-              {sidebarContent(true)}
+              <SidebarContent />
             </motion.aside>
-          </div>
+          </>
         )}
       </AnimatePresence>
     </>
