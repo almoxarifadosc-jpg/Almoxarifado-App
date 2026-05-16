@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function parseAnyDate(date: any): Date {
+export function parseAnyDate(date: string | Date | any): Date {
   if (!date) return new Date(NaN);
   if (date instanceof Date) return date;
   if (typeof date === 'string') {
