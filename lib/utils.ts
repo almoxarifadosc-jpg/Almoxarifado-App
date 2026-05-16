@@ -5,7 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function parseAnyDate(date: string | Date | unknown): Date {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function parseAnyDate(date: any): Date {
   if (!date) return new Date(NaN);
   if (date instanceof Date) return date;
   if (typeof date === 'string') {
