@@ -17,6 +17,7 @@ export interface Operation {
   quantity: number;
   location: string;
   timestamp: unknown;
+  date?: string | Date;
   userEmail?: string;
 }
 
