@@ -17,7 +17,7 @@ export function Header({ currentView, onLogout, onMenuToggle, category }: Header
   const getViewTitle = () => {
     switch (currentView) {
       case 'SEPARATION_DASHBOARD': return 'Separação de Pedidos';
-      case 'API_DASHBOARD': return 'Dashboard API & Clima';
+      case 'API_DASHBOARD': return 'Dashboard API';
       case 'ADMIN_PANEL': return 'Configurações de Admin';
       case 'DASHBOARD': return 'Visão Geral';
       default: return 'Almoxarifado Ventisol';

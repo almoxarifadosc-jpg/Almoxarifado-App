@@ -9,6 +9,17 @@ import { auth } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
 
+export interface Operation {
+  id: string;
+  type: string;
+  status: string;
+  description: string;
+  quantity: number;
+  location: string;
+  timestamp: unknown;
+  userEmail?: string;
+}
+
 export default function Home() {
   const [currentView, setCurrentView] = useState<View>('SEPARATION_DASHBOARD');
   const [loading, setLoading] = useState(true);
