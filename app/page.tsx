@@ -18,14 +18,11 @@ export interface Operation {
   location: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   timestamp: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  date: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  isAtrasada?: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  isUrgente?: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  isLicitacao?: any;
+  date: string | Date;
+  isAtrasada?: boolean;
+  isUrgente?: boolean;
+  isLicitacao?: boolean;
+  isCompleted?: boolean;
   userEmail?: string;
 }
 

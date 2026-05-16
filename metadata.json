@@ -1,1 +1,4 @@
-{ "name": "Test" }
+{
+  "name": "Almoxarifado Ventisol",
+  "description": "Sistema de controle de almoxarifado para a Ventisol, com monitoramento de operações, integração com Firebase e interface otimizada."
+}
