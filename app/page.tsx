@@ -16,8 +16,10 @@ export interface Operation {
   description: string;
   quantity: number;
   location: string;
-  timestamp: unknown;
-  date?: string | Date;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  timestamp: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  date: any;
   userEmail?: string;
 }
 
