@@ -38,7 +38,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
 interface OrderItem {
   code?: string;
@@ -187,7 +187,7 @@ export function PurchaseOrdersView({
       const base64 = await fileToBase64(file);
       const base64Data = base64.split(',')[1];
 
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenerativeAI(apiKey);
       
       // Lógica de tentativa automática para lidar com 503 (Serviço Indisponível)
       const maxRetries = 2;
@@ -202,45 +202,32 @@ export function PurchaseOrdersView({
             await new Promise(resolve => setTimeout(resolve, attempt * 1500));
           }
 
-          const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: "application/pdf",
-                    data: base64Data
-                  }
-                },
-                {
-                  text: "Extraia os dados deste documento (Pedido de Compra ou Separação de OP). Se for Separação de OP, use o número da OP como order_number. O layout tem colunas como: 'Cód.', 'Produto', 'Local' (ou 'Loc.'), 'Nome Coletor', 'Quantidade' e 'Separad'. Extraia: order_number (string), date (string YYYY-MM-DD), supplier_name (string - coloque aqui o nome do PRODUTO principal da primeira tabela), product_location (string - localize a informação 'Local' no cabeçalho ou primeira tabela), total_amount (number - a quantidade total da primeira tabela), e items (array de objetos). REGRAS IMPORTANTES PARA ITENS: 1. Mapeie o valor da coluna 'Quantidade' fisicamente presente no PDF para o campo 'planned_quantity'. 2. O campo 'quantity' deve ser SEMPRE 0 (ele será preenchido pelo usuário depois). 3. Extraia o 'code', 'description', 'location' (vindo da coluna 'Local' ou 'Loc.') e 'collector_name' normalmente. Retorne APENAS o JSON."
-                }
-              ]
-            },
-            config: {
+          const genModel = ai.getGenerativeModel({
+            model: "gemini-1.5-flash",
+            generationConfig: {
               responseMimeType: "application/json",
               responseSchema: {
-                type: Type.OBJECT,
+                type: SchemaType.OBJECT,
                 properties: {
-                  order_number: { type: Type.STRING },
-                  date: { type: Type.STRING },
-                  supplier_name: { type: Type.STRING, description: "Nome do produto principal" },
-                  product_location: { type: Type.STRING, description: "Local informado na primeira tabela" },
-                  total_amount: { type: Type.NUMBER, description: "Quantidade total somada ou informada no cabeçalho" },
-                  type: { type: Type.STRING, description: "Tipo do documento: Pedido ou Separação" },
+                  order_number: { type: SchemaType.STRING },
+                  date: { type: SchemaType.STRING },
+                  supplier_name: { type: SchemaType.STRING, description: "Nome do produto principal" },
+                  product_location: { type: SchemaType.STRING, description: "Local informado na primeira tabela" },
+                  total_amount: { type: SchemaType.NUMBER, description: "Quantidade total somada ou informada no cabeçalho" },
+                  type: { type: SchemaType.STRING, description: "Tipo do documento: Pedido ou Separação" },
                   items: {
-                    type: Type.ARRAY,
+                    type: SchemaType.ARRAY,
                     items: {
-                      type: Type.OBJECT,
+                      type: SchemaType.OBJECT,
                       properties: {
-                        code: { type: Type.STRING },
-                        description: { type: Type.STRING },
-                        planned_quantity: { type: Type.NUMBER, description: "Valor da coluna 'Quantidade'" },
-                        quantity: { type: Type.NUMBER, description: "Valor da coluna 'Separad'" },
-                        collector_name: { type: Type.STRING },
-                        location: { type: Type.STRING, description: "Localização específica do item (coluna Local)" },
-                        unitPrice: { type: Type.NUMBER },
-                        totalPrice: { type: Type.NUMBER }
+                        code: { type: SchemaType.STRING },
+                        description: { type: SchemaType.STRING },
+                        planned_quantity: { type: SchemaType.NUMBER, description: "Valor da coluna 'Quantidade'" },
+                        quantity: { type: SchemaType.NUMBER, description: "Valor da coluna 'Separad'" },
+                        collector_name: { type: SchemaType.STRING },
+                        location: { type: SchemaType.STRING, description: "Localização específica do item (coluna Local)" },
+                        unitPrice: { type: SchemaType.NUMBER },
+                        totalPrice: { type: SchemaType.NUMBER }
                       },
                       required: ["description", "planned_quantity"]
                     }
@@ -251,7 +238,20 @@ export function PurchaseOrdersView({
             }
           });
 
-          const text = response.text;
+          const aiResult = await genModel.generateContent([
+            {
+              inlineData: {
+                mimeType: "application/pdf",
+                data: base64Data
+              }
+            },
+            {
+              text: "Extraia os dados deste documento (Pedido de Compra ou Separação de OP). Se for Separação de OP, use o número da OP como order_number. O layout tem colunas como: 'Cód.', 'Produto', 'Local' (ou 'Loc.'), 'Nome Coletor', 'Quantidade' e 'Separad'. Extraia: order_number (string), date (string YYYY-MM-DD), supplier_name (string - coloque aqui o nome do PRODUTO principal da primeira tabela), product_location (string - localize a informação 'Local' no cabeçalho ou primeira tabela), total_amount (number - a quantidade total da primeira tabela), e items (array de objetos). REGRAS IMPORTANTES PARA ITENS: 1. Mapeie o valor da coluna 'Quantidade' fisicamente presente no PDF para o campo 'planned_quantity'. 2. O campo 'quantity' deve ser SEMPRE 0 (ele será preenchido pelo usuário depois). 3. Extraia o 'code', 'description', 'location' (vindo da coluna 'Local' ou 'Loc.') e 'collector_name' normalmente. Retorne APENAS o JSON."
+            }
+          ]);
+
+          const aiResponse = await aiResult.response;
+          const text = aiResponse.text();
           if (!text) throw new Error("A IA não retornou conteúdo.");
           result = JSON.parse(text);
           break; // Sucesso, sai do loop de retries

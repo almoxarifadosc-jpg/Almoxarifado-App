@@ -1,5 +1,8 @@
 {
   "name": "Almoxarifado Ventisol",
   "description": "Sistema de controle de almoxarifado",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
