@@ -5,8 +5,6 @@ import { Sidebar, View } from '@/components/Sidebar';
 import { Header } from '@/components/Header';
 import SeparationDashboardView from '@/components/SeparationDashboardView';
 import ApiView from '@/components/ApiView';
-import PurchaseOrdersView from '@/components/PurchaseOrdersView';
-import OperationsView from '@/components/OperationsView';
 import { auth } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
@@ -31,10 +29,10 @@ export interface Operation {
 
 export interface NewsPost {
   id: string;
-  title: string;
-  content: string;
+  imageUrl?: string;
+  text: string;
+  author: string;
   date: string;
-  image?: string;
 }
 
 export default function Home() {
@@ -70,11 +68,7 @@ export default function Home() {
       case 'API_DASHBOARD':
         return <ApiView />;
       case 'DASHBOARD':
-        return <PurchaseOrdersView />;
-      case 'REPORTS':
-        return <OperationsView operations={[]} />;
-      case 'ADMIN_PANEL':
-        return <div className="p-10 text-slate-500 font-bold uppercase tracking-widest text-xs">Configurações de Administrador</div>;
+        return <SeparationDashboardView />; 
       default:
         return <SeparationDashboardView />;
     }

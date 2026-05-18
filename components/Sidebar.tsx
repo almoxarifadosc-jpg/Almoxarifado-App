@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export type View = 'DASHBOARD' | 'SEPARATION_DASHBOARD' | 'API_DASHBOARD' | 'ADMIN_PANEL' | 'REPORTS';
+export type View = 'DASHBOARD' | 'SEPARATION_DASHBOARD' | 'API_DASHBOARD' | 'ADMIN_PANEL';
 
 interface SidebarProps {
   currentView: View;
