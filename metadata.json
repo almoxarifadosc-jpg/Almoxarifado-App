@@ -1,8 +1,8 @@
 {
   "name": "Almoxarifado Ventisol",
-  "description": "Sistema de controle de almoxarifado",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  "description": "Sistema de controle de fluxo de operações industriais e gestão de produção Ventisol.",
+  "requestFramePermissions": [
+    "notifications",
+    "camera"
   ]
 }

@@ -1,4 +1,6 @@
 export async function sendGoogleChatNotification(message: string, isSignature: boolean = false) {
+  console.log('📡 Tentando enviar notificação para o Google Chat...');
+
   try {
     const response = await fetch('/api/notify', {
       method: 'POST',
@@ -9,9 +11,12 @@ export async function sendGoogleChatNotification(message: string, isSignature: b
     });
 
     if (!response.ok) {
-      console.error('Erro ao enviar notificação');
+      const errorText = await response.text();
+      console.error('❌ Erro na resposta do Google Chat:', errorText);
+    } else {
+      console.log('✅ Notificação enviada com sucesso!');
     }
   } catch (error) {
-    console.error('Erro de rede na notificação:', error);
+    console.error('❌ Erro ao enviar notificação para o Google Chat:', error);
   }
 }

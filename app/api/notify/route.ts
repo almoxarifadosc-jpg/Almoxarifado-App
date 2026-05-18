@@ -1,34 +1,33 @@
 import { NextResponse } from 'next/server';
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const { message, isSignature } = await req.json();
-    const webhookUrl = process.env.GOOGLE_CHAT_WEBHOOK_URL;
+    const { message, isSignature } = await request.json();
+    
+    const defaultWebhook = process.env.NEXT_PUBLIC_GOOGLE_CHAT_WEBHOOK_URL;
+    const signatureWebhook = process.env.NEXT_PUBLIC_GOOGLE_CHAT_SIGNATURE_WEBHOOK_URL;
+
+    const webhookUrl = isSignature ? (signatureWebhook || defaultWebhook) : defaultWebhook;
 
     if (!webhookUrl) {
-      console.error('GOOGLE_CHAT_WEBHOOK_URL não configurada');
-      return NextResponse.json({ error: 'Configuração de Notificação indisponível' }, { status: 500 });
+      return NextResponse.json({ error: 'Webhook URL not configured' }, { status: 500 });
     }
-
-    const payload = {
-      text: isSignature ? `📝 *Nova Assinatura Coletada*\n${message}` : message,
-    };
 
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json; charset=UTF-8',
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ text: message }),
     });
 
     if (!response.ok) {
-      throw new Error('Falha ao enviar para o Google Chat');
+      const errorText = await response.text();
+      return NextResponse.json({ error: errorText }, { status: response.status });
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('Erro na API de Notificação:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
