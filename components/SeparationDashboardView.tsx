@@ -14,8 +14,6 @@ import {
   Eye,
   X,
   Filter,
-  CloudSun,
-  DollarSign,
   FileSpreadsheet,
   FileText,
   Volume2
@@ -88,8 +86,6 @@ export function SeparationDashboardView({
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [searchOP, setSearchOP] = useState<string>('');
   const [showFilters, setShowFilters] = useState(true);
-  const [weather, setWeather] = useState<{ temp: number } | null>(null);
-  const [dollarRate, setDollarRate] = useState<string | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [premiumVoiceEnabled, setPremiumVoiceEnabled] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -269,32 +265,6 @@ export function SeparationDashboardView({
     announceText(`OP ${orderNumber} está liberada para baixa`);
   };
 
-  useEffect(() => {
-    const fetchExternalData = async () => {
-      try {
-        // Palhoça Weather
-        const wRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-27.64&longitude=-48.67&current_weather=true');
-        const wData = await wRes.json();
-        if (wData.current_weather) {
-          setWeather({ temp: Math.round(wData.current_weather.temperature) });
-        }
-
-        // Dollar Rate
-        const dRes = await fetch('https://economia.awesomeapi.com.br/last/USD-BRL');
-        const dData = await dRes.json();
-        if (dData.USDBRL) {
-          setDollarRate(Number(dData.USDBRL.bid).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-        }
-      } catch (e) {
-        console.error('Failed to fetch external weather/dollar data', e);
-      }
-    };
-
-    fetchExternalData();
-    const interval = setInterval(fetchExternalData, 30 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const isOrderRestricted = (order: PurchaseOrder) => {
     if (isAdmin || isSuperAdmin || !allowedGroups || allowedGroups.length === 0) return false;
     if (!order.items || order.items.length === 0) return false;
@@ -430,14 +400,11 @@ export function SeparationDashboardView({
       const isInRange = (!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate);
 
       // Mostra se estiver no intervalo. 
-      // Adicionalmente, mostra PENDENTES de datas muito recentes (últimas 48h) para garantir que nada se perca no turnover
+      // Adicionalmente, MOSTRA TODAS AS NÃO CONCLUÍDAS (não 'Baixada') independentemente da data para garantir que nada se perca
       const isFinished = order.status === 'Baixada';
-      const fortyEightHoursAgo = new Date();
-      fortyEightHoursAgo.setDate(fortyEightHoursAgo.getDate() - 2);
-      const limitISO = formatToISODate(fortyEightHoursAgo);
-      const isRecentPending = orderDateStr >= limitISO && !isFinished;
+      const isPending = !isFinished;
 
-      return isInRange || isRecentPending;
+      return isInRange || isPending;
     }).sort((a, b) => {
       const dA = parseAnyDate(a.date || a.created_at);
       const dB = parseAnyDate(b.date || b.created_at);
@@ -635,28 +602,6 @@ export function SeparationDashboardView({
               )}
             </h2>
             <p className="text-on-surface-variant font-medium">Monitoramento em tempo real da separação de OPs.</p>
-          </div>
-
-          {/* Weather & Dollar Widgets */}
-          <div className="flex items-center gap-4">
-            {weather !== null && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-sky-500/10 rounded-2xl border border-sky-500/20 shadow-sm animate-in fade-in slide-in-from-left-4 duration-700">
-                <CloudSun className="w-5 h-5 text-sky-600" />
-                <div className="flex flex-col">
-                  <span className="text-[8px] font-black uppercase tracking-widest text-sky-600/70 leading-none">Palhoça</span>
-                  <span className="text-sm font-black text-sky-700 leading-tight">{weather.temp}°C</span>
-                </div>
-              </div>
-            )}
-            {dollarRate && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 shadow-sm animate-in fade-in slide-in-from-left-4 duration-1000">
-                <DollarSign className="w-5 h-5 text-emerald-600" />
-                <div className="flex flex-col">
-                  <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600/70 leading-none">Dólar Hoje</span>
-                  <span className="text-sm font-black text-emerald-700 leading-tight">R$ {dollarRate}</span>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
