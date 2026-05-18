@@ -5,6 +5,8 @@ import { Sidebar, View } from '@/components/Sidebar';
 import { Header } from '@/components/Header';
 import SeparationDashboardView from '@/components/SeparationDashboardView';
 import ApiView from '@/components/ApiView';
+import PurchaseOrdersView from '@/components/PurchaseOrdersView';
+import OperationsView from '@/components/OperationsView';
 import { auth } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Loader2 } from 'lucide-react';
@@ -24,6 +26,7 @@ export interface Operation {
   isLicitacao?: boolean;
   isCompleted?: boolean;
   userEmail?: string;
+  iconType?: 'factory' | 'settings' | 'check';
 }
 
 export interface NewsPost {
@@ -60,9 +63,6 @@ export default function Home() {
     );
   }
 
-  // Se não houver AuthView, vamos apenas mostrar o SeparationDashboardView para o demo funcionar
-  // Mas vamos tentar importar AuthView se existir
-  
   const renderView = () => {
     switch (currentView) {
       case 'SEPARATION_DASHBOARD':
@@ -70,7 +70,11 @@ export default function Home() {
       case 'API_DASHBOARD':
         return <ApiView />;
       case 'DASHBOARD':
-        return <SeparationDashboardView />; // Temporário até ter o DashboardView final
+        return <PurchaseOrdersView />;
+      case 'REPORTS':
+        return <OperationsView operations={[]} />;
+      case 'ADMIN_PANEL':
+        return <div className="p-10 text-slate-500 font-bold uppercase tracking-widest text-xs">Configurações de Administrador</div>;
       default:
         return <SeparationDashboardView />;
     }
