@@ -104,6 +104,7 @@ export function SortingView({
   profiles = [],
   startDate,
   endDate,
+  isDarkMode,
   onDateChange
 }: { 
   isAdmin?: boolean, 
@@ -118,6 +119,7 @@ export function SortingView({
   profiles?: Profile[],
   startDate: string,
   endDate: string,
+  isDarkMode?: boolean,
   onDateChange: (start: string, end: string) => void
 }) {
   const [orders, setOrders] = useState<PurchaseOrder[]>(purchaseOrders);
@@ -1658,7 +1660,7 @@ export function SortingView({
                     {editingOrder.is_signed && (
                        <div className="bg-surface-container-high/20 rounded-[32px] border border-outline-variant/10 p-6 flex flex-col items-center gap-4">
                           <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Assinatura Eletrônica Registrada</p>
-                          <div className="bg-white p-4 rounded-2xl w-full flex justify-center">
+                          <div className="bg-surface-container-lowest p-4 rounded-2xl w-full flex justify-center">
                             <img src={editingOrder.signature_url} alt="Assinatura" className="h-32 object-contain" />
                           </div>
                           <div className="text-center">
@@ -1694,11 +1696,11 @@ export function SortingView({
 
                     <div className="bg-surface-container-high rounded-[40px] border border-outline-variant/20 p-6 shadow-inner overflow-hidden">
                       {editingOrder.is_signed ? (
-                        <div className="w-full flex flex-col items-center justify-center py-6 bg-white rounded-3xl relative group border border-outline-variant/5">
+                        <div className="w-full flex flex-col items-center justify-center py-6 bg-surface-container-lowest rounded-3xl relative group border border-outline-variant/5">
                           <img 
                             src={editingOrder.signature_url} 
                             alt="Assinatura Manuscrita" 
-                            className="max-h-40 object-contain drop-shadow-sm"
+                            className="max-h-40 object-contain drop-shadow-sm dark:invert"
                           />
                           <div className="mt-4 flex flex-col items-center">
                              <div className="flex items-center gap-2 text-emerald-500 mb-1">
@@ -1714,10 +1716,10 @@ export function SortingView({
                           </div>
                         </div>
                       ) : (
-                        <div className="w-full bg-white rounded-3xl border-2 border-dashed border-outline-variant/30 overflow-hidden touch-none relative">
+                        <div className="w-full bg-surface-container-lowest rounded-3xl border-2 border-dashed border-outline-variant/30 overflow-hidden touch-none relative">
                           <SignatureCanvas 
                             ref={sigCanvas}
-                            penColor="#000"
+                            penColor={isDarkMode ? "#fff" : "#000"}
                             canvasProps={{
                               className: "signature-canvas w-full h-48 cursor-crosshair",
                             }}
