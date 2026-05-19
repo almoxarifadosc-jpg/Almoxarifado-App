@@ -66,146 +66,213 @@ export function InfoView() {
     return () => clearInterval(interval);
   }, []);
 
-  return (
-    <div className="px-6 py-8 max-w-[1400px] mx-auto min-h-screen">
-      <div className="mb-10">
-        <h2 className="text-4xl font-headline font-black text-on-surface tracking-tighter">Informaçōes em Tempo Real</h2>
-        <p className="text-on-surface-variant font-medium">Clima regional e indicadores financeiros.</p>
+  if (loading) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+        <p className="text-on-surface-variant font-bold animate-pulse">Sincronizando informações externas...</p>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Card 1: Weather */}
+  return (
+    <div className="px-4 md:px-8 py-8 max-w-[1400px] mx-auto min-h-screen space-y-12">
+      <header className="space-y-2">
+        <motion.div
+           initial={{ opacity: 0, x: -20 }}
+           animate={{ opacity: 1, x: 0 }}
+           className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest mb-2"
+        >
+          <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+          Dados Atualizados
+        </motion.div>
+        <h2 className="text-4xl md:text-5xl font-headline font-black text-on-surface tracking-tight">Hub de Informações</h2>
+        <p className="text-on-surface-variant font-medium text-lg">Monitore indicadores externos que impactam nossa operação.</p>
+      </header>
+
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        {/* Card 1: Weather (Takes more space) */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-surface-container-low rounded-[48px] border border-outline-variant/10 shadow-xl overflow-hidden"
+          className="xl:col-span-8 group"
         >
-          <div className="p-10 border-b border-outline-variant/5 bg-sky-500/5">
-            <div className="flex justify-between items-start mb-10">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-white rounded-3xl shadow-lg flex items-center justify-center text-sky-500">
-                  <CloudSun className="w-8 h-8" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-600/60">Previsão do Tempo</p>
-                  <h3 className="text-3xl font-headline font-black text-sky-900">Palhoça, SC</h3>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-4xl font-headline font-black text-sky-600 leading-none">
-                  {weather?.current_weather?.temperature ? Math.round(weather.current_weather.temperature) : '--'}°C
-                </p>
-                <p className="text-[10px] font-black uppercase tracking-widest text-sky-600/40 mt-1">Sente como {weather?.current_weather?.temperature ? Math.round(weather.current_weather.temperature - 1) : '--'}°C</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-7 gap-4">
-              {weather?.daily?.time.map((day: any, i: number) => (
-                <div key={day} className={cn(
-                  "flex flex-col items-center gap-3 p-4 rounded-3xl transition-all",
-                  i === 0 ? "bg-white shadow-md border border-sky-100" : "hover:bg-sky-100/40"
-                )}>
-                  <span className="text-[9px] font-black uppercase tracking-tighter text-sky-900/60">{i === 0 ? 'Hoje' : getDayName(day)}</span>
-                  {getWeatherIcon(weather.daily.weathercode[i])}
-                  <div className="flex flex-col items-center">
-                    <span className="text-xs font-black text-sky-900">{Math.round(weather.daily.temperature_2m_max[i])}°</span>
-                    <span className="text-[10px] font-black text-sky-400 opacity-60">{Math.round(weather.daily.temperature_2m_min[i])}°</span>
+          <div className="bg-surface-container-low rounded-[48px] border border-outline-variant/10 shadow-2xl overflow-hidden h-full flex flex-col relative transition-all duration-500 hover:shadow-primary/5">
+            {/* Header / Current Status */}
+            <div className="p-8 md:p-12 space-y-12 flex-1">
+              <div className="flex flex-col md:flex-row justify-between items-start gap-8">
+                <div className="flex items-center gap-6">
+                  <div className="w-20 h-20 bg-sky-500/10 dark:bg-sky-500/20 rounded-[32px] flex items-center justify-center text-sky-500 scale-110">
+                    {weather && getWeatherIcon(weather.current_weather.weathercode)}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-sky-500 mb-1">Unidade Industrial</p>
+                    <h3 className="text-3xl md:text-4xl font-headline font-black text-on-surface">Palhoça, SC</h3>
+                    <div className="flex items-center gap-2 text-on-surface-variant mt-2">
+                      <Calendar className="w-4 h-4" />
+                      <span className="text-sm font-bold">{new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-          
-          <div className="px-10 py-6 bg-white flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Wind className="w-4 h-4 text-sky-400" />
-                <span className="text-xs font-bold text-sky-900">{weather?.current_weather?.windspeed || '--'} km/h</span>
+
+                <div className="bg-surface-container-highest/50 backdrop-blur-md rounded-[40px] p-8 min-w-[200px] border border-white/10 flex flex-col items-center">
+                  <span className="text-6xl md:text-7xl font-headline font-black text-on-surface tracking-tighter">
+                    {weather?.current_weather?.temperature ? Math.round(weather.current_weather.temperature) : '--'}°
+                  </span>
+                  <p className="text-[11px] font-black uppercase tracking-widest text-on-surface-variant mt-2">Sensação Térmica</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Thermometer className="w-4 h-4 text-sky-400" />
-                <span className="text-xs font-bold text-sky-900">Humidade: 72%</span>
+
+              {/* Weekly Forecast */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-4">
+                {weather?.daily?.time.map((day: any, i: number) => (
+                  <motion.div 
+                    key={day}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.05 }}
+                    className={cn(
+                      "flex flex-col items-center gap-4 p-5 rounded-[32px] transition-all duration-300",
+                      i === 0 
+                        ? "bg-surface-container-highest shadow-xl ring-1 ring-sky-500/20" 
+                        : "bg-surface-container-low hover:bg-surface-container-high"
+                    )}
+                  >
+                    <span className={cn(
+                      "text-[10px] font-black uppercase tracking-tighter",
+                      i === 0 ? "text-sky-500" : "text-on-surface-variant opacity-60"
+                    )}>
+                      {i === 0 ? 'Hoje' : getDayName(day)}
+                    </span>
+                    <div className="scale-75 md:scale-100">
+                      {getWeatherIcon(weather.daily.weathercode[i])}
+                    </div>
+                    <div className="flex flex-col items-center font-headline font-black">
+                      <span className="text-lg text-on-surface">{Math.round(weather.daily.temperature_2m_max[i])}°</span>
+                      <span className="text-xs text-on-surface-variant/40">{Math.round(weather.daily.temperature_2m_min[i])}°</span>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
             </div>
-            <div className="flex items-center gap-2 text-sky-600/40">
-              <Clock className="w-3 h-3" />
-              <span className="text-[9px] font-black uppercase tracking-tighter">Atualizado agora</span>
+            
+            {/* Footer Details */}
+            <div className="px-12 py-8 bg-surface-container-high/50 border-t border-outline-variant/5 flex flex-wrap items-center justify-between gap-6">
+              <div className="flex flex-wrap items-center gap-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-sky-500/10 flex items-center justify-center text-sky-500">
+                    <Wind className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase text-on-surface-variant/40">Vento</p>
+                    <p className="text-sm font-black text-on-surface">{weather?.current_weather?.windspeed || '--'} km/h</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-sky-500/10 flex items-center justify-center text-sky-500">
+                    <Thermometer className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase text-on-surface-variant/40">Geral</p>
+                    <p className="text-sm font-black text-on-surface">{weather?.daily?.temperature_2m_max[0]}° / {weather?.daily?.temperature_2m_min[0]}°</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-on-surface-variant/30">
+                <Clock className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest italic">Tempo Real Open-Meteo</span>
+              </div>
             </div>
           </div>
         </motion.div>
 
-        {/* Card 2: Dollar Rate */}
+        {/* Card 2: Dollar Rate (Vertical / Side) */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-surface-container-low rounded-[48px] border border-outline-variant/10 shadow-xl overflow-hidden"
+          className="xl:col-span-4"
         >
-          <div className="p-10 border-b border-outline-variant/5 bg-emerald-500/5 h-full flex flex-col justify-between">
-            <div>
-              <div className="flex justify-between items-start mb-12">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-white rounded-3xl shadow-lg flex items-center justify-center text-emerald-500">
+          <div className="bg-surface-container-low rounded-[48px] border border-outline-variant/10 shadow-2xl overflow-hidden h-full flex flex-col transition-all duration-500 hover:shadow-emerald-500/5">
+            <div className="p-10 border-b border-outline-variant/5 bg-emerald-500/5 flex-1 flex flex-col">
+              <div className="flex justify-between items-start mb-16">
+                <div className="flex items-center gap-5">
+                  <div className="w-16 h-16 bg-emerald-500/10 rounded-[28px] flex items-center justify-center text-emerald-500">
                     <DollarSign className="w-8 h-8" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600/60">Mercado Financeiro</p>
-                    <h3 className="text-3xl font-headline font-black text-emerald-900">Dólar Comercial</h3>
+                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-600">Mercado</p>
+                    <h3 className="text-2xl font-headline font-black text-on-surface">Dólar (USD)</h3>
                   </div>
                 </div>
-                <div className="px-4 py-2 bg-white rounded-2xl shadow-sm border border-emerald-100">
+                <div className="px-5 py-2 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
                   <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Ao Vivo</span>
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Live</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-baseline gap-4 mb-10">
-                <span className="text-6xl font-headline font-black text-emerald-900 tracking-tighter">
-                  R$ {dollar?.bid ? Number(dollar.bid).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--'}
-                </span>
-                <div className={cn(
-                  "flex items-center gap-1 px-3 py-1 rounded-xl font-black text-xs",
-                  Number(dollar?.pctChange) >= 0 ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
-                )}>
-                  {Number(dollar?.pctChange) >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                  {dollar?.pctChange || '0'}%
+              <div className="flex-1 flex flex-col justify-center gap-2">
+                <p className="text-[11px] font-black uppercase tracking-widest text-on-surface-variant leading-none ml-2">Cotação Atual (Venda)</p>
+                <div className="flex items-baseline gap-4">
+                  <span className="text-6xl md:text-7xl font-headline font-black text-on-surface tracking-tighter">
+                    {dollar?.bid ? Number(dollar.bid).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--'}
+                  </span>
+                  <div className={cn(
+                    "flex items-center gap-1 px-3 py-1.5 rounded-xl font-black text-[13px] shadow-lg shadow-black/5",
+                    Number(dollar?.pctChange) >= 0 ? "bg-emerald-500 text-white" : "bg-error text-white"
+                  )}>
+                    {Number(dollar?.pctChange) >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                    {dollar?.pctChange || '0'}%
+                  </div>
                 </div>
+                <p className="text-on-surface-variant font-bold text-sm ml-2">
+                  USD 1,00 = BRL {dollar?.bid || '--'}
+                </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                <div className="p-6 bg-white rounded-[32px] border border-emerald-100 flex items-center gap-5">
-                  <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-600 shrink-0">
-                    <TrendingUp className="w-6 h-6" />
+              <div className="grid grid-cols-1 gap-4 mt-12">
+                <div className="p-6 bg-surface-container-highest rounded-[32px] border border-outline-variant/10 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
+                      <TrendingUp className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-tighter text-on-surface-variant/50">Máxima</p>
+                      <p className="text-lg font-headline font-black text-on-surface">R$ {dollar?.high || '--'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600/50 mb-0.5">Máxima do Dia</p>
-                    <p className="text-xl font-headline font-black text-emerald-900">R$ {dollar?.high || '--'}</p>
-                  </div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/20" />
                 </div>
-                <div className="p-6 bg-white rounded-[32px] border border-emerald-101 flex items-center gap-5">
-                  <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-600 shrink-0">
-                    <TrendingDown className="w-6 h-6" />
+                <div className="p-6 bg-surface-container-highest rounded-[32px] border border-outline-variant/10 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-error/10 rounded-2xl flex items-center justify-center text-error">
+                      <TrendingDown className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-tighter text-on-surface-variant/50">Mínima</p>
+                      <p className="text-lg font-headline font-black text-on-surface">R$ {dollar?.low || '--'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-red-600/50 mb-0.5">Mínima do Dia</p>
-                    <p className="text-xl font-headline font-black text-red-900">R$ {dollar?.low || '--'}</p>
-                  </div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-error/20" />
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-8">
-              <div className="flex items-center gap-2 text-emerald-900/40">
-                <Calendar className="w-4 h-4" />
-                <span className="text-xs font-bold">{new Date().toLocaleDateString('pt-BR')}</span>
-              </div>
-              <p className="text-[9px] font-black text-emerald-900/30 uppercase tracking-[0.2em]">Câmbio atualizado via AwesomeAPI</p>
+            <div className="px-10 py-6 bg-surface-container-highest transition-colors flex items-center justify-center">
+              <p className="text-[9px] font-black text-on-surface-variant/30 uppercase tracking-[0.2em] text-center">
+                AwesomeAPI • Atualizado em {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </p>
             </div>
           </div>
         </motion.div>
       </div>
+      
+      {/* Footer Note */}
+      <footer className="text-center opacity-30 select-none pointer-events-none">
+        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-on-surface">Ventisol Industrial S.A. Hub</p>
+      </footer>
     </div>
   );
 }

@@ -44,6 +44,14 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
   // Global Data States
   const [operations, setOperations] = useState<Operation[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
