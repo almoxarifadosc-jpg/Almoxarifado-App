@@ -40,11 +40,25 @@ const parseAnyDate = (dateStr: string) => {
 
 interface DashboardViewProps {
   operations: Operation[];
+  isAdmin?: boolean;
+  userCategory?: string;
+  purchaseOrders?: any[];
+  startDate?: string;
+  endDate?: string;
+  onDateChange?: (start: string, end: string) => void;
 }
 
 type Period = 'today' | 'week' | 'month' | 'all';
 
-export function DashboardView({ operations }: DashboardViewProps) {
+export function DashboardView({ 
+  operations, 
+  isAdmin, 
+  userCategory, 
+  purchaseOrders,
+  startDate: globalStartDate,
+  endDate: globalEndDate,
+  onDateChange
+}: DashboardViewProps) {
   const [startDate, setStartDate] = useState<string>(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];

@@ -206,25 +206,22 @@ export function SeparationDashboardView({
       // Regra de Grupos Permitidos (Sempre respeitada)
       if (isOrderRestricted(order)) return false;
 
-      // Se houver busca por texto (OP), prioriza isso e ignora datas para facilitar achar OPs específicas
-      if (searchOP.trim()) {
-        return order.order_number.toLowerCase().includes(searchOP.toLowerCase());
-      }
-
       const d = parseAnyDate(order.date || order.created_at);
-      if (!d) return false;
-      
-      const orderDateStr = formatToISODate(d);
+      const orderDateStr = d ? formatToISODate(d) : '';
       
       // Filtro de datas (intervalo selecionado)
-      const isInRange = (!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate);
+      const isInRange = d ? ((!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate)) : false;
 
       // Mostra se estiver no intervalo. 
       // Adicionalmente, MOSTRA TODAS AS NÃO CONCLUÍDAS (não 'Baixada') independentemente da data para garantir que nada se perca
       const isFinished = order.status === 'Baixada';
-      const isPending = !isFinished;
+      
+      // Se houver busca por texto (OP), prioriza isso e ignora datas
+      if (searchOP.trim()) {
+        return order.order_number.toLowerCase().includes(searchOP.toLowerCase());
+      }
 
-      return isInRange || isPending;
+      return isInRange || !isFinished;
     }).sort((a, b) => {
       const dA = parseAnyDate(a.date || a.created_at);
       const dB = parseAnyDate(b.date || b.created_at);

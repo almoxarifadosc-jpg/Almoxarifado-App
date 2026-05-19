@@ -1038,7 +1038,6 @@ export function SortingView({
                           }}
                           className="w-full bg-surface-container-high text-on-surface-variant p-4 rounded-2xl hover:bg-surface-container-highest transition-all flex items-center justify-center gap-2 font-bold group"
                         >
-                          <Eye className="w-5 h-5 opacity-40 group-hover:opacity-100 transition-opacity" />
                           <span className="text-sm">Visualizar Detalhes</span>
                         </button>
                       );
