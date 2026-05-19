@@ -18,6 +18,7 @@ import { SortingView } from '@/components/SortingView';
 import { SeparationDashboardView } from '@/components/SeparationDashboardView';
 import PerformanceView from '@/components/PerformanceView';
 import NewsView from '@/components/NewsView';
+import { InfoView } from '@/components/InfoView';
 import { Factory, Settings, CheckCircle2, Loader2, AlertCircle, RefreshCw, Eraser } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -814,6 +815,9 @@ export default function Page() {
                 isAdmin={currentUser?.is_admin} 
                 currentUserEmail={currentUser?.email || ''} 
               />
+            )}
+            {currentView === 'INFO' && (
+              <InfoView key="info" />
             )}
             {currentView === 'ADMIN_PANEL' && (
               <AdminView 
