@@ -44,26 +44,6 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Initialize and Sync Theme
-  useEffect(() => {
-    const isDark = document.documentElement.classList.contains('dark');
-    setIsDarkMode(isDark);
-  }, []);
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(prev => {
-      const next = !prev;
-      if (next) {
-        document.documentElement.classList.add('dark');
-        localStorage.setItem('theme', 'dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-        localStorage.setItem('theme', 'light');
-      }
-      return next;
-    });
-  };
-
   // Global Data States
   const [operations, setOperations] = useState<Operation[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
@@ -249,7 +229,7 @@ export default function Home() {
       <AuthView 
         onAuthSuccess={() => {}} 
         isDarkMode={isDarkMode} 
-        onToggleDarkMode={toggleDarkMode}
+        onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
         logoUrl="/app-logo.png"
       />
     );
@@ -276,7 +256,7 @@ export default function Home() {
           isViewer={profile?.is_viewer}
           category={profile?.category}
           isDarkMode={isDarkMode}
-          onToggleDarkMode={toggleDarkMode}
+          onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
           onMenuToggle={() => setIsMobileSidebarOpen(true)}
         />
         
@@ -370,7 +350,6 @@ export default function Home() {
                 profiles={profiles}
                 startDate={startDate}
                 endDate={endDate}
-                isDarkMode={isDarkMode}
                 onDateChange={(s, e) => {
                   setStartDate(s);
                   setEndDate(e);
