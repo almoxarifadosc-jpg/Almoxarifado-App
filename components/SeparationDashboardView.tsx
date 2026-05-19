@@ -11,12 +11,10 @@ import {
   AlertCircle,
   MapPin,
   Truck,
-  Eye,
   X,
   Filter,
   FileSpreadsheet,
-  FileText,
-  Volume2
+  FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
@@ -86,145 +84,6 @@ export function SeparationDashboardView({
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [searchOP, setSearchOP] = useState<string>('');
   const [showFilters, setShowFilters] = useState(true);
-  const [audioEnabled, setAudioEnabled] = useState(false);
-  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [selectedVoiceName, setSelectedVoiceName] = useState<string | null>(null);
-  const [voiceSettings, setVoiceSettings] = useState({ rate: 1.0, pitch: 1.0 });
-  const [ttsStatus, setTtsStatus] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [ttsErrorMessage, setTtsErrorMessage] = useState<string | null>(null);
-
-  // Controle de Notificação por Voz
-  const announcedOpsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    // Monitora ordens que acabaram de ser assinadas
-    const newlySigned = globalOrders.filter(o => 
-      o.is_signed && 
-      !announcedOpsRef.current.has(o.id) &&
-      o.status !== 'Baixada'
-    );
-
-    if (newlySigned.length > 0 && audioEnabled) {
-      newlySigned.forEach(order => {
-        announceOrderRelease(order.order_number);
-        announcedOpsRef.current.add(order.id);
-      });
-    }
-
-    // Limpeza de memória
-    const currentIds = new Set(globalOrders.map(o => o.id));
-    announcedOpsRef.current.forEach(id => {
-      if (!currentIds.has(id)) {
-        announcedOpsRef.current.delete(id);
-      }
-    });
-  }, [globalOrders, audioEnabled]);
-
-  // Pré-carregamento de vozes para o TTS nativo
-  useEffect(() => {
-    if ('speechSynthesis' in window) {
-      const loadVoices = () => {
-        const voices = window.speechSynthesis.getVoices();
-        
-        // Filtro rigoroso para vozes em português BR, excluindo explicitamente espanhol
-        const ptVoices = voices.filter(v => {
-          const l = v.lang.toLowerCase().replace('_', '-');
-          const n = v.name.toLowerCase();
-          const isSpanish = l.startsWith('es') || n.includes('spanish') || n.includes('espanol');
-          const isPT = l.startsWith('pt');
-          // No Edge, algumas vozes pt-PT podem aparecer, priorizamos pt-BR
-          const isBR = l.includes('br') || n.includes('brazil') || n.includes('portuguese (brazil)');
-          return isPT && isBR && !isSpanish;
-        });
-
-        setAvailableVoices(ptVoices);
-        
-        if (voices.length > 0) {
-          console.log('TTS: Vozes BR carregadas:', ptVoices.length);
-        }
-      };
-      
-      loadVoices();
-      if (window.speechSynthesis.onvoiceschanged !== undefined) {
-        window.speechSynthesis.onvoiceschanged = loadVoices;
-      }
-    }
-  }, []);
-
-  const announceText = async (message: string, forceSystem: boolean = false) => {
-    if (!audioEnabled && !message.includes("Notificações ativadas")) return;
-
-    setTtsStatus('loading');
-    setTtsErrorMessage(null);
-
-    // Fallback: SpeechSynthesis (Nativo do navegador)
-    if (!('speechSynthesis' in window)) {
-      setTtsStatus('error');
-      setTtsErrorMessage("Navegador sem suporte a voz.");
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(message);
-    
-    // Força idioma PT-BR no nível do objeto para evitar confusão de idioma padrão do SO
-    utterance.lang = 'pt-BR';
-
-    const speak = () => {
-      const voices = window.speechSynthesis.getVoices();
-      
-      // Tenta usar a voz selecionada pelo usuário
-      let bestVoice = voices.find(v => v.name === selectedVoiceName);
-
-      if (!bestVoice) {
-        // Filtro de emergência caso a lista do estado esteja vazia
-        const ptBRVoices = voices.filter(v => {
-          const l = v.lang.toLowerCase().replace('_', '-');
-          const n = v.name.toLowerCase();
-          const isSpanish = l.startsWith('es') || n.includes('spanish') || n.includes('espanol');
-          const isPT = l.startsWith('pt');
-          const isBR = l.includes('br') || n.includes('brazil');
-          return isPT && isBR && !isSpanish;
-        });
-
-        // Prioridades: 
-        // 1. Microsft Edge Natural Online
-        // 2. Google Português do Brasil
-        // 3. Qualquer PT-BR que sobrar
-        const edgeNatural = ptBRVoices.find(v => v.name.toLowerCase().includes('natural'));
-        const googleVoice = ptBRVoices.find(v => v.name.toLowerCase().includes('google') && v.lang.includes('BR'));
-        bestVoice = edgeNatural || googleVoice || ptBRVoices[0];
-      }
-      
-      if (bestVoice) {
-        utterance.voice = bestVoice;
-        utterance.lang = 'pt-BR'; 
-      }
-      
-      utterance.rate = voiceSettings.rate;
-      utterance.pitch = voiceSettings.pitch;
-      utterance.volume = 1;
-
-      utterance.onend = () => setTtsStatus('idle');
-      utterance.onerror = (e) => {
-        console.error("TTS Error:", e);
-        setTtsStatus('error');
-      };
-
-      window.speechSynthesis.speak(utterance);
-    };
-
-    if (window.speechSynthesis.getVoices().length === 0) {
-      // Pequeno delay para navegadores lentos em carregar vozes
-      setTimeout(speak, 100);
-    } else {
-      speak();
-    }
-  };
-
-  const announceOrderRelease = (orderNumber: string) => {
-    announceText(`OP ${orderNumber} está liberada para baixa`);
-  };
 
   const isOrderRestricted = (order: PurchaseOrder) => {
     if (isAdmin || isSuperAdmin || !allowedGroups || allowedGroups.length === 0) return false;
@@ -435,100 +294,8 @@ export function SeparationDashboardView({
       )}>
         <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
           <div>
-            <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight flex items-center gap-3">
+            <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight">
               Painel de Separação
-              {(!audioEnabled && 'speechSynthesis' in window) && (
-                <button 
-                  onClick={() => {
-                    setAudioEnabled(true);
-                    announceText("Notificações ativadas");
-                  }}
-                  className="px-3 py-1 bg-amber-500/20 text-amber-500 text-[10px] font-black rounded-xl border border-amber-500/30 hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 animate-pulse"
-                >
-                  <Volume2 size={14} />
-                  ATIVAR ÁUDIO
-                </button>
-              )}
-              {audioEnabled && (
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className={cn(
-                    "flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg border",
-                    ttsStatus === 'loading' ? "text-amber-500 bg-amber-500/10 border-amber-500/20" : 
-                    ttsStatus === 'error' ? "text-red-500 bg-red-500/10 border-red-500/20" :
-                    "text-emerald-500 bg-emerald-500/10 border-emerald-500/20"
-                  )}>
-                    <Volume2 size={12} className={cn(ttsStatus === 'loading' && "animate-pulse")} />
-                    {ttsStatus === 'loading' ? "Gerando..." : "Áudio Ativo"}
-                  </div>
-
-                  {/* Configurações de Voz */}
-                  <div className="flex flex-wrap items-center gap-2 bg-surface-container-low px-2 py-1 rounded-xl border border-outline-variant/10 shadow-sm">
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 text-emerald-600 rounded-lg border border-emerald-500/20">
-                      <Volume2 size={10} />
-                      <span className="text-[9px] font-black tracking-widest uppercase">Voz Local</span>
-                    </div>
-
-                    <div className="h-4 w-px bg-outline-variant/20 mx-0.5" />
-                    
-                    <select 
-                      value={selectedVoiceName || ''}
-                      onChange={(e) => {
-                        const name = e.target.value;
-                        setSelectedVoiceName(name);
-                        localStorage.setItem('tts_selected_voice', name);
-                        announceText("Voz alterada");
-                      }}
-                      className="bg-transparent text-[10px] font-bold text-on-surface-variant outline-none max-w-[120px] truncate cursor-pointer"
-                    >
-                      <option value="">Voz Padrão</option>
-                      {availableVoices.map(v => (
-                        <option key={v.name} value={v.name}>{v.name}</option>
-                      ))}
-                    </select>
-
-                    <button 
-                      onClick={() => announceText("Teste de voz")}
-                      className="p-1 px-2 hover:bg-primary/10 text-primary rounded-lg transition-all border border-primary/20 active:scale-95"
-                      title="Testar voz selecionada"
-                    >
-                      <Volume2 size={10} />
-                    </button>
-
-                    <div className="flex items-center gap-2">
-                       <span className="text-[9px] font-black opacity-40">VEL:</span>
-                       <input 
-                        type="range" 
-                        min="0.5" 
-                        max="1.5" 
-                        step="0.1" 
-                        value={voiceSettings.rate}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          setVoiceSettings(prev => ({ ...prev, rate: val }));
-                          localStorage.setItem('tts_voice_rate', val.toString());
-                        }}
-                        className="w-12 h-1 accent-primary cursor-pointer"
-                       />
-                       <span className="text-[9px] font-black text-on-surface-variant min-w-[20px]">{voiceSettings.rate}x</span>
-                    </div>
-
-                    <div className="h-4 w-px bg-outline-variant/20 mx-1" />
-
-                    <button 
-                      onClick={() => setAudioEnabled(false)}
-                      className="text-[9px] font-black text-error hover:opacity-70 transition-opacity"
-                    >
-                      DESATIVAR
-                    </button>
-                  </div>
-
-                  {ttsErrorMessage && (
-                    <div className="text-[9px] font-bold text-red-500 animate-in fade-in slide-in-from-top-1">
-                      {ttsErrorMessage}
-                    </div>
-                  )}
-                </div>
-              )}
             </h2>
             <p className="text-on-surface-variant font-medium">Monitoramento em tempo real da separação de OPs.</p>
           </div>
@@ -601,7 +368,7 @@ export function SeparationDashboardView({
           >
             {showFilters ? (
               <>
-                <Eye className="w-4 h-4" />
+                <Filter className="w-4 h-4 opacity-50" />
                 Esconder Filtros
               </>
             ) : (
