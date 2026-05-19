@@ -8,7 +8,7 @@ import {
   TrendingDown, 
   Clock, 
   Calendar,
-  CloudCloud,
+  Cloud,
   Sun,
   CloudRain,
   CloudLightning,
@@ -24,7 +24,7 @@ const getWeatherIcon = (code: number) => {
   if (code >= 1 && code <= 3) return <CloudSun className="w-8 h-8 text-sky-400" />;
   if (code >= 45 && code <= 48) return <Wind className="w-8 h-8 text-slate-400" />;
   if (code >= 51 && code <= 67) return <CloudRain className="w-8 h-8 text-blue-400" />;
-  if (code >= 71 && code <= 77) return <CloudCloud className="w-8 h-8 text-slate-300" />;
+  if (code >= 71 && code <= 77) return <Cloud className="w-8 h-8 text-slate-300" />;
   if (code >= 80 && code <= 86) return <CloudRain className="w-8 h-8 text-blue-500" />;
   if (code >= 95) return <CloudLightning className="w-8 h-8 text-indigo-500" />;
   return <CloudSun className="w-8 h-8 text-sky-400" />;
