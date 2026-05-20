@@ -1,10 +1,7 @@
 {
-  "name": "Almoxarifado Ventisol",
-  "description": "Sistema de controle de fluxo de operações industriais e gestão de produção Ventisol com painel de separação e informações em tempo real.",
-  "requestFramePermissions": [
-    "notifications",
-    "camera"
-  ],
+  "name": "Painel de Separação Ventisol",
+  "description": "Painel de controle, separação e conferência de OPs com anúncios de voz para a Ventisol.",
+  "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
