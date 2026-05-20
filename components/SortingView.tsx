@@ -77,6 +77,12 @@ interface PurchaseOrder {
   signed_at?: string;
   signed_by_name?: string;
   signature_url?: string;
+  separated_by_id?: string;
+  separated_by_name?: string;
+  separated_at?: string;
+  baixado_by_id?: string;
+  baixado_by_name?: string;
+  baixado_at?: string;
   sequence?: number | null;
   pis?: string[];
   observation?: string;
@@ -327,6 +333,9 @@ export function SortingView({
         observation: editingOrder.observation || '',
         photos: editingOrder.photos || [],
         sequence: editingOrder.sequence !== undefined ? editingOrder.sequence : null,
+        separated_by_id: currentUserId || '',
+        separated_by_name: currentUserName || '',
+        separated_at: new Date().toISOString(),
         updated_at: serverTimestamp()
       });
 
@@ -480,6 +489,9 @@ export function SortingView({
       const orderRef = doc(db, 'purchase_orders', orderId);
       await updateDoc(orderRef, { 
         status: 'Baixada',
+        baixado_by_id: currentUserId || '',
+        baixado_by_name: currentUserName || 'Sistema',
+        baixado_at: new Date().toISOString(),
         updated_at: serverTimestamp()
       });
 

@@ -50,6 +50,12 @@ interface PurchaseOrder {
   signature_url?: string;
   signed_by_name?: string;
   signed_at?: string;
+  conferred_by_name?: string;
+  conferred_at?: string;
+  separated_by_name?: string;
+  separated_at?: string;
+  baixado_by_name?: string;
+  baixado_at?: string;
   pis?: string[];
   created_at: string;
   sequence?: number | null;
@@ -155,6 +161,9 @@ export function SeparationDashboardView({
       const orderRef = doc(db, 'purchase_orders', order.id);
       await updateDoc(orderRef, { 
         status: 'Baixada',
+        baixado_by_name: currentUserName || 'Sistema',
+        baixado_by_id: currentUserId || '',
+        baixado_at: new Date().toISOString(),
         updated_at: serverTimestamp()
       });
 
@@ -676,6 +685,86 @@ export function SeparationDashboardView({
                             return d ? d.toLocaleDateString('pt-BR') : 'N/A';
                           })()}
                         </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Responsáveis pelo Fluxo */}
+                  <div className="bg-surface-container-high/40 rounded-[32px] border border-outline-variant/10 overflow-hidden">
+                    <div className="bg-surface-container-high px-6 py-3 border-b border-outline-variant/10">
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface">Responsáveis pelo Fluxo</h4>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 p-6 gap-4">
+                      {/* Separação */}
+                      <div className="flex items-start gap-3 bg-surface-container-low p-4 rounded-2xl border border-outline-variant/5">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+                          <Package className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-0.5">Separação</p>
+                          <p className="font-bold text-xs text-on-surface truncate">
+                            {selectedOrder.separated_by_name || selectedOrder.items?.find((i) => i.collector_name)?.collector_name || 'Pendente'}
+                          </p>
+                          {selectedOrder.separated_at && (
+                            <p className="text-[9px] font-mono text-on-surface-variant/50 uppercase mt-0.5">
+                              {new Date(selectedOrder.separated_at).toLocaleString('pt-BR')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Conferência */}
+                      <div className="flex items-start gap-3 bg-surface-container-low p-4 rounded-2xl border border-outline-variant/5">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
+                          <ClipboardList className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-0.5">Conferência</p>
+                          <p className="font-bold text-xs text-on-surface truncate">
+                            {selectedOrder.conferred_by_name || 'Pendente'}
+                          </p>
+                          {selectedOrder.conferred_at && (
+                            <p className="text-[9px] font-mono text-on-surface-variant/50 uppercase mt-0.5">
+                              {new Date(selectedOrder.conferred_at).toLocaleString('pt-BR')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Assinatura */}
+                      <div className="flex items-start gap-3 bg-surface-container-low p-4 rounded-2xl border border-outline-variant/5">
+                        <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500 shrink-0">
+                          <CheckCircle2 className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-0.5">Assinatura</p>
+                          <p className="font-bold text-xs text-on-surface truncate">
+                            {selectedOrder.signed_by_name || 'Pendente'}
+                          </p>
+                          {selectedOrder.signed_at && (
+                            <p className="text-[9px] font-mono text-on-surface-variant/50 uppercase mt-0.5">
+                              {new Date(selectedOrder.signed_at).toLocaleString('pt-BR')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Baixa da OP */}
+                      <div className="flex items-start gap-3 bg-surface-container-low p-4 rounded-2xl border border-outline-variant/5">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+                          <Truck className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-0.5">Baixa da OP</p>
+                          <p className="font-bold text-xs text-on-surface truncate">
+                            {selectedOrder.baixado_by_name || (selectedOrder.status === 'Baixada' ? 'Sistema' : 'Pendente')}
+                          </p>
+                          {selectedOrder.baixado_at && (
+                            <p className="text-[9px] font-mono text-on-surface-variant/50 uppercase mt-0.5">
+                              {new Date(selectedOrder.baixado_at).toLocaleString('pt-BR')}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
