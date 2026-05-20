@@ -18,6 +18,8 @@
   --color-outline-variant: var(--outline-variant);
 }
 
+@variant dark (&:where(.dark, .dark *));
+
 :root {
   --primary: #1a61a4;
   --primary-container: #75aef7;
