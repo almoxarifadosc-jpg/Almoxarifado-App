@@ -14,7 +14,9 @@ import {
   X,
   Filter,
   FileSpreadsheet,
-  FileText
+  FileText,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
@@ -84,6 +86,55 @@ export function SeparationDashboardView({
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [searchOP, setSearchOP] = useState<string>('');
   const [showFilters, setShowFilters] = useState(true);
+
+  // Controle de som/voz
+  const [speechEnabled, setSpeechEnabled] = useState<boolean>(true);
+  const spokenOPsRef = useRef<Set<string>>(new Set());
+
+  // Carrega a preferência de voz do localStorage no início
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('separation_speech_enabled');
+      if (saved !== null) {
+        setSpeechEnabled(saved === 'true');
+      }
+    }
+  }, []);
+
+  const toggleSpeech = () => {
+    setSpeechEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem('separation_speech_enabled', String(next));
+      return next;
+    });
+  };
+
+  // Efeito de anúncio por voz de OPs aguardando baixa
+  useEffect(() => {
+    if (!speechEnabled) return;
+
+    // Filtra as OPs assinadas que ainda não sofreram baixa (aguardando baixa)
+    const aguardandoBaixa = orders.filter(
+      (order) => order.is_signed === true && order.status !== 'Baixada'
+    );
+
+    if (aguardandoBaixa.length === 0) return;
+
+    aguardandoBaixa.forEach((order) => {
+      if (!spokenOPsRef.current.has(order.id)) {
+        spokenOPsRef.current.add(order.id);
+        
+        // Emite o aviso de áudio apenas uma vez por OP nesta sessão / visualização
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+          const text = `OP ${order.order_number} está liberada para baixa.`;
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = 'pt-BR';
+          utterance.rate = 1.0;
+          window.speechSynthesis.speak(utterance);
+        }
+      }
+    });
+  }, [orders, speechEnabled]);
 
   const isOrderRestricted = (order: PurchaseOrder) => {
     if (isAdmin || isSuperAdmin || !allowedGroups || allowedGroups.length === 0) return false;
@@ -310,6 +361,30 @@ export function SeparationDashboardView({
               className="w-full md:w-64 pl-11 pr-4 py-3 bg-surface-container-low rounded-2xl border border-outline-variant/10 focus:border-primary/30 focus:ring-4 focus:ring-primary/5 outline-none font-bold text-on-surface text-sm transition-all"
             />
           </div>
+
+          {/* Controle de Som/Voz */}
+          <button
+            onClick={toggleSpeech}
+            className={cn(
+              "flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest shadow-sm cursor-pointer whitespace-nowrap transition-all",
+              speechEnabled 
+                ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-500 hover:bg-emerald-500/25" 
+                : "bg-surface-container-low border-outline-variant/15 text-on-surface-variant hover:bg-surface-container-high"
+            )}
+            title={speechEnabled ? "Clique para desativar avisos de voz" : "Clique para ativar avisos de voz"}
+          >
+            {speechEnabled ? (
+              <>
+                <Volume2 className="w-4 h-4 text-emerald-500 shrink-0 animate-bounce" />
+                <span>Voz Ativa</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="w-4 h-4 text-on-surface-variant/50 shrink-0" />
+                <span>Voz Inativa</span>
+              </>
+            )}
+          </button>
 
           {isAdmin && (
             <div className="flex items-center gap-3 bg-surface-container-low p-2 rounded-2xl border border-outline-variant/10">
