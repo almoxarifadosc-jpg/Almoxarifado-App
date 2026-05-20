@@ -1,8 +1,0 @@
-{
-  "name": "Painel de Separação Ventisol",
-  "description": "Painel de controle, separação e conferência de OPs com anúncios de voz para a Ventisol.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
