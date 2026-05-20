@@ -132,7 +132,7 @@ export function SeparationDashboardView({
         
         // Emite o aviso de áudio apenas uma vez por OP nesta sessão / visualização
         if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-          const text = `OP ${order.order_number} está liberada para baixa.`;
+          const text = `O P ${order.order_number} está liberada para baixa`;
           const utterance = new SpeechSynthesisUtterance(text);
           utterance.lang = 'pt-BR';
           utterance.rate = 1.0;
@@ -597,6 +597,37 @@ export function SeparationDashboardView({
                         className={cn("h-full transition-all duration-500", conference === 100 ? "bg-emerald-500" : "bg-blue-500")}
                         style={{ width: `${conference}%` }}
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fluxo de Responsáveis no Card */}
+                <div className="border-t border-outline-variant/10 pt-3 mt-1 space-y-2 text-left">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant opacity-50 block">Responsáveis</span>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[10px] text-on-surface">
+                    <div className="min-w-0">
+                      <span className="text-on-surface-variant/70 font-bold block text-[8px] uppercase tracking-wider">Separador</span>
+                      <p className="font-semibold truncate">
+                        {order.separated_by_name || order.items?.find((i) => i.collector_name)?.collector_name || 'Pendente'}
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-on-surface-variant/70 font-bold block text-[8px] uppercase tracking-wider">Conferidor</span>
+                      <p className="font-semibold truncate">
+                        {order.conferred_by_name || 'Pendente'}
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-on-surface-variant/70 font-bold block text-[8px] uppercase tracking-wider">Assinatura</span>
+                      <p className="font-semibold truncate">
+                        {order.signed_by_name || 'Pendente'}
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-on-surface-variant/70 font-bold block text-[8px] uppercase tracking-wider">Baixa</span>
+                      <p className="font-semibold truncate">
+                        {order.baixado_by_name || (order.status === 'Baixada' ? 'Sistema' : 'Pendente')}
+                      </p>
                     </div>
                   </div>
                 </div>
