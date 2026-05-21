@@ -30,36 +30,59 @@ interface SidebarProps {
   isAdmin?: boolean;
   isViewer?: boolean;
   category?: string;
+  subcategory?: string;
   isMobileOpen?: boolean;
   onClose?: () => void;
 }
 
-export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category, isMobileOpen, onClose }: SidebarProps) {
+export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category, subcategory, isMobileOpen, onClose }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const isBemplas = category === 'Bemplas';
+
+  // Deduzir a subcategoria para compatibilidade com dados legados
+  const effectiveSubcategory = subcategory || (
+    isAdmin ? 'Administrador' :
+    isViewer ? 'Visualizador' :
+    category === 'Recebimento' ? 'Recebimento' :
+    category === 'Conferente' ? 'Conferente' : 'Separação'
+  );
+
+  // Regra de visibilidade da seção OPs
+  // Bemplas e Recebimento NÃO veem a seção OPs.
+  const canSeeOPs = !isBemplas && effectiveSubcategory !== 'Recebimento';
+
+  // Regra de visibilidade da seção Intercompany
+  // Visualizador NÃO vê Intercompany.
+  const canSeeIntercompany = effectiveSubcategory !== 'Visualizador';
+
+  // Regra de visibilidade da seção Admin
+  // Apenas Super Admin e Administrador da Ventisol veem Admin.
+  const canSeeAdmin = !isBemplas && (effectiveSubcategory === 'Super Admin' || effectiveSubcategory === 'Administrador' || isAdmin);
 
   const sections = [
     {
       title: 'OPs',
-      items: [
-        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText } : null,
-        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList } : null,
-        isAdmin ? { id: 'SEPARATION_DASHBOARD' as View, label: 'Painel de Separação', icon: LayoutDashboard } : null,
-        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 } : null,
-        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'INFO' as View, label: 'Informaçōes', icon: Rocket } : null,
-        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'NEWS_PORTAL' as View, label: 'Notícias', icon: Newspaper } : null,
-      ].filter(Boolean) as any
+      items: canSeeOPs ? [
+        { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText },
+        { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList },
+        (effectiveSubcategory === 'Super Admin' || effectiveSubcategory === 'Administrador' || isAdmin) ? { id: 'SEPARATION_DASHBOARD' as View, label: 'Painel de Separação', icon: LayoutDashboard } : null,
+        { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 },
+        { id: 'INFO' as View, label: 'Informaçōes', icon: Rocket },
+        { id: 'NEWS_PORTAL' as View, label: 'Notícias', icon: Newspaper },
+      ].filter(Boolean) as any : []
     },
     {
       title: 'Intercompany',
-      items: [
+      items: canSeeIntercompany ? [
         { id: 'RECEIPTS' as View, label: 'Carregamentos', icon: Truck },
         { id: 'RECEIPTS_DASHBOARD' as View, label: 'Dash Rec.', icon: LayoutDashboard },
         { id: 'SUPPLIERS' as View, label: 'Fornecedores', icon: Users },
-      ].filter(() => !isViewer)
+      ] : []
     },
     {
       title: 'Admin',
-      items: isAdmin && category !== 'Bemplas' && category !== 'Recebimento' ? [
+      items: canSeeAdmin ? [
         { id: 'ADMIN_PANEL' as View, label: 'Admin', icon: ShieldCheck }
       ] : []
     }
