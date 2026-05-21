@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import firebaseConfig from '@/firebase-applet-config.json';
 
 if (!admin.apps.length) {
   try {
@@ -24,7 +25,8 @@ if (!admin.apps.length) {
   }
 }
 
-const adminDb = admin.firestore();
+const dbId = firebaseConfig.firestoreDatabaseId;
+const adminDb = dbId && dbId !== '(default)' ? admin.firestore(dbId) : admin.firestore();
 const adminAuth = admin.auth();
 
 export { admin, adminDb, adminAuth };
