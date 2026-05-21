@@ -1693,7 +1693,7 @@ export function SortingView({
                        <div className="bg-surface-container-high/20 rounded-[32px] border border-outline-variant/10 p-6 flex flex-col items-center gap-4">
                           <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60">Assinatura Eletrônica Registrada</p>
                           <div className="bg-surface-container-lowest p-4 rounded-2xl w-full flex justify-center">
-                            <img src={editingOrder.signature_url} alt="Assinatura" className="h-32 object-contain" />
+                            <img src={editingOrder.signature_url} alt="Assinatura" className="h-32 object-contain" style={{ filter: isDarkMode ? 'brightness(0) invert(1)' : 'brightness(0)' }} />
                           </div>
                           <div className="text-center">
                             <p className="text-sm font-bold text-on-surface italic">Assinado por: {editingOrder.signed_by_name}</p>
@@ -1732,7 +1732,7 @@ export function SortingView({
                           <img 
                             src={editingOrder.signature_url} 
                             alt="Assinatura Manuscrita" 
-                            className="max-h-40 object-contain drop-shadow-sm dark:invert"
+                            className="max-h-40 object-contain" style={{ filter: isDarkMode ? 'brightness(0) invert(1)' : 'brightness(0)' }}
                           />
                           <div className="mt-4 flex flex-col items-center">
                              <div className="flex items-center gap-2 text-emerald-500 mb-1">
