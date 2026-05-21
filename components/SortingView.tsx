@@ -104,7 +104,6 @@ export function SortingView({
   isConferente, 
   currentUserName, 
   userCategory, 
-  userSubcategory,
   isViewer, 
   allowedGroups,
   purchaseOrders = [],
@@ -120,7 +119,6 @@ export function SortingView({
   isConferente?: boolean,
   currentUserName?: string,
   userCategory?: string,
-  userSubcategory?: string,
   isViewer?: boolean,
   allowedGroups?: string[],
   purchaseOrders?: PurchaseOrder[],
@@ -130,26 +128,6 @@ export function SortingView({
   isDarkMode?: boolean,
   onDateChange: (start: string, end: string) => void
 }) {
-  const hasSeparationPrivilege = !isViewer && (
-    isAdmin || 
-    isSuperAdmin || 
-    userSubcategory === 'Super Admin' ||
-    userSubcategory === 'Administrador' ||
-    userSubcategory === 'Conferente' ||
-    userSubcategory === 'Separação' ||
-    (!userSubcategory && (userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente'))
-  );
-
-  const hasConferencePrivilege = !isViewer && (
-    isAdmin || 
-    isSuperAdmin || 
-    isConferente || 
-    userSubcategory === 'Super Admin' ||
-    userSubcategory === 'Administrador' ||
-    userSubcategory === 'Conferente' ||
-    (!userSubcategory && (userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente'))
-  );
-
   const [orders, setOrders] = useState<PurchaseOrder[]>(purchaseOrders);
   const [localProfiles, setLocalProfiles] = useState<Profile[]>(profiles);
   const [loading, setLoading] = useState(false);
@@ -205,8 +183,9 @@ export function SortingView({
 
   const handleEditItemQuantity = (idx: number, newQty: number) => {
     if (isViewer) return;
-    // Permissão: baseada nas novas subcategorias/funções de separação
-    if (!hasSeparationPrivilege) return;
+    // Permissão: Ventisol, Ventisol + Conferente, Admin, Superadmin
+    const canEditRole = isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente';
+    if (!canEditRole) return;
 
     // Nova Regra de Grupos Permitidos
     if (!isAdmin && !isSuperAdmin && allowedGroups && allowedGroups.length > 0) {
@@ -324,8 +303,9 @@ export function SortingView({
     if (!editingOrder?.id) return;
     if (!validateQuantities()) return;
 
-    // Validar categoria/função para salvar separação
-    if (!hasSeparationPrivilege) {
+    // Validar categoria para salvar separação (apenas se não for admin/superadmin)
+    const canSaveStep = isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente';
+    if (!canSaveStep) {
       setError("Você não tem permissão para salvar alterações nesta OP.");
       return;
     }
@@ -381,8 +361,9 @@ export function SortingView({
     if (!editingOrder?.id) return;
     if (!validateQuantities()) return;
 
-    // Privilégio de conferência
-    if (!hasConferencePrivilege) {
+    // Pergunta: Admin, Superadmin e Conferentes/Ventisol+Conf podem conferir
+    const canConferOP = isAdmin || isSuperAdmin || isConferente || userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente';
+    if (!canConferOP) {
       setError("Apenas Conferentes e Administradores podem realizar a conferência final.");
       return;
     }
@@ -396,12 +377,11 @@ export function SortingView({
     setError(null);
     try {
       const orderRef = doc(db, 'purchase_orders', editingOrder.id);
-      const conferred_at = new Date().toISOString();
       await updateDoc(orderRef, {
         items: editingOrder.items,
         conferred_by_id: currentUserId,
         conferred_by_name: currentUserName,
-        conferred_at,
+        conferred_at: new Date().toISOString(),
         status: 'Conferida',
         pis: editingOrder.pis || [],
         observation: editingOrder.observation || '',
@@ -410,22 +390,11 @@ export function SortingView({
         updated_at: serverTimestamp()
       });
 
-      // Atualiza o editingOrder local refletindo a conferência e muda o modo para SIGN
-      setEditingOrder(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          conferred_by_id: currentUserId,
-          conferred_by_name: currentUserName,
-          conferred_at,
-          status: 'Conferida'
-        };
-      });
-
-      setModalMode('SIGN');
+      setIsEditModalOpen(false);
+      setEditingOrder(null);
       setIsConferConfirming(false);
-      setSuccess('OP Conferida com sucesso! Favor realizar a assinatura eletrônica da OP abaixo.');
-      setTimeout(() => setSuccess(null), 5000);
+      setSuccess('OP Conferida com sucesso!');
+      setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       console.error("Erro ao conferir OP:", err);
       setError("Erro ao salvar conferência: " + (err.message || String(err)));
@@ -447,7 +416,8 @@ export function SortingView({
     if (!editingOrder?.id) return;
 
     // Apenas Admin, superadmin e Conferentes podem assinar OPs
-    if (!hasConferencePrivilege) {
+    const canSignOP = isAdmin || isSuperAdmin || isConferente || userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente';
+    if (!canSignOP) {
       setError("Apenas Admin, Superadmin e Conferentes podem assinar OPs.");
       return;
     }
@@ -1434,7 +1404,7 @@ export function SortingView({
                                   isViewer || 
                                   editingOrder.status === 'Baixada' || 
                                   isItemRestricted(item) ||
-                                  !hasSeparationPrivilege
+                                  !(isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Ventisol + Conferente')
                                 }
                                 className={cn(
                                   "w-14 md:w-16 bg-surface-container-high md:bg-surface-container-low text-center font-black p-2 rounded-xl outline-none focus:ring-2 ring-primary/30 text-sm disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
@@ -1469,7 +1439,7 @@ export function SortingView({
                                 isViewer || 
                                 editingOrder.status === 'Baixada' || 
                                 isItemRestricted(item) ||
-                                !hasConferencePrivilege
+                                !(isAdmin || isSuperAdmin || isConferente || userCategory === 'Ventisol + Conferente' || userCategory === 'Conferente')
                               }
                               className={cn(
                                 "w-8 h-8 rounded-full flex items-center justify-center transition-all",
@@ -1733,8 +1703,8 @@ export function SortingView({
                     )}
                   </div>
                 )}
-                {/* Área de Assinatura Eletrônica Manuscrita */}
-                {(modalMode === 'SIGN' || (modalMode === 'EDIT' && editingOrder.is_signed)) && (
+                {/* Área de Assinatura Eletrônica Manuscrita - Oculta no modo EDIT conforme solicitado */}
+                {modalMode === 'SIGN' && (
                   <div className="pt-6 border-t border-outline-variant/10 mt-0">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                       <div>
@@ -1872,19 +1842,8 @@ export function SortingView({
                         Salvar Separação
                       </button>
 
-                      {/* Botão Assinar OP - se já conferido mas não assinado */}
-                      {editingOrder.conferred_by_name && !editingOrder.is_signed && (
-                        <button 
-                          onClick={() => setModalMode('SIGN')}
-                          className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-500/20 w-full md:w-auto text-sm animate-pulse"
-                        >
-                          <Pen className="w-5 h-5" />
-                          Assinar OP
-                        </button>
-                      )}
-
-                      {/* Botão Conferir OP - se ainda não conferido */}
-                      {!editingOrder.conferred_by_name && (isAdmin || isSuperAdmin || isConferente || userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente' || hasConferencePrivilege) && (() => {
+                      {/* Botão Conferir OP - ao lado de Salvar Separação */}
+                      {!editingOrder.conferred_by_name && (isAdmin || isSuperAdmin || isConferente || userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente') && (() => {
                         const { separation, conference } = calculatePercentages(editingOrder.items);
                         const canConfer = separation === 100 && conference === 100;
 
@@ -1920,7 +1879,7 @@ export function SortingView({
                                 title={canConfer ? "Finalizar conferência da OP" : "Todos os itens devem estar 100% separados e conferidos"}
                               >
                                 {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserCheck className="w-5 h-5" />}
-                                Conferir OK
+                                Conferir OP
                               </button>
                             )}
                             {!canConfer && (
@@ -1938,14 +1897,6 @@ export function SortingView({
                        <CheckCircle2 className="w-5 h-5" />
                        Esta OP está baixada e não permite alterações.
                     </div>
-                  )}
-                  {modalMode === 'SIGN' && (
-                    <button 
-                      onClick={() => setModalMode('EDIT')}
-                      className="px-6 py-3 rounded-2xl font-bold text-on-surface-variant hover:bg-surface-container-high bg-surface-container-low transition-colors w-full md:w-auto text-sm"
-                    >
-                      Voltar para Itens
-                    </button>
                   )}
                   <button 
                     onClick={() => setIsEditModalOpen(false)}

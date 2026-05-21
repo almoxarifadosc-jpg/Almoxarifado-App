@@ -263,7 +263,6 @@ export default function Home() {
         isAdmin={profile?.is_admin}
         isViewer={profile?.is_viewer}
         category={profile?.category}
-        subcategory={profile?.subcategory}
         isMobileOpen={isMobileSidebarOpen}
         onClose={() => setIsMobileSidebarOpen(false)}
       />
@@ -365,7 +364,6 @@ export default function Home() {
                 currentUserId={user.uid} 
                 currentUserName={profile?.name} 
                 userCategory={profile?.category}
-                userSubcategory={profile?.subcategory}
                 isViewer={profile?.is_viewer}
                 allowedGroups={profile?.allowed_groups}
                 purchaseOrders={purchaseOrders}

@@ -32,7 +32,6 @@ interface Profile {
   is_conferente: boolean;
   is_auto_assign: boolean;
   category?: string;
-  subcategory?: string;
   allowed_groups?: string[];
   force_password_change?: boolean;
 }
@@ -73,7 +72,6 @@ export function AdminView({
     is_conferente: false,
     is_auto_assign: false,
     category: 'Ventisol',
-    subcategory: 'Separação',
     allowed_groups: '' 
   });
 
@@ -82,19 +80,9 @@ export function AdminView({
   const [diagEmail, setDiagEmail] = useState('');
   const [isDiagLoading, setIsDiagLoading] = useState(false);
 
-  const companies = ['Ventisol', 'Bemplas'];
-  const subcategories = ['Super Admin', 'Administrador', 'Conferente', 'Recebimento', 'Separação', 'Visualizador'];
+  const categories = ['Ventisol', 'Conferente', 'Bemplas', 'Recebimento'];
 
   const handleEditUser = (user: Profile) => {
-    let deducedSubcategory = user.subcategory || 'Separação';
-    if (!user.subcategory) {
-      if (user.is_super_admin) deducedSubcategory = 'Super Admin';
-      else if (user.is_admin) deducedSubcategory = 'Administrador';
-      else if (user.is_conferente) deducedSubcategory = 'Conferente';
-      else if (user.is_viewer) deducedSubcategory = 'Visualizador';
-      else if (user.category === 'Recebimento') deducedSubcategory = 'Recebimento';
-    }
-
     setEditingUser(user);
     setUserFormData({
       name: user.name || '',
@@ -104,7 +92,6 @@ export function AdminView({
       is_conferente: user.is_conferente || false,
       is_auto_assign: user.is_auto_assign || false,
       category: user.category || 'Ventisol',
-      subcategory: deducedSubcategory,
       allowed_groups: user.allowed_groups?.join(', ') || ''
     });
     setIsUserModalOpen(true);
@@ -115,44 +102,21 @@ export function AdminView({
     if (!editingUser) return;
 
     const groupsArray = userFormData.allowed_groups.split(',').map(g => g.trim().toUpperCase()).filter(g => g);
-    const selectedSub = userFormData.subcategory;
     
     const updateData: any = {
       name: userFormData.name,
-      category: userFormData.category,
-      subcategory: selectedSub,
+      is_viewer: Boolean(userFormData.is_viewer),
+      is_conferente: Boolean(userFormData.is_conferente),
       is_auto_assign: Boolean(userFormData.is_auto_assign),
+      category: userFormData.category,
       allowed_groups: groupsArray
     };
 
     const canManageAdminRoles = currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br';
 
-    // Configurar booleanos baseados na subcategoria selecionada para retrocompatibilidade
-    if (selectedSub === 'Super Admin') {
-      updateData.is_super_admin = true;
-      updateData.is_admin = true;
-      updateData.is_viewer = false;
-      updateData.is_conferente = false;
-    } else if (selectedSub === 'Administrador') {
-      updateData.is_super_admin = false;
-      updateData.is_admin = true;
-      updateData.is_viewer = false;
-      updateData.is_conferente = false;
-    } else if (selectedSub === 'Conferente') {
-      updateData.is_super_admin = false;
-      updateData.is_admin = false;
-      updateData.is_viewer = false;
-      updateData.is_conferente = true;
-    } else if (selectedSub === 'Visualizador') {
-      updateData.is_super_admin = false;
-      updateData.is_admin = false;
-      updateData.is_viewer = true;
-      updateData.is_conferente = false;
-    } else { // 'Recebimento' ou 'Separação'
-      updateData.is_super_admin = false;
-      updateData.is_admin = false;
-      updateData.is_viewer = false;
-      updateData.is_conferente = false;
+    if (canManageAdminRoles) {
+      updateData.is_admin = Boolean(userFormData.is_admin);
+      updateData.is_super_admin = Boolean(userFormData.is_super_admin);
     }
 
     try {
@@ -571,30 +535,20 @@ export function AdminView({
                         >
                           <Star size={14} />
                         </button>
-                        {(() => {
-                          const sub = user.subcategory || (
-                            user.is_super_admin ? 'Super Admin' :
-                            user.is_admin ? 'Administrador' :
-                            user.is_conferente ? 'Conferente' :
-                            user.is_viewer ? 'Visualizador' :
-                            user.category === 'Recebimento' ? 'Recebimento' : 'Separação'
-                          );
-                          const bgColors: any = {
-                            'Super Admin': 'bg-purple-500/10 text-purple-600 border border-purple-500/20',
-                            'Administrador': 'bg-primary/10 text-primary border border-primary/20',
-                            'Conferente': 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20',
-                            'Recebimento': 'bg-blue-500/10 text-blue-600 border border-blue-500/20',
-                            'Separação': 'bg-amber-500/10 text-amber-600 border border-amber-500/20',
-                            'Visualizador': 'bg-gray-500/10 text-gray-600 border border-gray-500/20'
-                          };
-                          return (
-                            <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-bold ml-1", bgColors[sub] || bgColors['Separação'])}>
-                              {sub}
-                            </span>
-                          );
-                        })()}
+                        {user.is_super_admin && (
+                          <span className="text-[10px] bg-purple-500/10 text-purple-600 px-2 py-0.5 rounded-full font-bold">Super Admin</span>
+                        )}
+                        {user.is_admin && (
+                          <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">Admin</span>
+                        )}
+                        {user.is_viewer && (
+                          <span className="text-[10px] bg-tertiary/10 text-tertiary px-2 py-0.5 rounded-full font-bold ml-1">Visualizador</span>
+                        )}
+                        {user.is_conferente && (
+                          <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full font-bold ml-1">Conferente</span>
+                        )}
                         {user.category && (
-                          <span className="text-[10px] bg-sky-500/10 text-sky-700 border border-sky-500/20 px-2 py-0.5 rounded-full font-bold ml-1">{user.category}</span>
+                          <span className="text-[10px] bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded-full font-bold ml-1">{user.category}</span>
                         )}
                       </div>
                       <p className="text-xs text-on-surface-variant">{user.email}</p>
@@ -750,21 +704,8 @@ export function AdminView({
                     onChange={(e) => setUserFormData({ ...userFormData, category: e.target.value })}
                     className="w-full bg-surface-container-low text-on-surface border border-outline-variant/20 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-sm appearance-none cursor-pointer"
                   >
-                    {companies.map(cat => (
+                    {categories.map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant px-1">Subcategoria / Função</label>
-                  <select 
-                    value={userFormData.subcategory}
-                    onChange={(e) => setUserFormData({ ...userFormData, subcategory: e.target.value })}
-                    className="w-full bg-surface-container-low text-on-surface border border-outline-variant/20 rounded-xl px-4 py-3 focus:ring-1 focus:ring-primary outline-none text-sm appearance-none cursor-pointer"
-                  >
-                    {subcategories.map(sub => (
-                      <option key={sub} value={sub}>{sub}</option>
                     ))}
                   </select>
                 </div>
@@ -780,19 +721,71 @@ export function AdminView({
                   />
                 </div>
 
-                <div className="pt-2">
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  <button
+                    type="button"
+                    disabled={!(currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br')}
+                    onClick={() => setUserFormData({ ...userFormData, is_super_admin: !userFormData.is_super_admin, is_admin: true })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[8px] uppercase tracking-widest leading-none",
+                      userFormData.is_super_admin 
+                        ? "bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-500/20" 
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-purple-300",
+                      !(currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br') && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    Super Admin
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!(currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br')}
+                    onClick={() => setUserFormData({ ...userFormData, is_admin: !userFormData.is_admin })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[8px] uppercase tracking-widest leading-none",
+                      userFormData.is_admin 
+                        ? "bg-primary border-primary text-white shadow-lg shadow-primary/20" 
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-primary/30",
+                      !(currentIsSuperAdmin || currentUserEmail === 'almoxarifado.sc@ventisol.com.br') && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    Administrador
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUserFormData({ ...userFormData, is_viewer: !userFormData.is_viewer })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[8px] uppercase tracking-widest leading-none",
+                      userFormData.is_viewer 
+                        ? "bg-tertiary border-tertiary text-white shadow-lg shadow-tertiary/20" 
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-tertiary/30"
+                    )}
+                  >
+                    Visualizador
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUserFormData({ ...userFormData, is_conferente: !userFormData.is_conferente })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[8px] uppercase tracking-widest leading-none",
+                      userFormData.is_conferente
+                        ? "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
+                        : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-emerald-500/30"
+                    )}
+                  >
+                    Conferente
+                  </button>
                   <button
                     type="button"
                     onClick={() => setUserFormData({ ...userFormData, is_auto_assign: !userFormData.is_auto_assign })}
                     className={cn(
-                      "flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 transition-all font-bold text-[10px] uppercase tracking-widest leading-none w-full",
+                      "flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all font-bold text-[8px] uppercase tracking-widest leading-none",
                       userFormData.is_auto_assign
                         ? "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/20" 
                         : "bg-surface-container-low border-transparent text-on-surface-variant hover:border-amber-500/30"
                     )}
                   >
-                    <Star size={12} className={userFormData.is_auto_assign ? "fill-white" : ""} />
-                    Atribuição Automática de OPs
+                    <Star size={10} className={userFormData.is_auto_assign ? "fill-white" : ""} />
+                    Auto Atribuir
                   </button>
                 </div>
 
