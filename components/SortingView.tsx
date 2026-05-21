@@ -1058,18 +1058,22 @@ export function SortingView({
                     }
 
                     if (isFullyComplete) {
+                      const isConferred = !!order.conferred_by_name;
+
                       return (
                         <div className="grid grid-cols-1 gap-2">
                           <div className={cn(
                             "w-full flex flex-col items-center gap-0.5 px-6 py-3 rounded-2xl border shadow-lg transition-all mb-1",
                             isSigned 
                               ? "bg-emerald-500 text-white border-emerald-600 shadow-emerald-500/10" 
-                              : "bg-amber-500 text-white border-amber-600 shadow-amber-500/10"
+                              : isConferred
+                                ? "bg-purple-600 text-white border-purple-700 shadow-purple-500/10"
+                                : "bg-sky-600 text-white border-sky-700 shadow-sky-500/10"
                           )}>
                             <div className="flex items-center gap-2">
                                <CheckCircle2 className="w-4 h-4 fill-white/20" />
                                <span className="text-[11px] font-black uppercase tracking-[0.15em]">
-                                 {isSigned ? 'OP ASSINADA' : 'Aguardando Assinatura'}
+                                 {isSigned ? 'OP ASSINADA' : isConferred ? 'Aguardando Assinatura' : 'Conferida OK (Pend. Conf. OP)'}
                                </span>
                             </div>
                             {order.conferred_by_name && (
@@ -1077,8 +1081,8 @@ export function SortingView({
                             )}
                           </div>
 
-                          {/* Botão Assinar - Apenas se não estiver assinada */}
-                          {!isSigned && (
+                          {/* Botão Assinar - Apenas se estiver conferido por alguém e não assinado */}
+                          {isConferred && !isSigned && (
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1090,6 +1094,22 @@ export function SortingView({
                             >
                               <Pen className="w-4 h-4" />
                               Assinar OP
+                            </button>
+                          )}
+
+                          {/* Botão Conferir OP - se concluída nos itens mas sem o clique final no botão Conferir OP */}
+                          {!isConferred && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenOrder(order);
+                                setModalMode('EDIT');
+                                setIsEditModalOpen(true);
+                              }}
+                              className="w-full bg-sky-600 text-white p-3 rounded-xl hover:bg-sky-700 transition-all flex items-center justify-center gap-2 font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-sky-500/20 animate-pulse"
+                            >
+                              <UserCheck className="w-4 h-4" />
+                              Conferir OP
                             </button>
                           )}
 
@@ -1758,65 +1778,14 @@ export function SortingView({
 
                   <div className="p-4 md:p-8 border-t border-outline-variant/10 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 md:gap-3">
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
-                  {modalMode === 'EDIT' && (
-                    editingOrder.conferred_by_name ? (
-                      <div className="flex items-center gap-2 text-emerald-500 bg-emerald-500/10 px-4 py-2 rounded-2xl border border-emerald-500/20 animate-in fade-in zoom-in duration-300">
-                        <UserCheck className="w-5 h-5" />
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-widest leading-none mb-1">Conferido por</p>
-                          <p className="text-sm font-bold">{editingOrder.conferred_by_name}</p>
-                        </div>
+                  {modalMode === 'EDIT' && editingOrder.conferred_by_name && (
+                    <div className="flex items-center gap-2 text-emerald-500 bg-emerald-500/10 px-4 py-2 rounded-2xl border border-emerald-500/20 animate-in fade-in zoom-in duration-300">
+                      <UserCheck className="w-5 h-5" />
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest leading-none mb-1">Conferido por</p>
+                        <p className="text-sm font-bold">{editingOrder.conferred_by_name}</p>
                       </div>
-                    ) : (
-                      isConferente && (() => {
-                        const { separation, conference } = calculatePercentages(editingOrder.items);
-                        const canConfer = separation === 100 && conference === 100;
-                        
-                        return (
-                          <div className="flex flex-col gap-1">
-                            {(isConferente || isAdmin || isSuperAdmin) && editingOrder.status !== 'Baixada' && (
-                              isConferConfirming ? (
-                                <div className="flex flex-col sm:flex-row gap-2">
-                                  <button 
-                                    onClick={() => setIsConferConfirming(false)}
-                                    className="px-4 py-3 rounded-2xl font-bold text-on-surface-variant bg-surface-container-high hover:bg-surface-container-highest transition-colors w-full sm:w-auto"
-                                  >
-                                    Voltar
-                                  </button>
-                                  <button 
-                                    onClick={conferOrder}
-                                    disabled={isProcessing}
-                                    className="px-6 py-3 rounded-2xl font-bold bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors w-full sm:w-auto"
-                                  >
-                                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                                    Confirmar Conferência
-                                  </button>
-                                </div>
-                              ) : (
-                                <button 
-                                  onClick={() => setIsConferConfirming(true)}
-                                  disabled={isProcessing || !canConfer}
-                                  className={cn(
-                                    "px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-lg",
-                                    canConfer 
-                                      ? "bg-emerald-500 text-white shadow-emerald-500/20 hover:opacity-90" 
-                                      : "bg-surface-container-high text-on-surface-variant/40 shadow-none grayscale cursor-not-allowed"
-                                  )}
-                                >
-                                  {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserCheck className="w-5 h-5" />}
-                                  Marcar como Conferido
-                                </button>
-                              )
-                            )}
-                            {!canConfer && editingOrder.status !== 'Baixada' && (
-                              <p className="text-[9px] font-bold text-amber-600 uppercase tracking-widest animate-pulse pl-1 text-center">
-                                * Separação e Conferência devem estar 100%
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })()
-                    )
+                    </div>
                   )}
 
                   {modalMode === 'SIGN' && !editingOrder.is_signed && (
@@ -1860,16 +1829,68 @@ export function SortingView({
                   )}
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto items-center">
                   {modalMode === 'EDIT' && editingOrder.status !== 'Baixada' && (
-                    <button 
-                      onClick={updateOrder}
-                      disabled={isProcessing}
-                      className="px-8 py-3 bg-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-primary/20 w-full md:w-auto"
-                    >
-                      {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Package className="w-5 h-5" />}
-                      Salvar Separação
-                    </button>
+                    <>
+                      {/* Botão Salvar Separação */}
+                      <button 
+                        onClick={updateOrder}
+                        disabled={isProcessing}
+                        className="px-8 py-3 bg-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-primary/20 w-full md:w-auto text-sm"
+                      >
+                        {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Package className="w-5 h-5" />}
+                        Salvar Separação
+                      </button>
+
+                      {/* Botão Conferir OP - ao lado de Salvar Separação */}
+                      {!editingOrder.conferred_by_name && (isAdmin || isSuperAdmin || isConferente || userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente') && (() => {
+                        const { separation, conference } = calculatePercentages(editingOrder.items);
+                        const canConfer = separation === 100 && conference === 100;
+
+                        return (
+                          <div className="flex flex-col gap-1 w-full md:w-auto">
+                            {isConferConfirming ? (
+                              <div className="flex gap-2 w-full md:w-auto">
+                                <button 
+                                  onClick={() => setIsConferConfirming(false)}
+                                  className="px-4 py-3 rounded-2xl font-bold text-on-surface-variant bg-surface-container-high hover:bg-surface-container-highest transition-colors w-full md:w-auto text-sm"
+                                >
+                                  Voltar
+                                </button>
+                                <button 
+                                  onClick={conferOrder}
+                                  disabled={isProcessing}
+                                  className="px-6 py-3 rounded-2xl font-bold bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors w-full md:w-auto text-sm"
+                                >
+                                  {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                                  Confirmar
+                                </button>
+                              </div>
+                            ) : (
+                              <button 
+                                onClick={() => setIsConferConfirming(true)}
+                                disabled={isProcessing || !canConfer}
+                                className={cn(
+                                  "px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg text-sm w-full md:w-auto",
+                                  canConfer 
+                                    ? "bg-emerald-500 text-white shadow-emerald-500/20 hover:opacity-90 cursor-pointer" 
+                                    : "bg-surface-container-high text-on-surface-variant/40 shadow-none grayscale cursor-not-allowed"
+                                )}
+                                title={canConfer ? "Finalizar conferência da OP" : "Todos os itens devem estar 100% separados e conferidos"}
+                              >
+                                {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserCheck className="w-5 h-5" />}
+                                Conferir OP
+                              </button>
+                            )}
+                            {!canConfer && (
+                              <p className="text-[8px] font-bold text-amber-500 uppercase tracking-wider animate-pulse text-center">
+                                * Requer 100% nos Itens
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </>
                   )}
                   {editingOrder.status === 'Baixada' && (
                     <div className="bg-amber-100 text-amber-700 px-6 py-3 rounded-xl font-bold border border-amber-200 text-sm flex items-center gap-2">
@@ -1879,7 +1900,7 @@ export function SortingView({
                   )}
                   <button 
                     onClick={() => setIsEditModalOpen(false)}
-                    className="px-6 py-4 md:py-3 rounded-2xl font-bold text-on-surface-variant hover:bg-surface-container-high w-full md:w-auto"
+                    className="px-6 py-4 md:py-3 rounded-2xl font-bold text-on-surface-variant hover:bg-surface-container-high w-full md:w-auto text-sm"
                   >
                     Fechar
                   </button>
