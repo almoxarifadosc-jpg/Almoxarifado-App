@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Newspaper, Send, Trash2, Calendar, User, Loader2, Search, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, limit } from 'firebase/firestore';
 
 interface NewsPost {
   id?: string;
@@ -30,7 +30,11 @@ export default function NewsView({ isAdmin, currentUserEmail }: NewsViewProps) {
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, 'news_posts'), orderBy('created_at', 'desc'));
+    const q = query(
+      collection(db, 'news_posts'),
+      orderBy('created_at', 'desc'),
+      limit(30)
+    );
     const unsub = onSnapshot(q, (snap) => {
       const news = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as NewsPost));
       setPosts(news);

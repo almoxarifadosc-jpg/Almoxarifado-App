@@ -19,7 +19,7 @@ import { InfoView } from '@/components/InfoView';
 import { Factory, Settings, CheckCircle2, Loader2, AlertCircle, RefreshCw, Eraser } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, collection, query, orderBy, onSnapshot, getDocs, where, Timestamp, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, onSnapshot, getDocs, where, Timestamp, setDoc, updateDoc, deleteDoc, serverTimestamp, limit } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 
 export interface Operation {
@@ -109,25 +109,52 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  // Monitor Global Data
+  // Monitor Global Data with dynamic date-range query filters to prevent high-frequency/peak reads
   useEffect(() => {
     if (!user || !profile) return;
 
-    // Operations
-    const qOps = query(collection(db, 'operations'), orderBy('date', 'desc'));
+    // Operations (capped to last 200 documents ordered by date)
+    const qOps = query(
+      collection(db, 'operations'),
+      orderBy('date', 'desc'),
+      limit(200)
+    );
     const unsubOps = onSnapshot(qOps, (snapshot) => {
       const ops = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Operation));
       setOperations(ops);
     });
 
-    // Purchase Orders
-    const qPOs = query(collection(db, 'purchase_orders'), orderBy('created_at', 'desc'));
+    // Parse the current local date range to query Firestore efficiently
+    const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
+    const startObj = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
+
+    const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
+    const endObj = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
+
+    // Apply a 30-day lookback to also capture any pending items from past days
+    const lookbackDate = new Date(startObj);
+    lookbackDate.setDate(lookbackDate.getDate() - 30);
+
+    // Purchase Orders (filtered dynamically based on 30-day lookback and selected date range, capped to 300 docs)
+    const qPOs = query(
+      collection(db, 'purchase_orders'),
+      where('created_at', '>=', lookbackDate),
+      where('created_at', '<=', endObj),
+      orderBy('created_at', 'desc'),
+      limit(300)
+    );
     const unsubPOs = onSnapshot(qPOs, (snapshot) => {
       setPurchaseOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    // Receipts
-    const qReceipts = query(collection(db, 'receipts'), orderBy('created_at', 'desc'));
+    // Receipts (filtered dynamically based on 30-day lookback and selected date range, capped to 300 docs)
+    const qReceipts = query(
+      collection(db, 'receipts'),
+      where('created_at', '>=', lookbackDate),
+      where('created_at', '<=', endObj),
+      orderBy('created_at', 'desc'),
+      limit(300)
+    );
     const unsubReceipts = onSnapshot(qReceipts, (snapshot) => {
       setReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
@@ -171,7 +198,7 @@ export default function Home() {
       unsubLines();
       unsubLogo();
     };
-  }, [user, profile]);
+  }, [user, profile, startDate, endDate]);
 
   const handleToggleStep = async (opId: string, stepIndex: number) => {
     const op = operations.find(o => o.id === opId);
@@ -332,7 +359,7 @@ export default function Home() {
               />
             )}
             {currentView === 'RECEIPTS_DASHBOARD' && (
-              <ReceiptsDashboardView key="receipts-dash" />
+              <ReceiptsDashboardView receipts={receipts} key="receipts-dash" />
             )}
             {currentView === 'SUPPLIERS' && (
               <SuppliersView 
