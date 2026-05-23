@@ -30,7 +30,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, query, getDocs, onSnapshot, where, orderBy } from 'firebase/firestore';
 
 interface OrderItem {
   code?: string;
@@ -74,7 +74,11 @@ export default function PerformanceView({
   endDate: string,
   onDateChange: (start: string, end: string) => void
 }) {
-  const [orders, setOrders] = useState<PurchaseOrder[]>(purchaseOrders);
+  const [localStartDate, setLocalStartDate] = useState(startDate);
+  const [localEndDate, setLocalEndDate] = useState(endDate);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [localProfiles, setLocalProfiles] = useState<Profile[]>(profiles);
   const [loading, setLoading] = useState(false);
   const [filterOP, setFilterOP] = useState('');
@@ -82,12 +86,86 @@ export default function PerformanceView({
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
 
   useEffect(() => {
-    setOrders(purchaseOrders);
-  }, [purchaseOrders]);
-
-  useEffect(() => {
     setLocalProfiles(profiles);
   }, [profiles]);
+
+  const handleFetchData = async (start: string, end: string) => {
+    if (!start || !end) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const [sYear, sMonth, sDay] = start.split('-').map(Number);
+      const startObj = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
+
+      const [eYear, eMonth, eDay] = end.split('-').map(Number);
+      const endObj = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
+
+      const q = query(
+        collection(db, 'purchase_orders'),
+        where('created_at', '>=', startObj),
+        where('created_at', '<=', endObj),
+        orderBy('created_at', 'desc')
+      );
+      
+      const snap = await getDocs(q);
+      const fetched = snap.docs.map(doc => {
+        const data = doc.data();
+        let dateStr = data.date;
+        if (!dateStr && data.created_at) {
+          const timestamp = data.created_at;
+          if (timestamp && typeof timestamp.toDate === 'function') {
+            dateStr = timestamp.toDate().toISOString().split('T')[0];
+          }
+        }
+        return { 
+          id: doc.id, 
+          ...data,
+          date: dateStr || new Date().toISOString().split('T')[0]
+        } as PurchaseOrder;
+      });
+
+      setOrders(fetched);
+      setHasSearched(true);
+      onDateChange(start, end);
+    } catch (err: any) {
+      console.error("Erro ao buscar dados de desempenho:", err);
+      try {
+        const qFallback = query(collection(db, 'purchase_orders'));
+        const snap = await getDocs(qFallback);
+        const fetched = snap.docs.map(doc => {
+          const data = doc.data();
+          let dateStr = data.date;
+          if (!dateStr && data.created_at) {
+            const timestamp = data.created_at;
+            if (timestamp && typeof timestamp.toDate === 'function') {
+              dateStr = timestamp.toDate().toISOString().split('T')[0];
+            }
+          }
+          return { 
+            id: doc.id, 
+            ...data,
+            date: dateStr || new Date().toISOString().split('T')[0]
+          } as PurchaseOrder;
+        });
+
+        const startSec = new Date(start).getTime();
+        const endSec = new Date(end).getTime() + 86400000;
+        const filteredLocally = fetched.filter(o => {
+          const oTime = new Date(o.date).getTime();
+          return oTime >= startSec && oTime <= endSec;
+        });
+
+        setOrders(filteredLocally);
+        setHasSearched(true);
+        onDateChange(start, end);
+      } catch (fallbackErr) {
+        console.error("Erro total no carregamento de desempenho:", fallbackErr);
+        setError("Erro ao carregar dados do Firestore. Por favor, tente novamente.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const calculatePercentages = (items: OrderItem[]) => {
     if (!items || items.length === 0) return { separation: 0, conference: 0 };
@@ -103,8 +181,8 @@ export default function PerformanceView({
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
       const orderDate = new Date(order.date);
-      const start = new Date(startDate);
-      const end = new Date(endDate);
+      const start = new Date(localStartDate);
+      const end = new Date(localEndDate);
       start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
 
@@ -113,7 +191,7 @@ export default function PerformanceView({
       
       return matchesDate && matchesOP;
     });
-  }, [orders, startDate, endDate, filterOP]);
+  }, [orders, localStartDate, localEndDate, filterOP]);
 
   const stats = useMemo(() => {
     if (filteredOrders.length === 0) return { avgSeparation: 0, avgConference: 0, totalOps: 0 };
@@ -168,6 +246,57 @@ export default function PerformanceView({
     );
   }
 
+  if (!hasSearched) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="p-8 max-w-[1200px] mx-auto min-h-[70vh] flex flex-col justify-center items-center pb-32"
+      >
+        <div className="bg-surface-container-low border border-outline-variant/10 p-12 rounded-[48px] shadow-sm max-w-xl text-center flex flex-col items-center">
+          <div className="w-24 h-24 bg-primary/10 rounded-[32px] flex items-center justify-center text-primary mb-8">
+            <TrendingUp className="w-12 h-12" />
+          </div>
+          <h2 className="text-3xl font-headline font-black text-on-surface tracking-tight mb-4">Painel de Desempenho</h2>
+          <p className="text-on-surface-variant font-medium text-base mb-8 max-w-md">
+            Selecione o intervalo no filtro de data abaixo para buscar os dados de desempenho no banco de dados.
+          </p>
+
+          <div className="w-full flex flex-col sm:flex-row items-center gap-4 bg-surface-container-high p-4 rounded-[32px] border border-outline-variant/15 shadow-sm mb-6 max-w-md">
+            <div className="flex items-center gap-2 px-3 flex-1 justify-center">
+              <Calendar className="w-4 h-4 text-primary" />
+              <input 
+                type="date" 
+                value={localStartDate}
+                onChange={(e) => setLocalStartDate(e.target.value)}
+                className="bg-transparent border-none text-sm font-black p-1 outline-none text-on-surface"
+              />
+              <span className="text-on-surface-variant opacity-30 mx-1">-</span>
+              <input 
+                type="date" 
+                value={localEndDate}
+                onChange={(e) => setLocalEndDate(e.target.value)}
+                className="bg-transparent border-none text-sm font-black p-1 outline-none text-on-surface"
+              />
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-error text-sm font-bold mb-4">{error}</p>
+          )}
+
+          <button
+            onClick={() => handleFetchData(localStartDate, localEndDate)}
+            className="w-full sm:w-auto bg-primary text-on-primary hover:bg-primary/95 font-bold px-8 py-4 rounded-2xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-3 cursor-pointer"
+          >
+            <BarChart3 className="w-5 h-5" />
+            <span>Gerar Relatório de Desempenho</span>
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -186,24 +315,33 @@ export default function PerformanceView({
             <Calendar className="w-4 h-4 text-primary" />
             <input 
               type="date" 
-              value={startDate}
-              onChange={(e) => onDateChange(e.target.value, endDate)}
+              value={localStartDate}
+              onChange={(e) => setLocalStartDate(e.target.value)}
               className="bg-transparent border-none text-sm font-black p-1 outline-none text-on-surface"
             />
             <span className="text-on-surface-variant opacity-30 mx-1">-</span>
             <input 
               type="date" 
-              value={endDate}
-              onChange={(e) => onDateChange(startDate, e.target.value)}
+              value={localEndDate}
+              onChange={(e) => setLocalEndDate(e.target.value)}
               className="bg-transparent border-none text-sm font-black p-1 outline-none text-on-surface"
             />
           </div>
+          
+          <button
+            onClick={() => handleFetchData(localStartDate, localEndDate)}
+            className="bg-primary hover:bg-primary/90 text-on-primary text-xs font-bold px-4 py-2 rounded-full cursor-pointer shadow-sm transition-all flex items-center gap-1.5"
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>Buscar</span>
+          </button>
+
           <div className="flex items-center gap-3 pl-2 flex-grow sm:flex-grow-0 min-w-[200px]">
             <Search className="w-4 h-4 text-on-surface-variant opacity-40" />
             <input 
               type="text"
               placeholder="Filtrar por número de OP..."
-              className="bg-transparent border-none text-sm font-bold flex-1 outline-none"
+              className="bg-transparent border-none text-sm font-bold flex-1 outline-none text-on-surface"
               value={filterOP}
               onChange={(e) => setFilterOP(e.target.value)}
             />
