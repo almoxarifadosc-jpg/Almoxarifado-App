@@ -22,7 +22,8 @@ import {
   Pen,
   Camera,
   Image as ImageIcon,
-  Trash2
+  Trash2,
+  Calculator
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -154,6 +155,12 @@ export function SortingView({
   const [isConferConfirming, setIsConferConfirming] = useState(false);
   const [isBaixarConfirming, setIsBaixarConfirming] = useState(false);
 
+  // States for Calculator
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [calcExpression, setCalcExpression] = useState('');
+  const [calcResult, setCalcResult] = useState('');
+  const [copiedIndicator, setCopiedIndicator] = useState(false);
+
   const isItemRestricted = (item: OrderItem) => {
     if (isAdmin || isSuperAdmin || !allowedGroups || allowedGroups.length === 0) return false;
     const itemLoc = (item.location || '').toUpperCase();
@@ -178,8 +185,61 @@ export function SortingView({
   useEffect(() => {
     if (isEditModalOpen) {
       setError(null);
+    } else {
+      setIsCalculatorOpen(false);
+      setCalcExpression('');
+      setCalcResult('');
     }
   }, [isEditModalOpen]);
+
+  const handleCalcClear = () => {
+    setCalcExpression('');
+    setCalcResult('');
+  };
+
+  const handleCalcBackspace = () => {
+    setCalcExpression(prev => prev.slice(0, -1));
+  };
+
+  const handleCalcKeyPress = (key: string) => {
+    setCalcExpression(prev => {
+      const lastChar = prev.slice(-1);
+      const isOperator = (c: string) => ['+', '-', '*', '/'].includes(c);
+      if (isOperator(key) && isOperator(lastChar)) {
+        return prev.slice(0, -1) + key;
+      }
+      return prev + key;
+    });
+  };
+
+  const handleCalcEvaluate = () => {
+    if (!calcExpression) return;
+    try {
+      let expr = calcExpression.trim();
+      while (['+', '-', '*', '/'].includes(expr.slice(-1))) {
+        expr = expr.slice(0, -1);
+      }
+      if (!expr) return;
+      const sanitized = expr.replace(/[^0-9+\-*/.]/g, '');
+      const evalResult = new Function(`return (${sanitized})`)();
+      if (Number.isNaN(evalResult) || !Number.isFinite(evalResult)) {
+        setCalcResult('Erro');
+      } else {
+        const rounded = Math.round(evalResult * 10000) / 10000;
+        setCalcResult(rounded.toString());
+      }
+    } catch (err) {
+      setCalcResult('Erro');
+    }
+  };
+
+  const handleCalcCopy = () => {
+    const valueToCopy = calcResult || calcExpression;
+    if (!valueToCopy || valueToCopy === 'Erro') return;
+    navigator.clipboard.writeText(valueToCopy);
+    setCopiedIndicator(true);
+    setTimeout(() => setCopiedIndicator(false), 2000);
+  };
 
   const handleEditItemQuantity = (idx: number, newQty: number) => {
     if (isViewer) return;
@@ -1245,12 +1305,27 @@ export function SortingView({
                     <p className="text-xs md:text-sm text-on-surface-variant">OP #{editingOrder.order_number}</p>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="p-1.5 md:p-2 hover:bg-surface-container-high rounded-full transition-colors"
-                >
-                  <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setIsCalculatorOpen(!isCalculatorOpen)}
+                    type="button"
+                    className={cn(
+                      "p-1.5 md:p-2 rounded-full transition-all flex items-center justify-center gap-1 cursor-pointer",
+                      isCalculatorOpen 
+                        ? "bg-primary text-white shadow-md shadow-primary/20 scale-105" 
+                        : "hover:bg-surface-container-high text-on-surface-variant"
+                    )}
+                    title="Abrir Calculadora"
+                  >
+                    <Calculator className="w-5 h-5 md:w-6 md:h-6" />
+                  </button>
+                  <button 
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="p-1.5 md:p-2 hover:bg-surface-container-high rounded-full transition-colors"
+                  >
+                    <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" />
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 md:p-8">
@@ -1907,6 +1982,210 @@ export function SortingView({
                 </div>
               </div>
             </motion.div>
+
+            {/* Calculadora Flutuante */}
+            <AnimatePresence>
+              {isCalculatorOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute right-4 bottom-4 md:right-8 md:bottom-8 z-[110] bg-surface-container-lowest border border-outline-variant/20 shadow-2xl rounded-[32px] p-5 w-80 select-none flex flex-col gap-4 max-w-[90vw] animate-in fade-in zoom-in duration-200"
+                >
+                  <div className="flex items-center justify-between border-b border-outline-variant/10 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                        <Calculator className="w-4 h-4" />
+                      </div>
+                      <span className="text-sm font-headline font-black text-on-surface">Calculadora</span>
+                    </div>
+                    <button 
+                      onClick={() => setIsCalculatorOpen(false)}
+                      type="button"
+                      className="p-1 hover:bg-surface-container-high rounded-full transition-colors"
+                    >
+                      <X className="w-4 h-4 text-on-surface-variant" />
+                    </button>
+                  </div>
+
+                  {/* Visor */}
+                  <div className="bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl p-4 flex flex-col justify-between align-end shadow-inner h-24">
+                    <div className="font-mono text-xs text-on-surface-variant/60 text-right overflow-x-auto whitespace-nowrap scrollbar-none select-text pr-1 min-h-[16px]">
+                      {calcExpression || '0'}
+                    </div>
+                    <div className="font-mono text-2xl font-black text-on-surface text-right overflow-x-auto whitespace-nowrap scrollbar-none select-text pr-1 min-h-[32px]">
+                      {calcResult || calcExpression || '0'}
+                    </div>
+                  </div>
+
+                  {/* Teclado */}
+                  <div className="grid grid-cols-4 gap-2 font-mono">
+                    <button 
+                      onClick={handleCalcClear}
+                      type="button"
+                      className="col-span-1 bg-error/10 text-error hover:bg-error/20 font-black h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      C
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress('(')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-bold h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      (
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress(')')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-bold h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      )
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress('/')}
+                      type="button"
+                      className="bg-primary/10 text-primary hover:bg-primary/20 font-black h-11 rounded-xl text-center flex items-center justify-center text-base transition-all cursor-pointer"
+                    >
+                      ÷
+                    </button>
+
+                    <button 
+                      onClick={() => handleCalcKeyPress('7')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-black h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      7
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress('8')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-black h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      8
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress('9')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-black h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      9
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress('*')}
+                      type="button"
+                      className="bg-primary/10 text-primary hover:bg-primary/20 font-black h-11 rounded-xl text-center flex items-center justify-center text-base transition-all cursor-pointer"
+                    >
+                      ×
+                    </button>
+
+                    <button 
+                      onClick={() => handleCalcKeyPress('4')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-black h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      4
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress('5')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-black h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      5
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress('6')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-black h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      6
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress('-')}
+                      type="button"
+                      className="bg-primary/10 text-primary hover:bg-primary/20 font-black h-11 rounded-xl text-center flex items-center justify-center text-base transition-all cursor-pointer"
+                    >
+                      -
+                    </button>
+
+                    <button 
+                      onClick={() => handleCalcKeyPress('1')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-black h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      1
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress('2')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-black h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      2
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress('3')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-black h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      3
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress('+')}
+                      type="button"
+                      className="bg-primary/10 text-primary hover:bg-primary/20 font-black h-11 rounded-xl text-center flex items-center justify-center text-base transition-all cursor-pointer"
+                    >
+                      +
+                    </button>
+
+                    <button 
+                      onClick={() => handleCalcKeyPress('0')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-black h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      0
+                    </button>
+                    <button 
+                      onClick={() => handleCalcKeyPress('.')}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-black h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      .
+                    </button>
+                    <button 
+                      onClick={handleCalcBackspace}
+                      type="button"
+                      className="bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest font-bold h-11 rounded-xl text-center flex items-center justify-center text-sm transition-all cursor-pointer"
+                    >
+                      ⌫
+                    </button>
+                    <button 
+                      onClick={handleCalcEvaluate}
+                      type="button"
+                      className="bg-primary text-white hover:opacity-90 font-black h-11 rounded-xl text-center flex items-center justify-center text-base transition-all cursor-pointer shadow-md shadow-primary/10"
+                    >
+                      =
+                    </button>
+                  </div>
+
+                  {/* Ações */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCalcCopy}
+                      type="button"
+                      disabled={!calcExpression && !calcResult}
+                      className={cn(
+                        "w-full py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all block text-center border cursor-pointer",
+                        copiedIndicator 
+                          ? "bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/10" 
+                          : "bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant border-transparent"
+                      )}
+                    >
+                      {copiedIndicator ? '✓ Copiado!' : 'Copiar Resultado'}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </AnimatePresence>
