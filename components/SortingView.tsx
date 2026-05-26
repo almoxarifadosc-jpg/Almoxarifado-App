@@ -421,6 +421,13 @@ export function SortingView({
     if (!editingOrder?.id) return;
     if (!validateQuantities()) return;
 
+    // Regra estrita: 100% dos itens devem estar separados e conferidos. Sem exceção para administradores.
+    const { separation, conference } = calculatePercentages(editingOrder.items);
+    if (separation !== 100 || conference !== 100) {
+      setError("Não é possível conferir esta OP. 100% dos itens devem estar marcados como separados e conferidos.");
+      return;
+    }
+
     // Pergunta: Admin, Superadmin e Conferentes/Ventisol+Conf podem conferir
     const canConferOP = isAdmin || isSuperAdmin || isConferente || userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente';
     if (!canConferOP) {

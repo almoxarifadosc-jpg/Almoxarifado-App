@@ -391,7 +391,7 @@ export function PurchaseOrdersView({
         items: itemsToSave,
         total_amount: Number(editingOrder.total_amount) || 0,
         sequence: editingOrder.sequence !== undefined ? editingOrder.sequence : null,
-        status: 'Conferida',
+        status: editingOrder.status || 'Pendente',
         updated_at: serverTimestamp()
       };
 
