@@ -17,12 +17,13 @@ import {
   ClipboardList,
   Newspaper,
   RefreshCw,
-  Eraser
+  Eraser,
+  ListOrdered
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
-export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS' | 'ORDERS' | 'SORTING' | 'PERFORMANCE' | 'SEPARATION_DASHBOARD' | 'NEWS_PORTAL' | 'INFO';
+export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS' | 'ORDERS' | 'SORTING' | 'SEPARATION_SEQUENCE' | 'PERFORMANCE' | 'SEPARATION_DASHBOARD' | 'NEWS_PORTAL' | 'INFO';
 
 interface SidebarProps {
   currentView: View;
@@ -43,6 +44,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
       items: [
         ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'ORDERS' as View, label: 'Importar OP', icon: FileText } : null,
         ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'SORTING' as View, label: 'Separação de OPs', icon: ClipboardList } : null,
+        ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'SEPARATION_SEQUENCE' as View, label: 'Sequência de Separação', icon: ListOrdered } : null,
         isAdmin ? { id: 'SEPARATION_DASHBOARD' as View, label: 'Painel de Separação', icon: LayoutDashboard } : null,
         ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 } : null,
         ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'INFO' as View, label: 'Informaçōes', icon: Rocket } : null,

@@ -15,6 +15,7 @@ import { PurchaseOrdersView } from '@/components/PurchaseOrdersView';
 import { SortingView } from '@/components/SortingView';
 import PerformanceView from '@/components/PerformanceView';
 import { SeparationDashboardView } from '@/components/SeparationDashboardView';
+import { SeparationSequenceView } from '@/components/SeparationSequenceView';
 import { InfoView } from '@/components/InfoView';
 import { Factory, Settings, CheckCircle2, Loader2, AlertCircle, RefreshCw, Eraser } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
@@ -398,6 +399,21 @@ export default function Home() {
                 startDate={startDate}
                 endDate={endDate}
                 isDarkMode={isDarkMode}
+                onDateChange={(s, e) => {
+                  setStartDate(s);
+                  setEndDate(e);
+                }}
+              />
+            )}
+            {currentView === 'SEPARATION_SEQUENCE' && (
+              <SeparationSequenceView 
+                key="sep-seq"
+                isAdmin={profile?.is_admin}
+                isSuperAdmin={profile?.is_super_admin}
+                userCategory={profile?.category}
+                purchaseOrders={purchaseOrders}
+                startDate={startDate}
+                endDate={endDate}
                 onDateChange={(s, e) => {
                   setStartDate(s);
                   setEndDate(e);
