@@ -266,6 +266,11 @@ export function SeparationSequenceView({
       {/* Estilos específicos para Impressão limpa via CSS */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
+          @page {
+            size: portrait;
+            margin: 1.5cm;
+          }
+          
           /* Oculta visualmente todo o restante da página */
           body * {
             visibility: hidden;
@@ -730,47 +735,52 @@ export function SeparationSequenceView({
               style={{ fontFamily: 'monospace' }}
             >
               <div>
-                {/* Cabeçalho da OP */}
-                <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-start">
+                {/* Cabeçalho de Identificação */}
+                <div className="border-b-2 border-black pb-3 mb-6 flex justify-between items-center">
                   <div>
-                    <span className="text-[10px] uppercase tracking-wider block text-gray-500">VENTISOL DA AMAZÔNIA S/A</span>
-                    <h1 className="text-3xl font-black">{order.order_number}</h1>
-                    <span className="text-sm font-bold text-gray-700">FILIAL: SANTA CATARINA</span>
+                    <span className="text-sm uppercase font-extrabold tracking-wider block text-gray-800">VENTISOL DA AMAZÔNIA S/A</span>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">FILIAL SANTA CATARINA</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] uppercase tracking-wider block text-gray-500">ORDEM DE SEPARAÇÃO</span>
-                    <span className="text-3xl font-black px-4 py-1.5 bg-gray-100 rounded border border-black inline-block mt-1">
-                      {order.sequence !== undefined && order.sequence !== null ? `SEQ #${order.sequence}` : 'SEM SEQ'}
-                    </span>
-                    <p className="text-xs font-bold text-gray-700 mt-2">Data OP: {order.date}</p>
+                    <h2 className="text-xs font-black uppercase text-gray-800 tracking-wider">SISTEMA FILIAL VENTISOL SC</h2>
                   </div>
                 </div>
 
-                {/* Bloco de Metadados e Metas */}
-                <div className="grid grid-cols-2 gap-4 mb-6 border border-black p-4 rounded">
-                  <div>
-                    <h3 className="text-xs font-bold uppercase text-gray-500">Fluxo da OP</h3>
-                    <p className="text-sm font-bold mt-1">Linha: {order.supplier_name || 'Sem Linha Especificada'}</p>
-                    <p className="text-xs font-medium text-gray-600 mt-0.5">Local duto Principal: {order.product_location || '-'}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold uppercase text-gray-500">Controle Almoxarifado</h3>
-                    <p className="text-xs mt-1">Satus OP: <span className="font-bold">{order.status}</span></p>
-                    <p className="text-xs text-gray-600 mt-0.5">Total de SKU: <span className="font-bold">{order.items?.length || 0}</span></p>
-                  </div>
-                </div>
-
-                {/* Assinaturas Física / Observações */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="border border-black p-4 rounded flex flex-col justify-between min-h-[70px]">
-                    <span className="text-[10px] font-bold uppercase text-gray-500 block">Separado por (Nome Legível):</span>
-                    <div className="border-b border-black w-full mt-4"></div>
-                  </div>
-                  <div className="border border-black p-4 rounded flex flex-col justify-between min-h-[70px]">
-                    <span className="text-[10px] font-bold uppercase text-gray-500 block">Conferido por (Nome Legível):</span>
-                    <div className="border-b border-black w-full mt-4"></div>
-                  </div>
-                </div>
+                {/* Tabela de Informações Gerais da OP */}
+                <table className="w-full border-collapse border-2 border-black text-sm mb-6 table-fixed">
+                  <tbody>
+                    <tr>
+                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs w-1/3">Ordem de Produção (OP)</td>
+                      <td className="border border-black p-3 font-black text-xl">{order.order_number}</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs">Sequência de Separação</td>
+                      <td className="border border-black p-3 font-extrabold text-lg text-primary">
+                        {order.sequence !== undefined && order.sequence !== null ? `Seq #${order.sequence}` : 'Sem Sequência Registrada'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs">Data da OP</td>
+                      <td className="border border-black p-3 font-bold">{order.date || '-'}</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs">Fluxo da OP (Linha Fornecedor)</td>
+                      <td className="border border-black p-3 font-bold">{order.supplier_name || 'Não Informado'}</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs">Local Duto Principal</td>
+                      <td className="border border-black p-3 font-mono font-bold text-base">{order.product_location || '-'}</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs">Status Geral da OP</td>
+                      <td className="border border-black p-3 font-medium uppercase text-xs">{order.status}</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs">Total de Itens (SKUs)</td>
+                      <td className="border border-black p-3 font-bold">{order.items?.length || 0} SKU(s)</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
 
               {/* Rodapé da folha */}
