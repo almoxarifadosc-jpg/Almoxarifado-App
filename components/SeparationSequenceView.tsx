@@ -669,77 +669,65 @@ export function SeparationSequenceView({
       </div>
 
       {/* ÁREA DE IMPRESSÃO (Oculta na tela por padrão, exibida apenas no window.print()) */}
-      <div id="print-area" className="hidden print:block">
-        {purchaseOrders
-          .filter(o => selectedOrders[o.id])
-          .sort((a, b) => {
-            // Ordena as OPs a serem impressas prioritariamente pela sequência de separação
-            const sA = a.sequence === undefined || a.sequence === null ? Infinity : Number(a.sequence);
-            const sB = b.sequence === undefined || b.sequence === null ? Infinity : Number(b.sequence);
-            return sA - sB;
-          })
-          .map((order, orderIdx, arr) => (
-            <div 
-              key={order.id} 
-              className="page-break-after p-8 bg-white text-black min-h-screen flex flex-col justify-between"
-              style={{ fontFamily: 'monospace' }}
-            >
-              <div>
-                {/* Cabeçalho de Identificação */}
-                <div className="border-b-2 border-black pb-3 mb-6 flex justify-between items-center">
-                  <div>
-                    <span className="text-sm uppercase font-extrabold tracking-wider block text-gray-800">VENTISOL DA AMAZÔNIA S/A</span>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">FILIAL SANTA CATARINA</span>
-                  </div>
-                  <div className="text-right">
-                    <h2 className="text-xs font-black uppercase text-gray-800 tracking-wider">SISTEMA FILIAL VENTISOL SC</h2>
-                  </div>
-                </div>
+      <div id="print-area" className="hidden print:block p-4" style={{ fontFamily: 'monospace' }}>
+        {/* Cabeçalho de Identificação */}
+        <div className="border-b-2 border-black pb-3 mb-6 flex justify-between items-center">
+          <div>
+            <span className="text-sm uppercase font-extrabold tracking-wider block text-gray-800">VENTISOL DA AMAZÔNIA S/A</span>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">FILIAL SANTA CATARINA</span>
+          </div>
+          <div className="text-right">
+            <h2 className="text-xs font-black uppercase text-gray-800 tracking-wider">LISTA DE SEPARAÇÃO - SEQUÊNCIA DE OPs</h2>
+            <span className="text-[10px] text-gray-500 font-bold block mt-0.5">Emissão: {new Date().toLocaleDateString('pt-BR')}</span>
+          </div>
+        </div>
 
-                {/* Tabela de Informações Gerais da OP */}
-                <table className="w-full border-collapse border-2 border-black text-sm mb-6 table-fixed">
-                  <tbody>
-                    <tr>
-                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs w-1/3">Ordem de Produção (OP)</td>
-                      <td className="border border-black p-3 font-black text-xl">{order.order_number}</td>
-                    </tr>
-                    <tr>
-                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs">Sequência de Separação</td>
-                      <td className="border border-black p-3 font-extrabold text-lg text-primary">
-                        {order.sequence !== undefined && order.sequence !== null ? `Seq #${order.sequence}` : 'Sem Sequência Registrada'}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs">Data da OP</td>
-                      <td className="border border-black p-3 font-bold">{order.date || '-'}</td>
-                    </tr>
-                    <tr>
-                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs">Fluxo da OP (Linha Fornecedor)</td>
-                      <td className="border border-black p-3 font-bold">{order.supplier_name || 'Não Informado'}</td>
-                    </tr>
-                    <tr>
-                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs">Local Duto Principal</td>
-                      <td className="border border-black p-3 font-mono font-bold text-base">{order.product_location || '-'}</td>
-                    </tr>
-                    <tr>
-                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs">Status Geral da OP</td>
-                      <td className="border border-black p-3 font-medium uppercase text-xs">{order.status}</td>
-                    </tr>
-                    <tr>
-                      <td className="border border-black p-3 font-bold bg-gray-100 uppercase text-xs">Total de Itens (SKUs)</td>
-                      <td className="border border-black p-3 font-bold">{order.items?.length || 0} SKU(s)</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+        {/* Tabela Única de OPs Consolidadas */}
+        <table className="w-full border-collapse border-2 border-black text-xs">
+          <thead>
+            <tr className="bg-gray-100 border-b-2 border-black">
+              <th className="border border-black p-3 font-black text-center w-36">SEQUENCIA DE SEPARAÇÃO</th>
+              <th className="border border-black p-3 font-black text-center">ORDEM DE PRODUÇÃO</th>
+              <th className="border border-black p-3 font-black text-center w-36">LOCAL</th>
+              <th className="border border-black p-3 font-black text-center w-32">DATA DA OP</th>
+              <th className="border border-black p-3 font-black text-center w-32">TOTAL DE ITENS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {purchaseOrders
+              .filter(o => selectedOrders[o.id])
+              .sort((a, b) => {
+                const sA = a.sequence === undefined || a.sequence === null ? Infinity : Number(a.sequence);
+                const sB = b.sequence === undefined || b.sequence === null ? Infinity : Number(b.sequence);
+                return sA - sB;
+              })
+              .map((order) => (
+                <tr key={order.id} className="border-b border-black">
+                  <td className="border border-black p-3 text-center font-extrabold text-base">
+                    {order.sequence !== undefined && order.sequence !== null ? `#${order.sequence}` : '-'}
+                  </td>
+                  <td className="border border-black p-3 text-center font-black text-base">
+                    {order.order_number}
+                  </td>
+                  <td className="border border-black p-3 text-center font-bold">
+                    {order.product_location || '-'}
+                  </td>
+                  <td className="border border-black p-3 text-center">
+                    {order.date || '-'}
+                  </td>
+                  <td className="border border-black p-3 text-center font-extrabold">
+                    {order.items?.length || 0} SKU(s)
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
 
-              {/* Rodapé da folha */}
-              <div className="flex justify-between items-center text-[10px] font-mono text-gray-500 pt-4 border-t border-black/20 mt-8">
-                <span>VENTISOL ALMOXARIFADO - SISTEMA DE GESTÃO AUTOMÁTICO</span>
-                <span>PÁGINA {orderIdx + 1} DE {arr.length}</span>
-              </div>
-            </div>
-          ))}
+        {/* Rodapé institucional */}
+        <div className="flex justify-between items-center text-[10px] font-mono text-gray-500 pt-4 border-t border-black/20 mt-8">
+          <span>VENTISOL ALMOXARIFADO - SISTEMA DE GESTÃO AUTOMÁTICO</span>
+          <span>IMPRESSO EM: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR')}</span>
+        </div>
       </div>
     </div>
   );
