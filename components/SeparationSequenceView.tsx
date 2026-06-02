@@ -76,7 +76,6 @@ export function SeparationSequenceView({
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [expandedGroup, setExpandedGroup] = useState<Record<string, boolean>>({});
 
   // Regra de permissão para edição de sequência
   const canEditSequence = isAdmin || isSuperAdmin || userCategory === 'Ventisol' || userCategory === 'Conferente' || userCategory === 'Ventisol + Conferente';
@@ -138,60 +137,28 @@ export function SeparationSequenceView({
     });
   }, [purchaseOrders, filterText, statusFilter]);
 
-  // Agrupamento das OPs por Linha de Produção (supplier_name)
-  // E dentro de cada grupo, ordenado por sequência de forma ascendente
-  const groupedOrders = useMemo(() => {
-    const groups: Record<string, PurchaseOrder[]> = {};
-
-    filteredOrders.forEach(order => {
-      // Se supplier_name for vazio, agrupar como 'Sem Linha'
-      const lineName = (order.supplier_name || 'Sem Linha Especificada').trim();
-      if (!groups[lineName]) {
-        groups[lineName] = [];
+  // Ordenação de todas as OPs com base na sequência de separação (numérica ascendente)
+  // Se não possuir sequência registrada, coloca automaticamente no final da lista
+  const sortedOrders = useMemo(() => {
+    const list = [...filteredOrders];
+    list.sort((a, b) => {
+      const seqA = a.sequence === undefined || a.sequence === null ? Infinity : Number(a.sequence);
+      const seqB = b.sequence === undefined || b.sequence === null ? Infinity : Number(b.sequence);
+      if (seqA === seqB) {
+        // Desempate por número de OP decrescente
+        return b.order_number.localeCompare(a.order_number);
       }
-      groups[lineName].push(order);
+      return seqA - seqB;
     });
-
-    // Ordenar as OPs do grupo pela sequência (numérica ascendente)
-    // Se não tiver sequência, colocar no final
-    Object.keys(groups).forEach(lineName => {
-      groups[lineName].sort((a, b) => {
-        const seqA = a.sequence === undefined || a.sequence === null ? Infinity : Number(a.sequence);
-        const seqB = b.sequence === undefined || b.sequence === null ? Infinity : Number(b.sequence);
-        if (seqA === seqB) {
-          // Desempate por número de OP decrescente
-          return b.order_number.localeCompare(a.order_number);
-        }
-        return seqA - seqB;
-      });
-    });
-
-    // Inicializa todos os grupos expandidos por padrão se o dicionário estiver vazio
-    if (Object.keys(expandedGroup).length === 0) {
-      const initialExpanded: Record<string, boolean> = {};
-      Object.keys(groups).forEach(line => {
-        initialExpanded[line] = true;
-      });
-      setExpandedGroup(initialExpanded);
-    }
-
-    return groups;
+    return list;
   }, [filteredOrders]);
 
-  // Handler para togglar expandir/recolher grupo de linhas
-  const toggleGroup = (lineName: string) => {
-    setExpandedGroup(prev => ({
-      ...prev,
-      [lineName]: !prev[lineName]
-    }));
-  };
-
-  // Selecionar/Deselecionar todos as OPs de uma linha de produção
-  const toggleSelectLine = (lineName: string, lineOrders: PurchaseOrder[]) => {
-    const allSelected = lineOrders.every(o => selectedOrders[o.id]);
+  // Selecionar ou deselecionar todas as OPs visíveis na lista filtrada
+  const toggleSelectAll = () => {
+    const allSelected = sortedOrders.length > 0 && sortedOrders.every(o => selectedOrders[o.id]);
     const updated = { ...selectedOrders };
     
-    lineOrders.forEach(o => {
+    sortedOrders.forEach(o => {
       if (allSelected) {
         delete updated[o.id];
       } else {
@@ -479,9 +446,9 @@ export function SeparationSequenceView({
         </button>
       </div>
 
-      {/* Container Principal de Grupos e Grids */}
+      {/* Tabela Unificada e Lisa (Sem Agrupamento) */}
       <div className="space-y-6 print:hidden">
-        {Object.keys(groupedOrders).length === 0 ? (
+        {sortedOrders.length === 0 ? (
           <div className="bg-surface-container-low border border-outline-variant/10 rounded-[32px] p-12 text-center flex flex-col items-center justify-center">
             <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-4 opacity-50">
               <FileText className="w-8 h-8" />
@@ -492,229 +459,212 @@ export function SeparationSequenceView({
             </p>
           </div>
         ) : (
-          Object.entries(groupedOrders).map(([lineName, orders]) => {
-            const isGroupExpanded = expandedGroup[lineName] !== false;
-            const allInLineSelected = orders.every(o => selectedOrders[o.id]);
-            const someInLineSelected = orders.some(o => selectedOrders[o.id]) && !allInLineSelected;
-
-            return (
-              <div 
-                key={lineName}
-                className="bg-surface-container-low border border-outline-variant/10 rounded-[32px] overflow-hidden transition-all shadow-sm"
-              >
-                {/* Header do Grupo de Linha */}
-                <div className="bg-surface-container px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    {/* Checkbox selecionar grupo */}
+          <div className="bg-surface-container-low border border-outline-variant/10 rounded-[32px] overflow-hidden transition-all shadow-sm">
+            {/* Cabeçalho informativo e de ações da lista unificada */}
+            <div className="bg-surface-container px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                {/* Checkbox mestre para selecionar todas as OPs filtradas */}
+                {(() => {
+                  const allSelected = sortedOrders.length > 0 && sortedOrders.every(o => selectedOrders[o.id]);
+                  const someSelected = sortedOrders.some(o => selectedOrders[o.id]) && !allSelected;
+                  return (
                     <button
-                      onClick={() => toggleSelectLine(lineName, orders)}
+                      onClick={toggleSelectAll}
                       className={cn(
                         "w-5 h-5 rounded-md border flex items-center justify-center transition-all cursor-pointer",
-                        allInLineSelected 
+                        allSelected 
                           ? "bg-primary border-primary text-white" 
-                          : someInLineSelected 
+                          : someSelected 
                             ? "bg-primary/20 border-primary text-primary"
                             : "border-outline-variant hover:border-primary bg-surface-container-lowest"
                       )}
+                      title={allSelected ? "Deselecionar tudo" : "Selecionar tudo nesta lista"}
                     >
-                      {allInLineSelected && <Check className="w-3.5 h-3.5 stroke-[3px]" />}
-                      {someInLineSelected && <div className="w-2.5 h-0.5 bg-primary rounded" />}
+                      {allSelected && <Check className="w-3.5 h-3.5 stroke-[3px]" />}
+                      {someSelected && <div className="w-2.5 h-0.5 bg-primary rounded" />}
                     </button>
+                  );
+                })()}
 
-                    <div onClick={() => toggleGroup(lineName)} className="cursor-pointer">
-                      <h2 className="text-sm md:text-base font-headline font-black text-on-surface flex items-center gap-1.5 hover:text-primary transition-colors">
-                        {lineName}
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-primary/10 text-primary rounded-full">
-                          {orders.length} {orders.length === 1 ? 'OP' : 'OPs'}
-                        </span>
-                      </h2>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => toggleGroup(lineName)}
-                    className="p-1.5 hover:bg-surface-container-highest rounded-full text-on-surface-variant transition-colors"
-                  >
-                    {isGroupExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </button>
+                <div>
+                  <h2 className="text-sm md:text-base font-headline font-black text-on-surface flex items-center gap-1.5">
+                    Lista de OPs Ordenadas por Sequência
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-primary/10 text-primary rounded-full">
+                      {sortedOrders.length} {sortedOrders.length === 1 ? 'Ordem' : 'Ordens'}
+                    </span>
+                  </h2>
                 </div>
-
-                {/* Grid / Tabela do Grupo */}
-                <AnimatePresence initial={false}>
-                  {isGroupExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-surface-container/30 border-b border-outline-variant/10 text-[10px] md:text-xs font-black uppercase tracking-widest text-on-surface-variant/70">
-                              <th className="px-6 py-4 w-12 text-center">Sel.</th>
-                              <th className="px-6 py-4 w-28">Seq. Separação</th>
-                              <th className="px-6 py-4 w-32">Ordem de Produção</th>
-                              <th className="px-6 py-4">Informação Técnica</th>
-                              <th className="px-6 py-4 text-center w-28">Itens / Peças</th>
-                              <th className="px-6 py-4 text-center w-28">Separação</th>
-                              <th className="px-6 py-4 text-center w-28">Conferência</th>
-                              <th className="px-6 py-4 w-36">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-outline-variant/5">
-                            {orders.map((order) => {
-                              const isSelected = !!selectedOrders[order.id];
-                              const isSeqEditing = editingSequenceId === order.id;
-                              const { separation, conference, totalPieces } = calculatePercentages(order.items);
-
-                              return (
-                                <tr 
-                                  key={order.id}
-                                  className={cn(
-                                    "text-sm hover:bg-surface-container-high/40 transition-colors group",
-                                    isSelected && "bg-primary/[0.02]"
-                                  )}
-                                >
-                                  {/* Checkbox */}
-                                  <td className="px-6 py-3.5 text-center">
-                                    <button
-                                      onClick={() => toggleSelectOrder(order.id)}
-                                      className={cn(
-                                        "w-5 h-5 rounded-md border flex items-center justify-center transition-all cursor-pointer mx-auto",
-                                        isSelected 
-                                          ? "bg-primary border-primary text-white shadow-sm shadow-primary/10" 
-                                          : "border-outline-variant hover:border-primary bg-surface-container-lowest"
-                                      )}
-                                    >
-                                      {isSelected && <Check className="w-3.5 h-3.5 stroke-[3px]" />}
-                                    </button>
-                                  </td>
-
-                                  {/* Sequência de Separação */}
-                                  <td className="px-6 py-3.5">
-                                    {isSeqEditing ? (
-                                      <div className="flex items-center gap-1.5">
-                                        <input
-                                          type="text"
-                                          value={editingSequenceValue}
-                                          onChange={(e) => setEditingSequenceValue(e.target.value)}
-                                          onKeyDown={(e) => {
-                                            if (e.key === 'Enter') saveSequence(order.id);
-                                            if (e.key === 'Escape') setEditingSequenceId(null);
-                                          }}
-                                          disabled={isUpdating}
-                                          autoFocus
-                                          placeholder="Ex: 1"
-                                          className="w-16 bg-surface-container-highest border border-primary/20 rounded-lg px-2 py-1 text-center font-mono font-bold text-xs ring-2 ring-primary/10 focus:outline-none"
-                                        />
-                                        <button
-                                          onClick={() => saveSequence(order.id)}
-                                          disabled={isUpdating}
-                                          className="p-1 text-emerald-500 hover:bg-emerald-500/10 rounded-md transition-colors"
-                                        >
-                                          {isUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-4 h-4 stroke-[2.5px]" />}
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center gap-1.5 font-mono">
-                                        <span className={cn(
-                                          "px-2.5 py-1 rounded-lg text-xs font-black min-w-[38px] text-center",
-                                          order.sequence !== undefined && order.sequence !== null
-                                            ? "bg-primary/10 text-primary border border-primary/10"
-                                            : "bg-surface-container-highest text-on-surface-variant/40"
-                                        )}>
-                                          {order.sequence !== undefined && order.sequence !== null ? `#${order.sequence}` : 'FALTA'}
-                                        </span>
-                                        {canEditSequence && (
-                                          <button
-                                            onClick={() => startEditingSequence(order)}
-                                            className="opacity-0 group-hover:opacity-100 p-1 text-on-surface-variant hover:text-primary rounded hover:bg-surface-container-highest transition-all"
-                                            title="Editar sequência de separação"
-                                          >
-                                            <Edit2 className="w-3 h-3" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
-                                  </td>
-
-                                  {/* Número da OP */}
-                                  <td className="px-6 py-3.5 font-headline font-black text-on-surface">
-                                    OP #{order.order_number}
-                                  </td>
-
-                                  {/* Linha/Tipo */}
-                                  <td className="px-6 py-3.5">
-                                    <div className="flex flex-col">
-                                      <span className="text-xs text-on-surface-variant/50 uppercase font-black tracking-wider leading-none">Tipo / Local</span>
-                                      <span className="font-semibold text-on-surface text-xs mt-0.5">
-                                        {order.type || 'Padrão'} - Location: {order.product_location || 'Geral'}
-                                      </span>
-                                    </div>
-                                  </td>
-
-                                  {/* Itens / Peças */}
-                                  <td className="px-6 py-3.5 text-center font-mono">
-                                    <div className="flex flex-col">
-                                      <span className="font-black text-on-surface text-xs">{order.items?.length || 0} SKU</span>
-                                      <span className="text-[10px] text-on-surface-variant/60 font-bold">{totalPieces} Unidades</span>
-                                    </div>
-                                  </td>
-
-                                  {/* % Separação */}
-                                  <td className="px-6 py-3.5 text-center font-mono">
-                                    <span className={cn(
-                                      "px-2 py-0.5 rounded-full text-xs font-black",
-                                      separation === 100 
-                                        ? "bg-emerald-500/10 text-emerald-500" 
-                                        : separation > 0 
-                                          ? "bg-amber-500/10 text-amber-500" 
-                                          : "bg-surface-container-highest text-on-surface-variant/40"
-                                    )}>
-                                      {separation}%
-                                    </span>
-                                  </td>
-
-                                  {/* % Conferência */}
-                                  <td className="px-6 py-3.5 text-center font-mono">
-                                    <span className={cn(
-                                      "px-2 py-0.5 rounded-full text-xs font-black",
-                                      conference === 100 
-                                        ? "bg-emerald-500/10 text-emerald-500" 
-                                        : conference > 0 
-                                          ? "bg-amber-500/10 text-amber-500" 
-                                          : "bg-surface-container-highest text-on-surface-variant/40"
-                                    )}>
-                                      {conference}%
-                                    </span>
-                                  </td>
-
-                                  {/* Status */}
-                                  <td className="px-6 py-3.5">
-                                    <span className={cn(
-                                      "inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                                      order.status === 'Conferida' ? 'bg-blue-500/10 text-blue-500' : 
-                                      order.status === 'Separada' ? 'bg-amber-500/10 text-amber-500' :
-                                      order.status === 'Baixada' ? 'bg-emerald-500/10 text-emerald-500' :
-                                      'bg-surface-container-highest text-on-surface-variant/60'
-                                    )}>
-                                      {order.status}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
-            );
-          })
+
+              <span className="text-xs text-on-surface-variant/70 font-medium">
+                Padrão de ordenação: Sequência Crescente
+              </span>
+            </div>
+
+            {/* Tabela Única de OPs */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-container/30 border-b border-outline-variant/10 text-[10px] md:text-xs font-black uppercase tracking-widest text-on-surface-variant/70">
+                    <th className="px-6 py-4 w-12 text-center">Sel.</th>
+                    <th className="px-6 py-4 w-28">Seq. Separação</th>
+                    <th className="px-6 py-4 w-32">Ordem de Produção</th>
+                    <th className="px-6 py-4">Linha e Localização</th>
+                    <th className="px-6 py-4 text-center w-28">Itens / Peças</th>
+                    <th className="px-6 py-4 text-center w-28">Separação</th>
+                    <th className="px-6 py-4 text-center w-28">Conferência</th>
+                    <th className="px-6 py-4 w-36">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/5">
+                  {sortedOrders.map((order) => {
+                    const isSelected = !!selectedOrders[order.id];
+                    const isSeqEditing = editingSequenceId === order.id;
+                    const { separation, conference, totalPieces } = calculatePercentages(order.items);
+
+                    return (
+                      <tr 
+                        key={order.id}
+                        className={cn(
+                          "text-sm hover:bg-surface-container-high/40 transition-colors group",
+                          isSelected && "bg-primary/[0.02]"
+                        )}
+                      >
+                        {/* Checkbox Individual */}
+                        <td className="px-6 py-3.5 text-center">
+                          <button
+                            onClick={() => toggleSelectOrder(order.id)}
+                            className={cn(
+                              "w-5 h-5 rounded-md border flex items-center justify-center transition-all cursor-pointer mx-auto",
+                              isSelected 
+                                ? "bg-primary border-primary text-white shadow-sm shadow-primary/10" 
+                                : "border-outline-variant hover:border-primary bg-surface-container-lowest"
+                            )}
+                          >
+                            {isSelected && <Check className="w-3.5 h-3.5 stroke-[3px]" />}
+                          </button>
+                        </td>
+
+                        {/* Sequência de Separação */}
+                        <td className="px-6 py-3.5">
+                          {isSeqEditing ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="text"
+                                value={editingSequenceValue}
+                                onChange={(e) => setEditingSequenceValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveSequence(order.id);
+                                  if (e.key === 'Escape') setEditingSequenceId(null);
+                                }}
+                                disabled={isUpdating}
+                                autoFocus
+                                placeholder="Ex: 1"
+                                className="w-16 bg-surface-container-highest border border-primary/20 rounded-lg px-2 py-1 text-center font-mono font-bold text-xs ring-2 ring-primary/10 focus:outline-none"
+                              />
+                              <button
+                                onClick={() => saveSequence(order.id)}
+                                disabled={isUpdating}
+                                className="p-1 text-[#4CAF50] hover:bg-emerald-500/10 rounded-md transition-colors"
+                              >
+                                {isUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-4 h-4 stroke-[2.5px]" />}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 font-mono">
+                              <span className={cn(
+                                "px-2.5 py-1 rounded-lg text-xs font-black min-w-[38px] text-center",
+                                order.sequence !== undefined && order.sequence !== null
+                                  ? "bg-primary/10 text-primary border border-primary/10"
+                                  : "bg-surface-container-highest text-on-surface-variant/40"
+                              )}>
+                                {order.sequence !== undefined && order.sequence !== null ? `#${order.sequence}` : 'FALTA'}
+                              </span>
+                              {canEditSequence && (
+                                <button
+                                  onClick={() => startEditingSequence(order)}
+                                  className="opacity-0 group-hover:opacity-100 p-1 text-on-surface-variant hover:text-primary rounded hover:bg-surface-container-highest transition-all"
+                                  title="Editar sequência de separação"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Número da OP */}
+                        <td className="px-6 py-3.5 font-headline font-black text-on-surface">
+                          OP #{order.order_number}
+                        </td>
+
+                        {/* Linha/Tipo */}
+                        <td className="px-6 py-3.5">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-[#E65100] uppercase font-black tracking-wider leading-none">
+                              {order.supplier_name || 'Sem Linha'}
+                            </span>
+                            <span className="font-semibold text-on-surface-variant text-xs mt-1.5">
+                              {order.type || 'Padrão'} - Local: {order.product_location || 'Geral'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Itens / Peças */}
+                        <td className="px-6 py-3.5 text-center font-mono">
+                          <div className="flex flex-col">
+                            <span className="font-black text-on-surface text-xs">{order.items?.length || 0} SKU</span>
+                            <span className="text-[10px] text-on-surface-variant/60 font-bold">{totalPieces} Unidades</span>
+                          </div>
+                        </td>
+
+                        {/* % Separação */}
+                        <td className="px-6 py-3.5 text-center font-mono">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-full text-xs font-black",
+                            separation === 100 
+                              ? "bg-emerald-500/10 text-emerald-500" 
+                              : separation > 0 
+                                ? "bg-amber-500/10 text-amber-500" 
+                                : "bg-surface-container-highest text-on-surface-variant/40"
+                          )}>
+                            {separation}%
+                          </span>
+                        </td>
+
+                        {/* % Conferência */}
+                        <td className="px-6 py-3.5 text-center font-mono">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-full text-xs font-black",
+                            conference === 100 
+                              ? "bg-emerald-500/10 text-emerald-500" 
+                              : conference > 0 
+                                ? "bg-amber-500/10 text-amber-500" 
+                                : "bg-surface-container-highest text-on-surface-variant/40"
+                          )}>
+                            {conference}%
+                          </span>
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-6 py-3.5">
+                          <span className={cn(
+                            "inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                            order.status === 'Conferida' ? 'bg-blue-500/10 text-blue-500' : 
+                            order.status === 'Separada' ? 'bg-amber-500/10 text-amber-500' :
+                            order.status === 'Baixada' ? 'bg-emerald-500/10 text-emerald-500' :
+                            'bg-surface-container-highest text-on-surface-variant/60'
+                          )}>
+                            {order.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </div>
 
