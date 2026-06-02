@@ -771,38 +771,6 @@ export function SeparationSequenceView({
                     <div className="border-b border-black w-full mt-4"></div>
                   </div>
                 </div>
-
-                {/* Tabela de Produtos */}
-                <table className="w-full text-left border-collapse border-2 border-black text-xs">
-                  <thead>
-                    <tr className="bg-gray-100 border-b-2 border-black">
-                      <th className="border border-black p-2 font-black w-24">CÓDIGO</th>
-                      <th className="border border-black p-2 font-black">DESCRIÇÃO DO MATERIAL</th>
-                      <th className="border border-black p-2 font-black w-24">LOCALIZAÇÃO</th>
-                      <th className="border border-black p-2 font-black text-center w-20">QTD. PLAN</th>
-                      <th className="border border-black p-2 font-black text-center w-14">SEP. QTD</th>
-                      <th className="border border-black p-2 font-black text-center w-14">CONF. OK</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {order.items?.map((item, idx) => (
-                      <tr key={idx} className="border-b border-gray-300">
-                        <td className="border border-black p-2 font-bold font-mono">{item.code || '-'}</td>
-                        <td className="border border-black p-2 font-medium">{item.description}</td>
-                        <td className="border border-black p-2 font-bold font-mono">{item.location || '-'}</td>
-                        <td className="border border-black p-2 text-center font-bold">{item.planned_quantity}</td>
-                        <td className="border border-black p-2 text-center">
-                          {/* Campo em branco para anotação a caneta se necessário ou assinatura */}
-                          <div className="w-10 h-5 border border-black/40 mx-auto rounded"></div>
-                        </td>
-                        <td className="border border-black p-2 text-center">
-                          {/* Marcação de conferido */}
-                          <div className="w-5 h-5 border border-black rounded mx-auto"></div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
 
               {/* Rodapé da folha */}
