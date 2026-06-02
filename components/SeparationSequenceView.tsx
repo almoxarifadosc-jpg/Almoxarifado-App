@@ -266,27 +266,15 @@ export function SeparationSequenceView({
       {/* Estilos específicos para Impressão limpa via CSS */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
-          /* Esconde tudo o que não seja a área de impressão */
-          body > *, 
-          main > *, 
-          header, 
-          aside,
-          #active-indicator,
-          .print\\:hidden {
-            display: none !important;
+          /* Oculta visualmente todo o restante da página */
+          body * {
+            visibility: hidden;
           }
-          
-          /* Força a tag html/body a ficar branca pura */
-          html, body, main {
-            background: white !important;
-            color: black !important;
-            width: 100% !important;
-            height: auto !important;
-            margin: 0 !important;
-            padding: 0 !important;
+          /* Torna visível apenas a área de impressão do almoxarifado */
+          #print-area, #print-area * {
+            visibility: visible;
           }
-
-          /* Garante que o bloco de impressão seja exibido */
+          /* Força exibição de display block para sobrepor a classe utility .hidden */
           #print-area {
             display: block !important;
             position: absolute !important;
@@ -295,6 +283,13 @@ export function SeparationSequenceView({
             width: 100% !important;
             background: white !important;
             color: black !important;
+          }
+          
+          html, body, main {
+            background: white !important;
+            color: black !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
 
           .page-break-after {
@@ -719,7 +714,7 @@ export function SeparationSequenceView({
       </div>
 
       {/* ÁREA DE IMPRESSÃO (Oculta na tela por padrão, exibida apenas no window.print()) */}
-      <div id="print-area" className="hidden">
+      <div id="print-area" className="hidden print:block">
         {purchaseOrders
           .filter(o => selectedOrders[o.id])
           .sort((a, b) => {
