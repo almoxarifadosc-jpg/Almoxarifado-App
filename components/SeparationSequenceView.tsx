@@ -235,7 +235,7 @@ export function SeparationSequenceView({
         @media print {
           @page {
             size: portrait;
-            margin: 1.5cm;
+            margin: 0;
           }
           
           /* Oculta visualmente todo o restante da página */
@@ -255,6 +255,8 @@ export function SeparationSequenceView({
             width: 100% !important;
             background: white !important;
             color: black !important;
+            padding: 1.5cm !important;
+            box-sizing: border-box !important;
           }
           
           html, body, main {
@@ -673,7 +675,7 @@ export function SeparationSequenceView({
         {/* Cabeçalho de Identificação */}
         <div className="border-b-2 border-black pb-3 mb-6 flex justify-between items-center">
           <div>
-            <span className="text-sm uppercase font-extrabold tracking-wider block text-gray-800">VENTISOL DA AMAZÔNIA S/A</span>
+            <span className="text-sm uppercase font-extrabold tracking-wider block text-gray-800">Gerado via Almoxarifado.app</span>
             <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">FILIAL SANTA CATARINA</span>
           </div>
           <div className="text-right">
