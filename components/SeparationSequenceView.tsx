@@ -109,6 +109,47 @@ export function SeparationSequenceView({
     };
   };
 
+  const parseAnyDate = (rawDate: any): Date | null => {
+    if (!rawDate) return null;
+    let d: Date;
+    
+    try {
+      if (typeof rawDate === 'object' && 'seconds' in rawDate) {
+        d = (rawDate as any).toDate();
+      } else if (typeof rawDate === 'string') {
+        if (rawDate.includes('/')) {
+          const parts = rawDate.split(' ')[0].split('/');
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10);
+          const year = parseInt(parts[2], 10);
+          d = new Date(year, month - 1, day, 0, 0, 0, 0);
+        } else if (rawDate.includes('-')) {
+          const parts = rawDate.split('T')[0].split('-');
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10);
+          const day = parseInt(parts[2], 10);
+          d = new Date(year, month - 1, day, 0, 0, 0, 0);
+        } else {
+          d = new Date(rawDate);
+        }
+      } else if (typeof rawDate === 'number') {
+        d = new Date(rawDate);
+      } else {
+        d = new Date(rawDate);
+      }
+      return isNaN(d.getTime()) ? null : d;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const formatToISODate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Filtragem e busca das OPs baseadas no texto digitado e status de progresso
   const filteredOrders = useMemo(() => {
     // 1. Filtrar primeiro baseado no botão/filtro de status selecionado
@@ -122,6 +163,34 @@ export function SeparationSequenceView({
       base = purchaseOrders.filter(order => order.status !== 'Baixada');
     }
 
+    // 2. Aplicar Filtro de Data dinâmico consistente com a aba de Operações/Separação
+    const today = new Date();
+    const todayStr = formatToISODate(today);
+
+    base = base.filter(order => {
+      let matchLogic = false;
+      const d = parseAnyDate(order.date || order.created_at);
+      if (d) {
+        const orderDateStr = formatToISODate(d);
+        const isFinished = order.status === 'Baixada';
+        
+        // Criterio de faixa selecionada
+        const isInRange = (!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate);
+
+        if (isInRange) {
+          matchLogic = true;
+        } else if (orderDateStr < todayStr && !isFinished) {
+          // Pendências de datas anteriores fora do período
+          matchLogic = true;
+        }
+      } else {
+        // Sem data registrada: mostra apenas se não concluída
+        matchLogic = order.status !== 'Baixada';
+      }
+      return matchLogic;
+    });
+
+    // 3. Aplicar filtro de busca por termos digitados
     const term = filterText.toLowerCase().trim();
     if (!term) return base;
 
@@ -135,7 +204,7 @@ export function SeparationSequenceView({
       );
       return matchOP || matchLine || matchItems;
     });
-  }, [purchaseOrders, filterText, statusFilter]);
+  }, [purchaseOrders, filterText, statusFilter, startDate, endDate]);
 
   // Ordenação de todas as OPs com base na sequência de separação (numérica ascendente)
   // Se não possuir sequência registrada, coloca automaticamente no final da lista

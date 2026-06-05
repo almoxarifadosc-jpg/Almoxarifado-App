@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/generate-pwa-images.js && NODE_OPTIONS='--max-old-space-size=1536' next build",
+    "build": "UV_THREADPOOL_SIZE=1 NODE_OPTIONS='--max-old-space-size=1024' next build",
+    "generate-pwa": "node scripts/generate-pwa-images.js",
     "start": "next start",
     "lint": "next lint"
   },
