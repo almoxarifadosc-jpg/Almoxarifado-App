@@ -14,6 +14,7 @@ const manrope = Manrope({
   variable: '--font-manrope',
 });
 
+// Atualização forçada para sincronismo dos novos ícones PWA e favicon real no GitHub
 export const metadata: Metadata = {
   title: 'Almoxarifado App',
   description: 'Sistema de controle de fluxo de operações industriais e gestão de produção.',

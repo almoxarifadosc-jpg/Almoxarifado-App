@@ -1,6 +1,6 @@
 {
   "name": "Almoxarifado Ventisol",
-  "short_name": "Almoxarifado",
+  "short_name": "Almoxarifado SC",
   "description": "Sistema de controle de fluxo de operações industriais e gestão de produção Ventisol.",
   "start_url": "/?standalone=true",
   "id": "/",
