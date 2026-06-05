@@ -721,6 +721,7 @@ export function SortingView({
     // 4. Filtro de data e status dinâmico
     const today = new Date();
     const todayStr = formatToISODate(today);
+    const hasActiveDateFilter = !!startDate || !!endDate;
     
     let matchLogic = false;
     const d = parseAnyDate(o.date || o.created_at);
@@ -731,11 +732,16 @@ export function SortingView({
       // Está no intervalo de datas selecionado?
       const isInRange = (!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate);
 
-      if (isInRange) {
-        matchLogic = true;
-      } else if (orderDateStr < todayStr && !isFinished) {
-        // Fora do intervalo, mas é uma pendência de dias anteriores
-        matchLogic = true;
+      if (hasActiveDateFilter) {
+        // Se há um filtro de data configurado pelo usuário, respeita estritamente o range
+        matchLogic = isInRange;
+      } else {
+        // Sem filtro ativo: mostra se está no intervalo padrão (hoje) ou pendências de datas anteriores não finalizadas
+        if (isInRange) {
+          matchLogic = true;
+        } else if (orderDateStr < todayStr && !isFinished) {
+          matchLogic = true;
+        }
       }
     } else {
       // Sem data (fallback), mostra se não estiver concluída

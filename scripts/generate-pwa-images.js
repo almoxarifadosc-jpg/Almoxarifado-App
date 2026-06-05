@@ -109,6 +109,24 @@ async function generatePWA() {
       .toFile(path.join(publicDir, 'maskable-icon.png'));
     console.log('✔ Criado maskable-icon.png de alta qualidade (com margem segura de 10%).');
 
+    // 3b. maskable-icon-192.png (192x192 com margem de segurança de 10% para o PWA no Android/Chrome)
+    const centralIcon192 = await sharp(svgBuffer)
+      .resize(142, 142, { fit: 'inside' })
+      .toBuffer();
+
+    await sharp({
+      create: {
+        width: 192,
+        height: 192,
+        channels: 4,
+        background: { r: 0, g: 76, b: 128, alpha: 1 } // #004c80
+      }
+    })
+      .composite([{ input: centralIcon192, gravity: 'center' }])
+      .png()
+      .toFile(path.join(publicDir, 'maskable-icon-192.png'));
+    console.log('✔ Criado maskable-icon-192.png de alta qualidade (com margem segura de 25% física).');
+
     // 4. icon.png (512x512)
     await sharp(svgBuffer)
       .resize(512, 512)

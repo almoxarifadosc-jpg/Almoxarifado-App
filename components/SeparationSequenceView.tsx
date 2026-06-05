@@ -166,6 +166,7 @@ export function SeparationSequenceView({
     // 2. Aplicar Filtro de Data dinâmico consistente com a aba de Operações/Separação
     const today = new Date();
     const todayStr = formatToISODate(today);
+    const hasActiveDateFilter = !!startDate || !!endDate;
 
     base = base.filter(order => {
       let matchLogic = false;
@@ -177,11 +178,17 @@ export function SeparationSequenceView({
         // Criterio de faixa selecionada
         const isInRange = (!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate);
 
-        if (isInRange) {
-          matchLogic = true;
-        } else if (orderDateStr < todayStr && !isFinished) {
-          // Pendências de datas anteriores fora do período
-          matchLogic = true;
+        if (hasActiveDateFilter) {
+          // Se há um filtro de data configurado pelo usuário, respeita estritamente o range
+          matchLogic = isInRange;
+        } else {
+          // Sem filtro ativo: mostra se está no intervalo padrão (hoje) ou pendências de datas anteriores
+          if (isInRange) {
+            matchLogic = true;
+          } else if (orderDateStr < todayStr && !isFinished) {
+            // Fora do intervalo padrão, mas é uma pendência de dias anteriores não finalizada
+            matchLogic = true;
+          }
         }
       } else {
         // Sem data registrada: mostra apenas se não concluída
