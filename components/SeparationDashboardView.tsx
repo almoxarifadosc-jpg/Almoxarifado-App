@@ -16,7 +16,8 @@ import {
   FileSpreadsheet,
   FileText,
   Volume2,
-  VolumeX
+  VolumeX,
+  Ban
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
@@ -519,16 +520,22 @@ export function SeparationDashboardView({
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: idx * 0.05 }}
                 onClick={() => {
+                  if (order.status === 'Cancelada') return;
                   setSelectedOrder(order);
                   setIsReviewModalOpen(true);
                 }}
                 className={cn(
-                  "bg-surface-container-lowest p-5 pl-7 rounded-3xl border border-outline-variant/10 shadow-sm hover:shadow-lg transition-all relative overflow-hidden flex flex-col gap-4 cursor-pointer active:scale-[0.98]",
-                  order.is_signed 
-                    ? "border-l-4 border-l-emerald-500" 
-                    : isFullyComplete 
-                      ? "border-l-4 border-l-amber-400" 
-                      : "border-l-4 border-l-transparent"
+                  "p-5 pl-7 rounded-3xl border shadow-sm hover:shadow-lg transition-all relative overflow-hidden flex flex-col gap-4 cursor-pointer active:scale-[0.98]",
+                  order.status === 'Cancelada'
+                    ? "bg-red-500/5 border-red-500/20 text-red-955 dark:text-red-200/90 shadow-red-500/5 font-bold border-l-4 border-l-red-500"
+                    : cn(
+                        "bg-surface-container-lowest border-outline-variant/10",
+                        order.is_signed 
+                          ? "border-l-4 border-l-emerald-500" 
+                          : isFullyComplete 
+                            ? "border-l-4 border-l-amber-400" 
+                            : "border-l-4 border-l-transparent"
+                      )
                 )}
               >
                 <div className="flex justify-between items-start mb-2">
@@ -640,7 +647,7 @@ export function SeparationDashboardView({
                   </div>
                 </div>
 
-                {isAdmin && !isViewer && order.is_signed && order.status !== 'Baixada' && (
+                {isAdmin && !isViewer && order.is_signed && order.status !== 'Baixada' && order.status !== 'Cancelada' && (
                   <div className="mt-2">
                     <motion.button 
                       animate={{ scale: [1, 1.02, 1] }}
@@ -661,6 +668,13 @@ export function SeparationDashboardView({
                   <div className="mt-2 py-2.5 bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 border border-emerald-500/20">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     OP Concluída
+                  </div>
+                )}
+
+                {order.status === 'Cancelada' && (
+                  <div className="mt-2 py-2.5 bg-red-500/10 text-red-500 text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 border border-red-500/20">
+                    <Ban className="w-3.5 h-3.5" />
+                    OP Cancelada
                   </div>
                 )}
               </motion.div>

@@ -16,7 +16,8 @@ import {
   ChevronUp,
   SlidersHorizontal,
   X,
-  Edit2
+  Edit2,
+  Ban
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -600,12 +601,18 @@ export function SeparationSequenceView({
                     const isSeqEditing = editingSequenceId === order.id;
                     const { separation, conference, totalPieces } = calculatePercentages(order.items);
 
+                    const isCancelled = order.status === 'Cancelada';
                     return (
                       <tr 
                         key={order.id}
                         className={cn(
-                          "text-sm hover:bg-surface-container-high/40 transition-colors group",
-                          isSelected && "bg-primary/[0.02]"
+                          "text-sm transition-colors group",
+                          isCancelled 
+                            ? "bg-red-500/5 hover:bg-red-500/10 text-red-955 dark:text-red-200/90 font-bold border-b border-red-500/10" 
+                            : cn(
+                                "hover:bg-surface-container-high/40",
+                                isSelected && "bg-primary/[0.02]"
+                              )
                         )}
                       >
                         {/* Checkbox Individual */}
@@ -658,7 +665,7 @@ export function SeparationSequenceView({
                               )}>
                                 {order.sequence !== undefined && order.sequence !== null ? `#${order.sequence}` : 'FALTA'}
                               </span>
-                              {canEditSequence && (
+                              {canEditSequence && !isCancelled && (
                                 <button
                                   onClick={() => startEditingSequence(order)}
                                   className="opacity-0 group-hover:opacity-100 p-1 text-on-surface-variant hover:text-primary rounded hover:bg-surface-container-highest transition-all"
@@ -731,6 +738,7 @@ export function SeparationSequenceView({
                             order.status === 'Conferida' ? 'bg-blue-500/10 text-blue-500' : 
                             order.status === 'Separada' ? 'bg-amber-500/10 text-amber-500' :
                             order.status === 'Baixada' ? 'bg-emerald-500/10 text-emerald-500' :
+                            order.status === 'Cancelada' ? 'bg-red-500/10 text-red-500 border border-red-500/20 font-black' :
                             'bg-surface-container-highest text-on-surface-variant/60'
                           )}>
                             {order.status}

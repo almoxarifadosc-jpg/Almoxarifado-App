@@ -18,7 +18,8 @@ import {
   Eye,
   ArrowLeft,
   Download,
-  X
+  X,
+  Ban
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -59,7 +60,7 @@ interface PurchaseOrder {
   date: string;
   total_amount: number;
   items: OrderItem[];
-  status: 'Pendente' | 'Separada' | 'Conferida' | 'Recusado' | 'Baixada';
+  status: 'Pendente' | 'Separada' | 'Conferida' | 'Recusado' | 'Baixada' | 'Cancelada';
   pdf_url?: string;
   created_at: string;
   type?: string;
@@ -103,6 +104,7 @@ export function PurchaseOrdersView({
   const [extractedData, setExtractedData] = useState<Partial<PurchaseOrder> | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
+  const [orderToCancel, setOrderToCancel] = useState<string | null>(null);
 
   useEffect(() => {
     setOrders(purchaseOrders);
@@ -501,6 +503,31 @@ export function PurchaseOrdersView({
     }
   };
 
+  const cancelOrder = async (id: string) => {
+    setIsProcessing(true);
+    setError(null);
+    try {
+      const orderRef = doc(db, 'purchase_orders', id);
+      await updateDoc(orderRef, {
+        status: 'Cancelada',
+        updated_at: serverTimestamp()
+      });
+      setOrderToCancel(null);
+      setSuccess('OP cancelada com sucesso!');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      console.error("Erro ao cancelar pedido:", err);
+      setError(err.message || "Erro desconhecido ao cancelar pedido.");
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, `purchase_orders/${id}`);
+      } catch (e) {
+        // Ignoramos
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Combina pedidos em tempo real com pedidos buscados do histórico
   const allOrders = useMemo(() => {
     const combined = [...orders];
@@ -761,10 +788,14 @@ export function PurchaseOrdersView({
               key={order.id}
               layout
               className={cn(
-                "bg-surface-container-lowest p-6 rounded-[32px] border border-outline-variant/10 shadow-sm hover:shadow-md transition-all group cursor-pointer flex flex-col relative overflow-hidden",
+                "p-6 rounded-[32px] border shadow-sm hover:shadow-md transition-all group cursor-pointer flex flex-col relative overflow-hidden",
+                order.status === 'Cancelada' 
+                  ? "bg-red-500/5 border-red-500/20 text-red-950 dark:text-red-200/90 shadow-red-500/5 font-bold" 
+                  : "bg-surface-container-lowest border-outline-variant/10",
                 order.status === 'Baixada' ? 'opacity-80' : ''
               )}
               onClick={() => {
+                if (order.status === 'Cancelada') return;
                 setEditingOrder(order);
                 setIsEditModalOpen(true);
               }}
@@ -784,7 +815,7 @@ export function PurchaseOrdersView({
                   <FileText className="w-6 h-6" />
                 </div>
                 <div className="flex gap-2 pr-12" onClick={(e) => e.stopPropagation()}>
-                  {order.status !== 'Baixada' && (
+                  {order.status !== 'Baixada' && order.status !== 'Cancelada' && (
                     <button 
                       onClick={() => {
                         setEditingOrder(order);
@@ -794,6 +825,15 @@ export function PurchaseOrdersView({
                       title="Editar Quantidades"
                     >
                       <Plus className="w-4 h-4 rotate-45" />
+                    </button>
+                  )}
+                  {order.status !== 'Baixada' && order.status !== 'Cancelada' && (
+                    <button 
+                      onClick={() => setOrderToCancel(order.id)}
+                      className="p-2 hover:bg-red-500/10 text-red-500 rounded-xl transition-colors animate-pulse"
+                      title="Cancelar OP"
+                    >
+                      <Ban className="w-4 h-4" />
                     </button>
                   )}
                   {order.pdf_url && (
@@ -806,7 +846,7 @@ export function PurchaseOrdersView({
                       <Eye className="w-4 h-4" />
                     </a>
                   )}
-                  {(isAdmin && (order.status !== 'Baixada' || isSuperAdmin)) && (
+                  {(isAdmin && (order.status !== 'Baixada' || isSuperAdmin) && order.status !== 'Cancelada') && (
                     <button 
                       onClick={() => setOrderToDelete(order.id)}
                       className="p-2 hover:bg-error/10 text-error rounded-xl transition-colors"
@@ -862,9 +902,10 @@ export function PurchaseOrdersView({
                     order.status === 'Conferida' ? 'bg-emerald-500/10 text-emerald-500' : 
                     order.status === 'Separada' ? 'bg-emerald-500/10 text-emerald-500' : 
                     order.status === 'Baixada' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' :
+                    order.status === 'Cancelada' ? 'bg-red-500/10 text-red-500 border border-red-500/20 font-black' :
                     'bg-amber-500/10 text-amber-500'
                   )}>
-                    {order.status === 'Baixada' ? 'OP Baixada' : order.status}
+                    {order.status === 'Baixada' ? 'OP Baixada' : order.status === 'Cancelada' ? 'Cancelada' : order.status}
                   </span>
                   <span className="text-[9px] font-bold text-on-surface-variant opacity-40 italic">
                     {order.items.length} itens extraídos
@@ -1332,6 +1373,52 @@ export function PurchaseOrdersView({
                     onClick={() => deleteOrder(orderToDelete)}
                     disabled={isProcessing}
                     className="p-4 bg-error text-white font-bold rounded-2xl shadow-xl shadow-error/20 hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : "Confirmar"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Confirmação de Cancelamento de OP */}
+      <AnimatePresence>
+        {orderToCancel && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setOrderToCancel(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-surface-container-lowest rounded-[32px] shadow-2xl overflow-hidden border border-outline-variant/10"
+            >
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                  <Ban className="w-8 h-8" />
+                </div>
+                <h3 className="text-2xl font-headline font-black text-on-surface mb-2">Cancelar OP?</h3>
+                <p className="text-on-surface-variant font-medium mb-8">
+                  Esta ação mudará o status da OP para Cancelada e bloqueará qualquer edição futura em todas as telas.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => setOrderToCancel(null)}
+                    className="p-4 bg-surface-container-high text-on-surface-variant font-bold rounded-2xl hover:bg-surface-container-highest transition-colors"
+                  >
+                    Voltar
+                  </button>
+                  <button 
+                    onClick={() => cancelOrder(orderToCancel)}
+                    disabled={isProcessing}
+                    className="p-4 bg-red-500 text-white font-bold rounded-2xl shadow-xl shadow-red-500/20 hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2"
                   >
                     {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : "Confirmar"}
                   </button>

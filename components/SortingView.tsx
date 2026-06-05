@@ -23,7 +23,8 @@ import {
   Camera,
   Image as ImageIcon,
   Trash2,
-  Calculator
+  Calculator,
+  Ban
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -892,10 +893,14 @@ export function SortingView({
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               className={cn(
-                "bg-surface-container-lowest p-6 pl-8 rounded-[40px] border border-outline-variant/10 shadow-sm hover:shadow-xl transition-all group flex flex-col gap-6 relative overflow-hidden",
+                "p-6 pl-8 rounded-[40px] border shadow-sm hover:shadow-xl transition-all group flex flex-col gap-6 relative overflow-hidden",
+                order.status === 'Cancelada' 
+                  ? "bg-red-500/5 border-red-500/20 text-red-955 dark:text-red-200/90 shadow-red-500/5 font-bold"
+                  : "bg-surface-container-lowest border-outline-variant/10",
                 order.status === 'Baixada' ? 'opacity-80' : ''
               )}
               onClick={() => {
+                if (order.status === 'Cancelada') return;
                 handleOpenOrder(order);
                 if (order.status === 'Baixada') {
                   setModalMode('REVIEW');
@@ -1097,6 +1102,7 @@ export function SortingView({
                     order.status === 'Separada' ? 'bg-emerald-500/10 text-emerald-500' : 
                     order.status === 'Conferida' ? 'bg-blue-500/10 text-blue-500' : 
                     order.status === 'Baixada' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20 animate-pulse' :
+                    order.status === 'Cancelada' ? 'bg-red-500/10 text-red-500 border border-red-500/20 font-black' :
                     'bg-amber-500/10 text-amber-500'
                   )}>
                     {order.status}
@@ -1113,6 +1119,16 @@ export function SortingView({
                     const isFullyComplete = separation === 100 && conference === 100;
                     const isSigned = order.is_signed === true;
                     const isBaixada = order.status === 'Baixada';
+                    const isCancelled = order.status === 'Cancelada';
+
+                    if (isCancelled) {
+                      return (
+                        <div className="w-full bg-red-500/10 text-red-500 py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 border border-red-500/20 font-black text-xs uppercase tracking-wider">
+                          <Ban className="w-4 h-4" />
+                          OP Cancelada
+                        </div>
+                      );
+                    }
 
                     if (isBaixada) {
                       return (
