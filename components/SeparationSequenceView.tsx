@@ -692,6 +692,7 @@ export function SeparationSequenceView({
               <th className="border border-black p-3 font-black text-center">ORDEM DE PRODUÇÃO</th>
               <th className="border border-black p-3 font-black text-center w-36">LOCAL</th>
               <th className="border border-black p-3 font-black text-center w-32">DATA DA OP</th>
+              <th className="border border-black p-3 font-black text-center w-32">QUANTIDADE</th>
               <th className="border border-black p-3 font-black text-center w-32">TOTAL DE ITENS</th>
             </tr>
           </thead>
@@ -716,6 +717,9 @@ export function SeparationSequenceView({
                   </td>
                   <td className="border border-black p-3 text-center">
                     {order.date || '-'}
+                  </td>
+                  <td className="border border-black p-3 text-center font-extrabold">
+                    {order.total_amount || 0}
                   </td>
                   <td className="border border-black p-3 text-center font-extrabold">
                     {order.items?.length || 0} SKU(s)

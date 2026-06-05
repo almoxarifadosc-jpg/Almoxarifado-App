@@ -409,7 +409,7 @@ export function SeparationDashboardView({
                     const end = new Date(endDate);
                     const diff = Math.abs(end.getTime() - s.getTime());
                     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                    if (days > 1) {
+                    if (days > 1 && !isSuperAdmin) {
                       alert("Para evitar lentidão, o período máximo permitido para consulta é de 24 horas (1 dia).");
                       return;
                     }
@@ -424,6 +424,14 @@ export function SeparationDashboardView({
                   onChange={(e) => {
                     const newEnd = e.target.value;
                     const end = new Date(newEnd);
+                    
+                    const s = new Date(startDate);
+                    const diff = Math.abs(end.getTime() - s.getTime());
+                    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                    if (days > 1 && !isSuperAdmin) {
+                      alert("Para evitar lentidão, o período máximo permitido para consulta é de 24 horas (1 dia).");
+                      return;
+                    }
                     onDateChange(startDate, newEnd);
                   }}
                   className="bg-transparent text-xs font-bold text-on-surface outline-none"
