@@ -1,7 +1,10 @@
 {
   "name": "Almoxarifado Ventisol",
   "description": "Sistema avançado de controle de almoxarifado, gerenciamento de pedidos, recebimentos e separação de ordens de produção (OPs).",
-  "requestFramePermissions": [],
+  "requestFramePermissions": [
+    "notifications",
+    "camera"
+  ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
