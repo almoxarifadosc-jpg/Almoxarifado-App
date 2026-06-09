@@ -235,7 +235,7 @@ export function OperationsView({
       setEditingOp(op);
       setFormData({ 
         id: op.id, 
-        line: op.line, 
+        line: op.line || '', 
         quantity: op.quantity,
         isUrgente: op.isUrgente || false,
         isLicitacao: op.isLicitacao || false,

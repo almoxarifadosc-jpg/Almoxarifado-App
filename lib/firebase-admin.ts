@@ -32,8 +32,8 @@ if (!getApps().length) {
 }
 
 const dbId = firebaseConfig.firestoreDatabaseId;
-const rawAdminDb = dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);
-const rawAdminAuth = getAuth(app);
+const rawAdminDb = dbId && dbId !== '(default)' ? getFirestore(app!, dbId) : getFirestore(app!);
+const rawAdminAuth = getAuth(app!);
 
 // Proxy para capturar chamadas de administração se FIREBASE_SERVICE_ACCOUNT_KEY estiver ausente
 // Isto previne o erro "Could not load the default credentials" gerando instruções guiadas e claras em português de como resolver.

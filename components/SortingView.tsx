@@ -68,7 +68,7 @@ interface PurchaseOrder {
   date: string;
   total_amount: number;
   items: OrderItem[];
-  status: 'Pendente' | 'Separada' | 'Conferida' | 'Recusado' | 'Baixada';
+  status: 'Pendente' | 'Separada' | 'Conferida' | 'Recusado' | 'Baixada' | 'Cancelada';
   pdf_url?: string;
   created_at: string;
   assigned_users?: string[]; // IDs dos usuários responsáveis
