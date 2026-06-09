@@ -60,6 +60,20 @@ interface Op {
   updatedAt?: Timestamp | null;
 }
 
+export interface Operation {
+  id: string;
+  iconType?: 'factory' | 'settings' | 'check' | string;
+  line?: string;
+  quantity: number;
+  date: string;
+  steps: boolean[];
+  progress: number;
+  isUrgente?: boolean;
+  isLicitacao?: boolean;
+  isAtrasada?: boolean;
+  isCompleted?: boolean;
+}
+
 interface DockLoad {
   id?: string;
   fornecedor: string;
