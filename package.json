@@ -9,7 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@google/genai": "^2.8.0",
     "clsx": "^2.1.1",
     "firebase": "^10.14.0",
     "firebase-admin": "^14.0.0",
@@ -18,17 +17,13 @@
     "next": "^15.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-signature-canvas": "^1.1.0-alpha.2",
-    "recharts": "^3.8.1",
-    "tailwind-merge": "^2.5.4",
-    "xlsx": "^0.18.5"
+    "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0-alpha.30",
     "@types/node": "^20",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/react-signature-canvas": "^1.0.7",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.7",
     "postcss": "^8.4.49",
