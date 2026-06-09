@@ -1,153 +1,98 @@
 {
   "entities": {
-    "Profile": {
-      "title": "Profile",
-      "description": "User profile information",
+    "Op": {
+      "title": "Ordem de Produção",
+      "description": "Dados operacionais das ordens de produção do Almoxarifado Ventisol",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string" },
-        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
-        "category": { "type": "string" },
-        "allowed_groups": { "type": "string" },
-        "is_admin": { "type": "boolean" },
-        "is_super_admin": { "type": "boolean" },
-        "is_viewer": { "type": "boolean" },
-        "is_conferente": { "type": "boolean" },
-        "created_at": { "type": "string", "format": "date-time" }
+        "codigo": {
+          "type": "string",
+          "description": "Fórmula/Código interno da OP (ex: OP-VEN-501)"
+        },
+        "descricao": {
+          "type": "string",
+          "description": "Descrição detalhada do ventilador ou motor"
+        },
+        "quantidade": {
+          "type": "number",
+          "description": "Quantidade de produtos ou peças estipulados"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pendente", "separando", "concluido", "cancelada"]
+        },
+        "furos": {
+          "type": "string",
+          "description": "Configuração/sequência de furos de fixação"
+        },
+        "licitacao": {
+          "type": "string",
+          "description": "Detalhamento se pertence a licitação pública ou urgência de Palhoça/SC"
+        },
+        "sequencia": {
+          "type": "number",
+          "description": "Ordenação prioritária do dia na grade logiz"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
-      "required": ["id", "name", "email", "status"]
+      "required": ["codigo", "descricao", "quantidade", "status", "sequencia", "createdAt", "updatedAt"]
     },
-    "Operation": {
-      "title": "Operation",
-      "description": "Production operation",
+    "DockLoad": {
+      "title": "Carga de Doca Intercompany",
+      "description": "Controle físico de cargas e descargas na doca de Palhoça/SC",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "line": { "type": "string" },
-        "quantity": { "type": "number" },
-        "date": { "type": "string", "format": "date" },
-        "progress": { "type": "number" },
-        "steps": { "type": "array", "items": { "type": "boolean" } },
-        "icon_type": { "type": "string" },
-        "is_completed": { "type": "boolean" },
-        "is_urgente": { "type": "boolean" },
-        "is_licitacao": { "type": "boolean" },
-        "is_atrasada": { "type": "boolean" },
-        "created_at": { "type": "string", "format": "date-time" }
-      }
-    },
-    "NewsPost": {
-      "title": "NewsPost",
-      "description": "Dashboard news or alerts",
-      "type": "object",
-      "properties": {
-        "image_url": { "type": "string" },
-        "text": { "type": "string" },
-        "author": { "type": "string" },
-        "date": { "type": "string" },
-        "created_at": { "type": "string", "format": "date-time" }
-      }
-    },
-    "ProductionLine": {
-      "title": "ProductionLine",
-      "description": "Manufacturing line name",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" }
-      }
-    },
-    "Setting": {
-      "title": "Setting",
-      "description": "Application settings",
-      "type": "object",
-      "properties": {
-        "key": { "type": "string" },
-        "value": { "type": "string" }
-      }
-    },
-    "Supplier": {
-      "title": "Supplier",
-      "description": "Supplier or Driver information",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "cnpj": { "type": "string" },
-        "is_driver": { "type": "boolean" }
-      }
-    },
-    "LoadType": {
-      "title": "LoadType",
-      "description": "Type of cargo load",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "color": { "type": "string" }
-      }
-    },
-    "Receipt": {
-      "title": "Receipt",
-      "description": "Cargo receipt log",
-      "type": "object",
-      "properties": {
-        "load_id": { "type": "string" },
-        "invoices": { "type": "array", "items": { "type": "string" } },
-        "driver": { "type": "string" },
-        "supplier_name": { "type": "string" },
-        "load_type": { "type": "string" },
-        "load_type_color": { "type": "string" },
-        "status": { "type": "string" },
-        "observation": { "type": "string" },
-        "image_url": { "type": "string" },
-        "divergence_observation": { "type": "string" },
-        "divergence_photo_url": { "type": "string" },
-        "author_id": { "type": "string" },
-        "created_at": { "type": "string", "format": "date-time" },
-        "updated_at": { "type": "string", "format": "date-time" },
-        "updated_by_name": { "type": "string" },
-        "invoice_count": { "type": "number" },
-        "status_history": { "type": "object" }
-      }
-    },
-    "PurchaseOrder": {
-      "title": "PurchaseOrder",
-      "description": "Purchase order for sorting",
-      "type": "object",
-      "properties": {
-        "order_number": { "type": "string" },
-        "supplier_name": { "type": "string" },
-        "product_location": { "type": "string" },
-        "date": { "type": "string" },
-        "total_amount": { "type": "number" },
-        "items": { "type": "array" },
-        "status": { "type": "string" },
-        "pdf_url": { "type": "string" },
-        "created_at": { "type": "string", "format": "date-time" },
-        "assigned_users": { "type": "array", "items": { "type": "string" } },
-        "conferred_by_id": { "type": "string" },
-        "conferred_by_name": { "type": "string" },
-        "conferred_at": { "type": "string", "format": "date-time" },
-        "is_signed": { "boolean": "boolean" },
-        "signed_at": { "type": "string", "format": "date-time" },
-        "signed_by_name": { "type": "string" },
-        "signature_url": { "type": "string" },
-        "sequence": { "type": "number" },
-        "pis": { "type": "array", "items": { "type": "string" } },
-        "observation": { "type": "string" },
-        "photos": { "type": "array", "items": { "type": "string" } }
-      }
+        "fornecedor": {
+          "type": "string",
+          "description": "Parceiro do ecossistema Ventisol"
+        },
+        "material": {
+          "type": "string",
+          "description": "Tipo de insumo carregado (ex: cobre)"
+        },
+        "placa": {
+          "type": "string",
+          "description": "Placa do cavalo mecânico do transportador"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["aguardando", "descarregando", "concluido"]
+        },
+        "doca": {
+          "type": "string",
+          "description": "Local de atracação (ex: Doca 1)"
+        },
+        "tempoEstimado": {
+          "type": "number",
+          "description": "Tempo previsto em minutos de descarga"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["fornecedor", "material", "placa", "status", "doca", "tempoEstimado", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
-    "/profiles/{profileId}": { "schema": "Profile", "description": "User profiles" },
-    "/operations/{operationId}": { "schema": "Operation", "description": "Production operations" },
-    "/news_posts/{newsId}": { "schema": "NewsPost", "description": "News and announcements" },
-    "/production_lines/{lineId}": { "schema": "ProductionLine", "description": "System production lines" },
-    "/settings/{settingId}": { "schema": "Setting", "description": "App-wide settings" },
-    "/suppliers/{supplierId}": { "schema": "Supplier", "description": "List of suppliers and drivers" },
-    "/load_types/{typeId}": { "schema": "LoadType", "description": "Available load types" },
-    "/receipts/{receiptId}": { "schema": "Receipt", "description": "Load receipt records" },
-    "/purchase_orders/{orderId}": { "schema": "PurchaseOrder", "description": "Imported purchase orders" }
+    "/ops/{opId}": {
+      "schema": "Op",
+      "description": "Coleção de controle de ordens de produção"
+    },
+    "/dock_loads/{loadId}": {
+      "schema": "DockLoad",
+      "description": "Coleção para monitoramento de docas de recebimento"
+    }
   }
 }

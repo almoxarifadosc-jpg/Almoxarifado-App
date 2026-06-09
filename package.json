@@ -1,41 +1,32 @@
 {
   "name": "almoxarifado-ventisol",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "UV_THREADPOOL_SIZE=1 NODE_OPTIONS='--max-old-space-size=1024' next build",
-    "generate-pwa": "node scripts/generate-pwa-images.js",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
-    "@google/genai": "*",
-    "@tailwindcss/postcss": "^4.0.0-beta.8",
     "clsx": "^2.1.1",
-    "firebase": "^10.12.2",
-    "firebase-admin": "^13.10.0",
-    "lucide-react": "^0.395.0",
-    "motion": "^11.15.0",
-    "next": "^15.1.0",
-    "postcss": "^8.4.38",
+    "firebase": "^10.14.0",
+    "lucide-react": "^0.460.0",
+    "motion": "^11.11.17",
+    "next": "^15.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-markdown": "^9.0.1",
-    "react-signature-canvas": "^1.0.6",
-    "recharts": "^2.12.7",
-    "sharp": "^0.33.5",
-    "tailwind-merge": "^2.3.0",
-    "xlsx": "^0.18.5"
+    "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
-    "@types/node": "^20.14.2",
+    "@tailwindcss/postcss": "^4.0.0-alpha.30",
+    "@types/node": "^20",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/react-signature-canvas": "^1.0.5",
-    "autoprefixer": "^10.4.19",
-    "eslint": "^8.57.0",
-    "eslint-config-next": "^15.1.0",
-    "typescript": "^5.4.5"
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.7",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^4.0.0-alpha.30",
+    "typescript": "^5"
   }
 }

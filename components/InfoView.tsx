@@ -195,7 +195,7 @@ export function InfoView() {
                     </div>
                     <div>
                       <p className="font-black text-on-surface">Variáveis de Ambiente</p>
-                      <p className="text-on-surface-variant leading-relaxed">As credenciais seguras do Firebase e chaves de API residem no painel &quot;Environment Variables&quot; da Vercel.</p>
+                      <p className="text-on-surface-variant leading-relaxed">As credenciais seguras do Firebase e chaves de API residem no painel "Environment Variables" da Vercel.</p>
                     </div>
                   </div>
                 </div>
@@ -291,7 +291,7 @@ export function InfoView() {
                     <div>
                       <h5 className="font-bold text-sm text-on-surface">Importação de OPs & Extração</h5>
                       <p className="text-xs text-on-surface-variant leading-relaxed mt-1">
-                        A partir da tela de &quot;Importar OP&quot;, os administradores sobem o arquivo PDF da ordem de produção. O sistema lê as informações de itens, de forma inteligente separa códigos de barra, as respectivas quantidades necessárias, as sequências corretas de furos, dados de licitações ou marcações críticas de urgência.
+                        A partir da tela de "Importar OP", os administradores sobem o arquivo PDF da ordem de produção. O sistema lê as informações de itens, de forma inteligente separa códigos de barra, as respectivas quantidades necessárias, as sequências corretas de furos, dados de licitações ou marcações críticas de urgência.
                       </p>
                     </div>
                   </div>
@@ -303,7 +303,7 @@ export function InfoView() {
                     <div>
                       <h5 className="font-bold text-sm text-on-surface">Separação de OPs & Sequenciamento</h5>
                       <p className="text-xs text-on-surface-variant leading-relaxed mt-1">
-                        A equipe de separadores coleta os volumes do estoque fisicamente, guiando-se pelo painel interativo. No módulo &quot;Sequência de Separação&quot;, os analistas podem sequenciar via drag-and-drop as ordens (#1, #2, #3...) de forma prioritária conforme a grade de produção do dia, o que evita gargalos em esteiras.
+                        A equipe de separadores coleta os volumes do estoque fisicamente, guiando-se pelo painel interativo. No módulo "Sequência de Separação", os analistas podem sequenciar via drag-and-drop as ordens (#1, #2, #3...) de forma prioritária conforme a grade de produção do dia, o que evita gargalos em esteiras.
                       </p>
                     </div>
                   </div>
@@ -430,7 +430,7 @@ export function InfoView() {
                 <strong>Tailwind CSS v4 & Motility Framework:</strong> Todas as estilizações usam Tailwind no arquivo CSS central. Animações e transições usam renderizadores acelerados por GPU (Framer Motion).
               </li>
               <li>
-                <strong>Firebase Firestore & Firebase Auth:</strong> Banco de dados relacional flexível NoSQL em formato JSON sincronizado via websockets persistentes, permitindo que alterações na fábrica cheguem ao painel de forma instantânea. O controle de perfis possui as categorias &quot;Fábrica Ventisol&quot;, &quot;Almoxarifado Ventisol&quot;, &quot;Conferente&quot; e Administrador Geral.
+                <strong>Firebase Firestore & Firebase Auth:</strong> Banco de dados relacional flexível NoSQL em formato JSON sincronizado via websockets persistentes, permitindo que alterações na fábrica cheguem ao painel de forma instantânea. O controle de perfis possui as categorias "Fábrica Ventisol", "Almoxarifado Ventisol", "Conferente" e Administrador Geral.
               </li>
               <li>
                 <strong>Manifestos & Suporte Offline PWA:</strong> O software possui manifestos PWA calibrados para Android Zebra (coletores de dados robustos). Ícones e assets estáticos são pré-validados no processo de build automatizado, resolvendo de vez problemas de imagens ausentes.
@@ -454,13 +454,13 @@ export function InfoView() {
               <div>
                 <strong>B. Ordens Prioritárias no Sequenciamento:</strong>
                 <p className="mt-1">
-                  Usuários autorizados reorganizam visualmente no módulo &quot;Sequência de Separação&quot; as prioridades numéricas de produção do dia. As mudanças atualizam instantaneamente a ordem visual de trabalho de separadores.
+                  Usuários autorizados reorganizam visualmente no módulo "Sequência de Separação" as prioridades numéricas de produção do dia. As mudanças atualizam instantaneamente a ordem visual de trabalho de separadores.
                 </p>
               </div>
               <div>
                 <strong>C. Regra de Negócio: Cancelamento de OP:</strong>
                 <p className="mt-1">
-                  Quando uma ordem de produção em andamento é cancelada pelos administradores, o sistema define permanentemente seu status operacional para &quot;Cancelada&quot; no Firestore. A OP é instantaneamente colorida em vermelho suave nas telas de andamento, bloqueando qualquer clique, ação de conferência, checklist ou alteração na lista de itens por qualquer profissional.
+                  Quando uma ordem de produção em andamento é cancelada pelos administradores, o sistema define permanentemente seu status operacional para "Cancelada" no Firestore. A OP é instantaneamente colorida em vermelho suave nas telas de andamento, bloqueando qualquer clique, ação de conferência, checklist ou alteração na lista de itens por qualquer profissional.
                 </p>
               </div>
               <div>
@@ -486,7 +486,7 @@ export function InfoView() {
                 <strong>Procedimento para Dependências Quebradas:</strong> Se a compilação local falhar indicando ausência de módulos, execute o instalador estável nativo utilizando o comando do assistente integrado para resgatar a integridade das bibliotecas do Node.
               </li>
               <li>
-                <strong>Segurança no Fluxo de Impressão (Garantia de Não-Omissão):</strong> Para evitar páginas em branco, a impressão apoia-se estritamente na ocultação total sob `@media print` de <code>body *</code> e na revelação exclusiva de itens descendentes do contêiner <code>id=&quot;print-area&quot;</code>. Mantenha essa mesma estrutura de classes caso crie novos relatórios.
+                <strong>Segurança no Fluxo de Impressão (Garantia de Não-Omissão):</strong> Para evitar páginas em branco, a impressão apoia-se estritamente na ocultação total sob `@media print` de <code>body *</code> e na revelação exclusiva de itens descendentes do contêiner <code>id="print-area"</code>. Mantenha essa mesma estrutura de classes caso crie novos relatórios.
               </li>
             </ul>
           </section>

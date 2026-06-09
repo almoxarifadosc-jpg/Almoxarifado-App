@@ -1773,7 +1773,7 @@ export function SortingView({
                       {editingOrder.observation && (
                         <div className="bg-surface-container-high/20 rounded-[32px] border border-outline-variant/10 p-6">
                           <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-60 mb-3">Observação</p>
-                          <p className="text-sm text-on-surface font-medium leading-relaxed italic">&ldquo;{editingOrder.observation}&rdquo;</p>
+                          <p className="text-sm text-on-surface font-medium leading-relaxed italic">"{editingOrder.observation}"</p>
                         </div>
                       )}
                     </div>

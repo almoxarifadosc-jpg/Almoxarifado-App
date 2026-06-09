@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+/* Ajuste de tipografia e transições */
+body {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  background-color: #0f172a; /* Slate 900 de base para um tema escuro profissional da fábrica */
+  color: #f8fafc; /* Slate 50 */
+}
+
+/* Selector para garantir a não-omissão visual durante a impressão */
+@media print {
+  @page {
+    size: portrait;
+    margin: 1.5cm;
+  }
+  
+  body * {
+    visibility: hidden;
+  }
+  
+  #print-area, #print-area * {
+    visibility: visible;
+  }
+  
+  /* Faz com que o print container fique no topo absoluto cobrindo a página inteira */
+  #print-area {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    background: white !important;
+    color: black !important;
+    padding: 1cm !important;
+    box-sizing: border-box !important;
+  }
+  
+  html, body, main {
+    background: white !important;
+    color: black !important;
+  }
+}

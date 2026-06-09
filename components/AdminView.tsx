@@ -381,7 +381,7 @@ export function AdminView({
                 </div>
                 <div className="bg-amber-500/5 p-6 rounded-2xl border border-amber-500/20 space-y-4">
                   <p className="text-xs text-amber-700/70 leading-relaxed font-medium">
-                    Use esta ferramenta se um e-mail estiver tentando se cadastrar e receber &quot;E-mail em uso&quot;, mas o usuário não aparece abaixo.
+                    Use esta ferramenta se um e-mail estiver tentando se cadastrar e receber "E-mail em uso", mas o usuário não aparece abaixo.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <div className="relative flex-1">

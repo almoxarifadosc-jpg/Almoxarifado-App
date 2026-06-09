@@ -1,142 +1,104 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Default Deny
+
+    // 1. Master Default Deny
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Phase 3: Primitives (Hardened for cost optimization)
-    function isSignedIn() { return request.auth != null; }
-    function queryExisting() { return resource.data; }
-    function incoming() { return request.resource.data; }
-    
-    // Check approval without redundant get() calls in loops
-    // isApproved() will be used sparingly
-    function isApproved() { 
-      return isSignedIn() && exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) 
-             && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.status == 'APPROVED'; 
-    }
-    
-    function isAdmin() { 
-      let userEmail = request.auth.token.get('email', '').lower();
-      let isBootstrap = userEmail == 'almoxarifado.sc@ventisol.com.br' || 
-                        userEmail == 'espinmais@gmail.com';
-      return isSignedIn() && (isBootstrap || (exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.get('is_admin', false) == true));
+    // Helpers Globais
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // Role helpers
-    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
-    function isConferente() { 
-      let data = get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data;
-      return isApproved() && (data.get('category', '') in ['Conferente', 'Ventisol + Conferente'] || data.get('is_conferente', false) == true); 
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // Hardened Rules Matchers - Use this for list/get to centralize
-    function canViewData() {
-      return isSignedIn() && (isAdmin() || (exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.status == 'APPROVED'));
+    function incoming() {
+      return request.resource.data;
     }
 
-    // Phase 2: Helper constraints
-    function isValidProfile(data) {
-      let requiredFields = data.keys().hasAll(['id', 'name', 'email', 'status']);
-      let validTypes = data.id is string 
-        && data.name is string 
-        && data.email is string 
-        && data.status in ['PENDING', 'APPROVED', 'REJECTED'];
-      
-      return requiredFields && validTypes;
+    function existing() {
+      return resource.data;
     }
 
-    // 1. Profiles
-    match /profiles/{userId} {
-      allow read, list: if isSignedIn() && (isOwner(userId) || canViewData());
-      allow create: if isSignedIn() && (
-        (isOwner(userId) && isValidProfile(incoming()) && incoming().status == 'PENDING')
-        || isAdmin()
+    // Helper de Admin - e-mail do gestor do Almoxarifado Ventisol
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "almoxarifado.sc@ventisol.com.br" ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
-      allow update: if (isSignedIn() && isOwner(userId) && incoming().diff(resource.data).affectedKeys().hasOnly(['name', 'email', 'category', 'allowed_groups']))
-        || isAdmin();
-      allow delete: if isAdmin();
     }
 
-    // 2. Operations
-    function isValidOperation(data) {
-      return data.keys().hasAll(['id', 'line', 'quantity', 'date'])
-        && data.id is string && data.line is string && data.quantity is number;
-    }
-    match /operations/{opId} {
-      allow read, list: if canViewData();
-      allow create: if isAdmin() && isValidOperation(incoming());
-      allow update: if (isAdmin() || (canViewData() && incoming().diff(resource.data).affectedKeys().hasOnly(['steps', 'progress', 'is_completed'])))
-        && isValidOperation(incoming());
-      allow delete: if isAdmin();
+    // 2. Validação Blueprint para Ordens de Produção (Op)
+    function isValidOp(data) {
+      return data.codigo is string && data.codigo.size() > 0 && data.codigo.size() <= 64 &&
+             data.descricao is string && data.descricao.size() > 0 && data.descricao.size() <= 256 &&
+             data.quantidade is int && data.quantidade > 0 &&
+             data.status is string && (data.status == "pendente" || data.status == "separando" || data.status == "concluido" || data.status == "cancelada") &&
+             data.sequencia is int && data.sequencia >= 0 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
     }
 
-    // 3. News Posts
-    match /news_posts/{newsId} {
-      allow read, list: if canViewData();
-      allow write: if isAdmin();
-    }
-
-    // 4. Production Lines
-    match /production_lines/{lineId} {
-      allow read, list: if canViewData();
-      allow write: if isAdmin();
-    }
-
-    // 5. Settings
-    match /settings/{settingId} {
+    match /ops/{opId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    // 6. Suppliers & Load Types
-    match /suppliers/{sId} {
-      allow read, list: if canViewData();
-      allow write: if isAdmin();
-    }
-    match /load_types/{tId} {
-      allow read, list: if canViewData();
-      allow write: if isAdmin();
-    }
-
-    // 7. Receipts
-    match /receipts/{rId} {
-      allow read, list: if canViewData();
-      allow create: if (canViewData() && incoming().author_id == request.auth.uid) || isAdmin();
-      allow update: if (canViewData() || isAdmin()) && (
-        isAdmin() || 
-        (resource.data.status != 'Concluído' && (incoming().diff(resource.data).affectedKeys().hasOnly(['status', 'updated_at', 'updated_by_name', 'status_history', 'divergence_observation', 'divergence_photo_url'])))
+      
+      // Criar OPs: admin ou logado
+      allow create: if isSignedIn() && isValidOp(incoming()) && (
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time
       );
-      allow delete: if isAdmin();
-    }
 
-    // 8. Purchase Orders
-    match /purchase_orders/{pId} {
-      allow read, list: if canViewData();
-      allow create: if isAdmin();
-      allow update: if (canViewData() || isAdmin()) && (
+      // Atualizar OPs:
+      allow update: if isSignedIn() && isValidOp(incoming()) && (
+        // Se for admin, pode editar qualquer campo livremente
         isAdmin() ||
-        (resource.data.status != 'Baixada' && (
-          // Action: Assign (Admin handled by isAdmin() or explicit)
-          (incoming().diff(resource.data).affectedKeys().hasAll(['assigned_users', 'updated_at'])) ||
-          
-          // Action: Separate (Ventisol & Others)
-          (canViewData() && incoming().diff(resource.data).affectedKeys().hasOnly(['items', 'status', 'pis', 'observation', 'photos', 'updated_at', 'signature_url']) 
-            && (incoming().status in ['Pendente', 'Separada', 'Em Separação'])) ||
-          
-          // Action: Confer (Conferente or Admin)
-          (isConferente() && incoming().diff(resource.data).affectedKeys().hasOnly(['items', 'conferred_by_id', 'conferred_by_name', 'conferred_at', 'status', 'pis', 'observation', 'photos', 'updated_at', 'signature_url'])
-            && incoming().status == 'Conferida') ||
-          
-          // Action: Sign (Conferente or Admin)
-          (isConferente() && incoming().diff(resource.data).affectedKeys().hasOnly(['signature_url', 'is_signed', 'signed_at', 'signed_by_name', 'pis', 'observation', 'updated_at'])
-            && incoming().is_signed == true)
-        ))
+        // Se for operador comum:
+        (
+          // Impedir se a OP existente já foi finalizada ou cancelada (Trava de Estado Terminal)
+          existing().status != "cancelada" && existing().status != "concluido" &&
+          // Impedir alterações no createdAt e sequencia originais de separação
+          incoming().createdAt == existing().createdAt &&
+          incoming().sequencia == existing().sequencia &&
+          incoming().updatedAt == request.time &&
+          // Só pode salvar modificações de progresso (status mudando, ou itens mudando)
+          incoming().diff(existing()).affectedKeys().hasAny(['status', 'itens', 'updatedAt'])
+        )
       );
+
       allow delete: if isAdmin();
     }
 
+    // 3. Validação Blueprint para Cargas de Docas (DockLoad)
+    function isValidDockLoad(data) {
+      return data.fornecedor is string && data.fornecedor.size() > 0 && data.fornecedor.size() <= 128 &&
+             data.material is string && data.material.size() > 0 && data.material.size() <= 128 &&
+             data.placa is string && data.placa.size() > 0 && data.placa.size() <= 16 &&
+             data.status is string && (data.status == "aguardando" || data.status == "descarregando" || data.status == "concluido") &&
+             data.doca is string && data.doca.size() > 0 && data.doca.size() <= 64 &&
+             data.tempoEstimado is int && data.tempoEstimado >= 0 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /dock_loads/{loadId} {
+      allow read: if isSignedIn();
+      
+      allow create: if isSignedIn() && isValidDockLoad(incoming()) && (
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time
+      );
+
+      allow update: if isSignedIn() && isValidDockLoad(incoming()) && (
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (isAdmin() || incoming().diff(existing()).affectedKeys().hasAny(['status', 'doca', 'updatedAt']))
+      );
+
+      allow delete: if isAdmin();
+    }
   }
 }
