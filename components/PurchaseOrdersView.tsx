@@ -39,7 +39,6 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
-import { GoogleGenAI, Type } from "@google/genai";
 
 interface OrderItem {
   code?: string;
@@ -181,17 +180,10 @@ export function PurchaseOrdersView({
     }
 
     try {
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('Chave API Gemini não configurada nas variáveis de ambiente da Vercel.');
-      }
-
       const base64 = await fileToBase64(file);
       const base64Data = base64.split(',')[1];
 
-      const ai = new GoogleGenAI({ apiKey });
-      
-      // Lógica de tentativa automática para lidar com 503 (Serviço Indisponível)
+      // Lógica de tentativa automática para lidar com instabilidades / sobrecargas
       const maxRetries = 2;
       let lastError: any = null;
       let result: any = null;
@@ -204,72 +196,35 @@ export function PurchaseOrdersView({
             await new Promise(resolve => setTimeout(resolve, attempt * 1500));
           }
 
-          const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: "application/pdf",
-                    data: base64Data
-                  }
-                },
-                {
-                  text: "Extraia os dados deste documento (Pedido de Compra ou Separação de OP). Se for Separação de OP, use o número da OP como order_number. O layout tem colunas como: 'Cód.', 'Produto', 'Local' (ou 'Loc.'), 'Nome Coletor', 'Quantidade' e 'Separad'. Extraia: order_number (string), date (string YYYY-MM-DD), supplier_name (string - coloque aqui o nome do PRODUTO principal da primeira tabela), product_location (string - localize a informação 'Local' no cabeçalho ou primeira tabela), total_amount (number - a quantidade total da primeira tabela), e items (array de objetos). REGRAS IMPORTANTES PARA ITENS: 1. Mapeie o valor da coluna 'Quantidade' fisicamente presente no PDF para o campo 'planned_quantity'. 2. O campo 'quantity' deve ser SEMPRE 0 (ele será preenchido pelo usuário depois). 3. Extraia o 'code', 'description', 'location' (vindo da coluna 'Local' ou 'Loc.') e 'collector_name' normalmente. Retorne APENAS o JSON."
-                }
-              ]
+          const response = await fetch('/api/gemini/parse-pdf', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
             },
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                  order_number: { type: Type.STRING },
-                  date: { type: Type.STRING },
-                  supplier_name: { type: Type.STRING, description: "Nome do produto principal" },
-                  product_location: { type: Type.STRING, description: "Local informado na primeira tabela" },
-                  total_amount: { type: Type.NUMBER, description: "Quantidade total somada ou informada no cabeçalho" },
-                  type: { type: Type.STRING, description: "Tipo do documento: Pedido ou Separação" },
-                  items: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        code: { type: Type.STRING },
-                        description: { type: Type.STRING },
-                        planned_quantity: { type: Type.NUMBER, description: "Valor da coluna 'Quantidade'" },
-                        quantity: { type: Type.NUMBER, description: "Valor da coluna 'Separad'" },
-                        collector_name: { type: Type.STRING },
-                        location: { type: Type.STRING, description: "Localização específica do item (coluna Local)" },
-                        unitPrice: { type: Type.NUMBER },
-                        totalPrice: { type: Type.NUMBER }
-                      },
-                      required: ["description", "planned_quantity"]
-                    }
-                  }
-                },
-                required: ["order_number", "date", "supplier_name", "items"]
-              }
-            }
+            body: JSON.stringify({ base64Data }),
           });
 
-          const text = response.text;
-          if (!text) throw new Error("A IA não retornou conteúdo.");
-          result = JSON.parse(text);
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `Erro HTTP ${response.status}`);
+          }
+
+          const data = await response.json();
+          if (!data.text) {
+            throw new Error("A IA não retornou conteúdo.");
+          }
+          result = JSON.parse(data.text);
           break; // Sucesso, sai do loop de retries
         } catch (err: any) {
           lastError = err;
-          // Se não for um erro de sobrecarga (503/429), não vale a pena tentar novamente
-          if (!err.message?.includes('503') && !err.message?.includes('demand') && !err.message?.includes('429')) {
+          // Se não for um erro de sobrecarga (503/429) ou timeout, não vale a pena re-tentar
+          if (!err.message?.includes('503') && !err.message?.includes('429') && !err.message?.includes('sobrecarregado')) {
             break;
           }
         }
       }
 
       if (!result) {
-        if (lastError?.message?.includes('503') || lastError?.message?.includes('demand')) {
-          throw new Error('O serviço de IA está temporariamente sobrecarregado. Por favor, aguarde alguns segundos e tente importar novamente.');
-        }
         throw lastError || new Error("Falha ao processar PDF.");
       }
       
@@ -284,7 +239,7 @@ export function PurchaseOrdersView({
       result.source_type = 'pdf';
       setExtractedData(result);
     } catch (err: any) {
-      console.error('Erro no processamento AI:', err);
+      console.error('Erro no processamento AI do PDF:', err);
       setError(err.message || 'Erro inesperado ao processar o PDF.');
     } finally {
       setIsProcessing(false);
