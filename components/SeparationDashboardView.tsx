@@ -273,16 +273,16 @@ export function SeparationDashboardView({
       // Filtro de datas (intervalo selecionado)
       const isInRange = d ? ((!startDate || orderDateStr >= startDate) && (!endDate || orderDateStr <= endDate)) : false;
 
-      // Mostra se estiver no intervalo. 
-      // Adicionalmente, MOSTRA TODAS AS NÃO CONCLUÍDAS (não 'Baixada') independentemente da data para garantir que nada se perca
-      const isFinished = order.status === 'Baixada';
+      // Verifica se há pendência de separação ou conferência
+      const { separation, conference } = calculatePercentages(order.items);
+      const isPendingSeparationOrConference = (separation < 100 || conference < 100) && order.status !== 'Baixada' && order.status !== 'Cancelada' && order.status !== 'Recusado';
       
       // Se houver busca por texto (OP), prioriza isso e ignora datas
       if (searchOP.trim()) {
         return order.order_number.toLowerCase().includes(searchOP.toLowerCase());
       }
 
-      return isInRange || !isFinished;
+      return isInRange || isPendingSeparationOrConference;
     }).sort((a, b) => {
       const dA = parseAnyDate(a.date || a.created_at);
       const dB = parseAnyDate(b.date || b.created_at);
