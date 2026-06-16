@@ -77,13 +77,18 @@ export default function Home() {
 
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.toISOString().split('T')[0];
+    d.setDate(d.getDate() - 1);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   });
   const [endDate, setEndDate] = useState(() => {
     const d = new Date();
-    d.setHours(23, 59, 59, 999);
-    return d.toISOString().split('T')[0];
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   });
 
   useEffect(() => {
@@ -132,9 +137,9 @@ export default function Home() {
     const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
     const endObj = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
 
-    // Apply a 30-day lookback to also capture any pending items from past days
+    // Apply a 120-day lookback to also capture any pending items from past days
     const lookbackDate = new Date(startObj);
-    lookbackDate.setDate(lookbackDate.getDate() - 30);
+    lookbackDate.setDate(lookbackDate.getDate() - 120);
 
     // Purchase Orders (filtered dynamically based on 30-day lookback and selected date range, capped to 300 docs)
     const qPOs = query(

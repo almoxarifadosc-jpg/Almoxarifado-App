@@ -172,7 +172,13 @@ export function SeparationSequenceView({
     base = base.filter(order => {
       let matchLogic = false;
       const d = parseAnyDate(order.date || order.created_at);
-      if (d) {
+      
+      const { separation, conference } = calculatePercentages(order.items);
+      const isPendingSeparationOrConference = (separation < 100 || conference < 100) && order.status !== 'Baixada' && order.status !== 'Cancelada' && order.status !== 'Recusado';
+
+      if (isPendingSeparationOrConference) {
+        matchLogic = true;
+      } else if (d) {
         const orderDateStr = formatToISODate(d);
         const isFinished = order.status === 'Baixada';
         
