@@ -358,7 +358,8 @@ export function TransfersView({
       });
     } catch (err: any) {
       console.error(err);
-      setError('Erro ao salvar transferência no Firestore.');
+      const detailedError = err.message || String(err);
+      setError(`Erro ao salvar transferência no Firestore: ${detailedError}`);
       handleFirestoreError(err, OperationType.CREATE, 'transfers');
     } finally {
       setIsProcessing(false);

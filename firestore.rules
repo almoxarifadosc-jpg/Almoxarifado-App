@@ -19,7 +19,8 @@ service cloud.firestore {
     }
     
     function isAdmin() { 
-      let userEmail = request.auth.token.get('email', '').lower();
+      let hasEmail = isSignedIn() && 'email' in request.auth.token;
+      let userEmail = hasEmail ? request.auth.token.email.lower() : '';
       let isBootstrap = userEmail == 'almoxarifado.sc@ventisol.com.br' || 
                         userEmail == 'espinmais@gmail.com';
       return isSignedIn() && (isBootstrap || (exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.get('is_admin', false) == true));
