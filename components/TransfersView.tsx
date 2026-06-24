@@ -59,7 +59,7 @@ interface Transfer {
   origin: string;
   destination: string;
   carrier?: string;
-  status: 'Pendente' | 'Conferida' | 'Cancelada';
+  status: 'Pendente' | 'Conferida' | 'Atendida' | 'Cancelada';
   items: TransferItem[];
   pdf_url?: string;
   created_at: any;
@@ -67,6 +67,95 @@ interface Transfer {
   created_by_name?: string;
   conferred_by_name?: string;
   conferred_at?: any;
+  attended_by_name?: string;
+  attended_at?: any;
+}
+
+export function calculateBusinessTimeElapsed(start: Date, end: Date): string {
+  if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return "0 min";
+
+  let totalMs = 0;
+  const startHourLimit = 8;
+  const endHourLimit = 18;
+  const workHoursPerDay = endHourLimit - startHourLimit; // 10 horas
+
+  let current = new Date(start.getTime());
+  
+  const isSameDay = current.getFullYear() === end.getFullYear() &&
+                    current.getMonth() === end.getMonth() &&
+                    current.getDate() === end.getDate();
+
+  if (isSameDay) {
+    const dayOfWeek = current.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Se não for fim de semana (0 = Dom, 6 = Sáb)
+      const dayStart = new Date(current);
+      dayStart.setHours(startHourLimit, 0, 0, 0);
+      const dayEnd = new Date(current);
+      dayEnd.setHours(endHourLimit, 0, 0, 0);
+
+      const effectiveStart = current < dayStart ? dayStart : (current > dayEnd ? dayEnd : current);
+      const effectiveEnd = end < dayStart ? dayStart : (end > dayEnd ? dayEnd : end);
+      totalMs += Math.max(0, effectiveEnd.getTime() - effectiveStart.getTime());
+    }
+  } else {
+    // 1. Primeiro dia parcial
+    const dayOfWeekStart = current.getDay();
+    if (dayOfWeekStart !== 0 && dayOfWeekStart !== 6) {
+      const dayEnd = new Date(current);
+      dayEnd.setHours(endHourLimit, 0, 0, 0);
+      const dayStart = new Date(current);
+      dayStart.setHours(startHourLimit, 0, 0, 0);
+      
+      const effectiveStart = current < dayStart ? dayStart : (current > dayEnd ? dayEnd : current);
+      totalMs += Math.max(0, dayEnd.getTime() - effectiveStart.getTime());
+    }
+
+    // 2. Dias intermediários completos
+    let tempDate = new Date(current);
+    tempDate.setDate(tempDate.getDate() + 1);
+    tempDate.setHours(0, 0, 0, 0);
+
+    const endDateOnly = new Date(end);
+    endDateOnly.setHours(0, 0, 0, 0);
+
+    while (tempDate < endDateOnly) {
+      const dow = tempDate.getDay();
+      if (dow !== 0 && dow !== 6) { // Segunda a Sexta
+        totalMs += workHoursPerDay * 60 * 60 * 1000;
+      }
+      tempDate.setDate(tempDate.getDate() + 1);
+    }
+
+    // 3. Último dia parcial
+    const dayOfWeekEnd = end.getDay();
+    if (dayOfWeekEnd !== 0 && dayOfWeekEnd !== 6) {
+      const dayStart = new Date(end);
+      dayStart.setHours(startHourLimit, 0, 0, 0);
+      const dayEnd = new Date(end);
+      dayEnd.setHours(endHourLimit, 0, 0, 0);
+
+      const effectiveEnd = end < dayStart ? dayStart : (end > dayEnd ? dayEnd : end);
+      totalMs += Math.max(0, effectiveEnd.getTime() - dayStart.getTime());
+    }
+  }
+
+  const totalMinutes = Math.floor(totalMs / (60 * 1000));
+  if (totalMinutes < 1) return "Menos de 1 min";
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours < workHoursPerDay) {
+    return `${hours}h ${minutes}min`;
+  } else {
+    const days = Math.floor(hours / workHoursPerDay);
+    const remainingHours = hours % workHoursPerDay;
+    if (days === 1) {
+      return `1 dia comercial e ${remainingHours}h ${minutes}min`;
+    }
+    return `${days} dias comerciais e ${remainingHours}h ${minutes}min`;
+  }
 }
 
 export function TransfersView({ 
@@ -339,10 +428,24 @@ export function TransfersView({
 
       // Dispatch Browser Local Notification
       if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        new Notification('Nova Transferência', {
+        const notificationTitle = 'Nova Transferência';
+        const notificationOptions = {
           body: `Transferência #${transferDoc.transfer_number} enviada de ${transferDoc.origin} para ${transferDoc.destination}`,
-          icon: '/app-logo.png'
-        });
+          icon: '/app-logo.png',
+          badge: '/app-logo.png',
+          vibrate: [200, 100, 200]
+        };
+
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready.then((registration) => {
+            registration.showNotification(notificationTitle, notificationOptions);
+          }).catch((err) => {
+            console.warn('Falha ao usar Service Worker para notificação:', err);
+            new Notification(notificationTitle, notificationOptions);
+          });
+        } else {
+          new Notification(notificationTitle, notificationOptions);
+        }
       }
 
       setSuccess('Transferência registrada com sucesso e notificações enviadas!');
@@ -484,6 +587,92 @@ export function TransfersView({
     }
   };
 
+  // Mark Transfer as Attended
+  const handleMarkAsAttended = async () => {
+    if (!selectedTransfer) return;
+    setIsProcessing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema';
+      const now = new Date();
+      
+      const updateData = {
+        status: 'Atendida' as const,
+        updated_at: serverTimestamp(),
+        attended_by_name: currentUserName,
+        attended_at: serverTimestamp()
+      };
+
+      await updateDoc(doc(db, 'transfers', selectedTransfer.id), updateData);
+
+      // Calcular o tempo decorrido para a notificação
+      const start = selectedTransfer.created_at?.seconds 
+        ? new Date(selectedTransfer.created_at.seconds * 1000) 
+        : (selectedTransfer.created_at instanceof Date ? selectedTransfer.created_at : new Date(selectedTransfer.created_at || now));
+      
+      const timeElapsed = calculateBusinessTimeElapsed(start, now);
+
+      // Send update chat notification
+      const chatMessage = `📦 *Transferência Atendida e Concluída*\n\n` +
+        `*Documento:* #${selectedTransfer.transfer_number}\n` +
+        `*Origem:* ${selectedTransfer.origin}\n` +
+        `*Destino:* ${selectedTransfer.destination}\n` +
+        `*Atendido por:* ${currentUserName}\n` +
+        `*Tempo Útil de Atendimento:* ${timeElapsed}\n` +
+        `*Data:* ${now.toLocaleString('pt-BR')}`;
+      
+      await sendGoogleChatNotification(chatMessage);
+
+      setSuccess(`Transferência #${selectedTransfer.transfer_number} marcada como atendida com sucesso! Tempo de atendimento: ${timeElapsed}.`);
+      setIsDetailOpen(false);
+      setSelectedTransfer(null);
+    } catch (err: any) {
+      console.error(err);
+      setError('Erro ao marcar a transferência como atendida.');
+      handleFirestoreError(err, OperationType.UPDATE, `transfers/${selectedTransfer.id}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Delete Transfer
+  const handleDeleteTransfer = async () => {
+    if (!selectedTransfer) return;
+    
+    const confirmDelete = window.confirm(`Tem certeza que deseja EXCLUIR permanentemente a transferência #${selectedTransfer.transfer_number}? Esta ação é irreversível.`);
+    if (!confirmDelete) return;
+
+    setIsProcessing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await deleteDoc(doc(db, 'transfers', selectedTransfer.id));
+
+      // Send update chat notification
+      const chatMessage = `🗑️ *Transferência Excluída*\n\n` +
+        `*Documento:* #${selectedTransfer.transfer_number}\n` +
+        `*Origem:* ${selectedTransfer.origin}\n` +
+        `*Destino:* ${selectedTransfer.destination}\n` +
+        `*Excluído por:* ${auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema'}\n` +
+        `*Data:* ${new Date().toLocaleString('pt-BR')}`;
+      
+      await sendGoogleChatNotification(chatMessage);
+
+      setSuccess(`Transferência #${selectedTransfer.transfer_number} excluída com sucesso.`);
+      setIsDetailOpen(false);
+      setSelectedTransfer(null);
+    } catch (err: any) {
+      console.error(err);
+      setError('Erro ao excluir a transferência do banco de dados.');
+      handleFirestoreError(err, OperationType.DELETE, `transfers/${selectedTransfer.id}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Trigger Print using the System's standard #print-area mechanism
   const handlePrint = () => {
     if (!selectedTransfer) return;
@@ -594,6 +783,7 @@ export function TransfersView({
           {filteredTransfers.map((t) => {
             const pending = t.status === 'Pendente';
             const conferred = t.status === 'Conferida';
+            const attended = t.status === 'Atendida';
             const cancelled = t.status === 'Cancelada';
 
             return (
@@ -604,6 +794,7 @@ export function TransfersView({
                 animate={{ opacity: 1, y: 0 }}
                 className={cn(
                   "p-5 rounded-3xl border flex flex-col justify-between transition-all bg-surface hover:shadow-md cursor-pointer",
+                  attended ? "border-emerald-500/30 hover:border-emerald-500/50 bg-emerald-500/5" :
                   conferred ? "border-success/25 hover:border-success/40" : 
                   cancelled ? "border-outline-variant/20 bg-surface-container-lowest" : "border-outline-variant/20 hover:border-primary/30"
                 )}
@@ -614,6 +805,7 @@ export function TransfersView({
                     <span className="font-mono font-bold text-sm text-primary">#{t.transfer_number}</span>
                     <span className={cn(
                       "px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide",
+                      attended ? "bg-emerald-500/12 text-emerald-600" :
                       conferred ? "bg-success/12 text-success" : 
                       cancelled ? "bg-outline-variant/15 text-on-surface-variant/80" : "bg-warning/12 text-warning"
                     )}>
@@ -960,6 +1152,7 @@ export function TransfersView({
                     <span className="text-on-surface-variant block">Status Atual</span>
                     <span className={cn(
                       "px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide",
+                      selectedTransfer.status === 'Atendida' ? "bg-emerald-500/12 text-emerald-600" :
                       selectedTransfer.status === 'Conferida' ? "bg-success/12 text-success" : 
                       selectedTransfer.status === 'Cancelada' ? "bg-outline-variant/15 text-on-surface-variant/80" : "bg-warning/12 text-warning"
                     )}>
@@ -1005,6 +1198,44 @@ export function TransfersView({
                         <CheckCircle2 size={15} />
                         <span className="font-semibold">Conferido por:</span>
                         <span className="font-bold">{selectedTransfer.conferred_by_name}</span>
+                      </div>
+                    )}
+                    {selectedTransfer.attended_by_name && (
+                      <div className="flex items-center gap-2 text-emerald-600">
+                        <CheckCircle2 size={15} />
+                        <span className="font-semibold">Atendido por:</span>
+                        <span className="font-bold">{selectedTransfer.attended_by_name}</span>
+                      </div>
+                    )}
+                    {selectedTransfer.attended_at && selectedTransfer.created_at && (
+                      <div className="pt-2 border-t border-outline-variant/10 mt-1 space-y-1.5">
+                        <div className="flex items-center gap-2 text-on-surface-variant">
+                          <Clock size={14} />
+                          <span className="font-semibold">Atendido em:</span>
+                          <span className="font-bold text-on-surface">
+                            {selectedTransfer.attended_at?.seconds 
+                              ? new Date(selectedTransfer.attended_at.seconds * 1000).toLocaleString('pt-BR')
+                              : selectedTransfer.attended_at instanceof Date
+                                ? selectedTransfer.attended_at.toLocaleString('pt-BR')
+                                : new Date(selectedTransfer.attended_at).toLocaleString('pt-BR')
+                            }
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-primary font-semibold">
+                          <Clock size={14} className="text-primary" />
+                          <span>Tempo Comercial de SLA:</span>
+                          <span className="font-extrabold bg-primary/10 px-2 py-0.5 rounded text-primary">
+                            {(() => {
+                              const start = selectedTransfer.created_at?.seconds 
+                                ? new Date(selectedTransfer.created_at.seconds * 1000) 
+                                : (selectedTransfer.created_at instanceof Date ? selectedTransfer.created_at : new Date(selectedTransfer.created_at));
+                              const end = selectedTransfer.attended_at?.seconds 
+                                ? new Date(selectedTransfer.attended_at.seconds * 1000) 
+                                : (selectedTransfer.attended_at instanceof Date ? selectedTransfer.attended_at : new Date(selectedTransfer.attended_at));
+                              return calculateBusinessTimeElapsed(start, end);
+                            })()}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1194,7 +1425,24 @@ export function TransfersView({
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
+                    {/* Botão de Marcar como Atendida de alta visibilidade */}
+                    {(selectedTransfer.status === 'Pendente' || selectedTransfer.status === 'Conferida') && (
+                      <button 
+                        type="button"
+                        onClick={handleMarkAsAttended}
+                        disabled={isProcessing}
+                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/10 hover:shadow-emerald-600/20 transition-all cursor-pointer font-sans"
+                      >
+                        {isProcessing ? (
+                          <Loader2 className="animate-spin" size={15} />
+                        ) : (
+                          <CheckCircle2 size={15} />
+                        )}
+                        Marcar como Atendida
+                      </button>
+                    )}
+
                     <div className="flex items-center gap-3">
                       <button 
                         onClick={handlePrint}
@@ -1212,6 +1460,18 @@ export function TransfersView({
                         >
                           <Ban size={15} />
                           Cancelar TR
+                        </button>
+                      )}
+
+                      {/* Botão de exclusão visível para Admins */}
+                      {isAdmin && (
+                        <button 
+                          onClick={handleDeleteTransfer}
+                          disabled={isProcessing}
+                          className="py-2.5 px-3 bg-error/10 hover:bg-error/15 border border-error/20 text-error font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all shrink-0"
+                          title="Excluir Transferência"
+                        >
+                          <Trash2 size={15} />
                         </button>
                       )}
                     </div>
