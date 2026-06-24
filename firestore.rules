@@ -138,5 +138,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // 9. Transfers
+    match /transfers/{tId} {
+      allow read, list: if canViewData();
+      allow create: if canViewData();
+      allow update: if canViewData();
+      allow delete: if isAdmin();
+    }
+
   }
 }

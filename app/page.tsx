@@ -17,6 +17,7 @@ import PerformanceView from '@/components/PerformanceView';
 import { SeparationDashboardView } from '@/components/SeparationDashboardView';
 import { SeparationSequenceView } from '@/components/SeparationSequenceView';
 import { InfoView } from '@/components/InfoView';
+import { TransfersView } from '@/components/TransfersView';
 import { Factory, Settings, CheckCircle2, Loader2, AlertCircle, RefreshCw, Eraser } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -91,6 +92,18 @@ export default function Home() {
     return `${year}-${month}-${day}`;
   });
 
+  const [debouncedStartDate, setDebouncedStartDate] = useState(startDate);
+  const [debouncedEndDate, setDebouncedEndDate] = useState(endDate);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedStartDate(startDate);
+      setDebouncedEndDate(endDate);
+    }, 400);
+
+    return () => clearTimeout(handler);
+  }, [startDate, endDate]);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
@@ -115,11 +128,40 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  // Monitor Global Data with dynamic date-range query filters to prevent high-frequency/peak reads
+  // Fetch static lookup tables exactly ONCE on login to save millions of read operations
   useEffect(() => {
     if (!user || !profile) return;
 
-    // Operations (capped to last 200 documents ordered by date)
+    const fetchStaticLookups = async () => {
+      try {
+        const suppliersSnap = await getDocs(query(collection(db, 'suppliers'), orderBy('name', 'asc')));
+        setSuppliers(suppliersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+        const loadTypesSnap = await getDocs(query(collection(db, 'load_types'), orderBy('name', 'asc')));
+        setLoadTypes(loadTypesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+        const profilesSnap = await getDocs(query(collection(db, 'profiles'), orderBy('name', 'asc')));
+        setProfiles(profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+        const linesSnap = await getDocs(query(collection(db, 'production_lines'), orderBy('name', 'asc')));
+        setProductionLines(linesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+        const logoSnap = await getDoc(doc(db, 'settings', 'company_logo'));
+        if (logoSnap.exists()) {
+          setLogoUrl(logoSnap.data().value);
+        }
+      } catch (err) {
+        console.error("Erro ao buscar tabelas de consulta estáticas:", err);
+      }
+    };
+
+    fetchStaticLookups();
+  }, [user?.uid, profile?.uid]);
+
+  // Operations real-time listener: established exactly ONCE on login (does not depend on date filters)
+  useEffect(() => {
+    if (!user || !profile) return;
+
     const qOps = query(
       collection(db, 'operations'),
       orderBy('date', 'desc'),
@@ -130,81 +172,63 @@ export default function Home() {
       setOperations(ops);
     });
 
-    // Parse the current local date range to query Firestore efficiently
-    const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
+    return () => unsubOps();
+  }, [user?.uid, profile?.uid]);
+
+  // Dynamic collections (Purchase Orders & Receipts): Conditional on view and debounced date parameters
+  useEffect(() => {
+    if (!user || !profile) return;
+
+    let unsubPOs = () => {};
+    let unsubReceipts = () => {};
+
+    // Only subscribe to Purchase Orders when on views that display them
+    const needsPOs = ['DASHBOARD', 'ORDERS', 'SORTING', 'SEPARATION_SEQUENCE', 'SEPARATION_DASHBOARD', 'PERFORMANCE'].includes(currentView);
+    // Only subscribe to Receipts when on views that display them
+    const needsReceipts = ['RECEIPTS', 'RECEIPTS_DASHBOARD'].includes(currentView);
+
+    // Parse the debounced date range to query Firestore efficiently
+    const [sYear, sMonth, sDay] = debouncedStartDate.split('-').map(Number);
     const startObj = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
 
-    const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
+    const [eYear, eMonth, eDay] = debouncedEndDate.split('-').map(Number);
     const endObj = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
 
     // Apply a 120-day lookback to also capture any pending items from past days
     const lookbackDate = new Date(startObj);
     lookbackDate.setDate(lookbackDate.getDate() - 120);
 
-    // Purchase Orders (filtered dynamically based on 30-day lookback and selected date range, capped to 300 docs)
-    const qPOs = query(
-      collection(db, 'purchase_orders'),
-      where('created_at', '>=', lookbackDate),
-      where('created_at', '<=', endObj),
-      orderBy('created_at', 'desc'),
-      limit(300)
-    );
-    const unsubPOs = onSnapshot(qPOs, (snapshot) => {
-      setPurchaseOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    if (needsPOs) {
+      const qPOs = query(
+        collection(db, 'purchase_orders'),
+        where('created_at', '>=', lookbackDate),
+        where('created_at', '<=', endObj),
+        orderBy('created_at', 'desc'),
+        limit(300)
+      );
+      unsubPOs = onSnapshot(qPOs, (snapshot) => {
+        setPurchaseOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+    }
 
-    // Receipts (filtered dynamically based on 30-day lookback and selected date range, capped to 300 docs)
-    const qReceipts = query(
-      collection(db, 'receipts'),
-      where('created_at', '>=', lookbackDate),
-      where('created_at', '<=', endObj),
-      orderBy('created_at', 'desc'),
-      limit(300)
-    );
-    const unsubReceipts = onSnapshot(qReceipts, (snapshot) => {
-      setReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    // Suppliers
-    const qSuppliers = query(collection(db, 'suppliers'), orderBy('name', 'asc'));
-    const unsubSuppliers = onSnapshot(qSuppliers, (snapshot) => {
-      setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    // Load Types
-    const qLoadTypes = query(collection(db, 'load_types'), orderBy('name', 'asc'));
-    const unsubLoadTypes = onSnapshot(qLoadTypes, (snapshot) => {
-      setLoadTypes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    // Profiles
-    const qProfiles = query(collection(db, 'profiles'), orderBy('name', 'asc'));
-    const unsubProfiles = onSnapshot(qProfiles, (snapshot) => {
-      setProfiles(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    // Production Lines
-    const qLines = query(collection(db, 'production_lines'), orderBy('name', 'asc'));
-    const unsubLines = onSnapshot(qLines, (snapshot) => {
-      setProductionLines(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    // Logo
-    const unsubLogo = onSnapshot(doc(db, 'settings', 'company_logo'), (doc) => {
-      if (doc.exists()) setLogoUrl(doc.data().value);
-    });
+    if (needsReceipts) {
+      const qReceipts = query(
+        collection(db, 'receipts'),
+        where('created_at', '>=', lookbackDate),
+        where('created_at', '<=', endObj),
+        orderBy('created_at', 'desc'),
+        limit(300)
+      );
+      unsubReceipts = onSnapshot(qReceipts, (snapshot) => {
+        setReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+    }
 
     return () => {
-      unsubOps();
       unsubPOs();
       unsubReceipts();
-      unsubSuppliers();
-      unsubLoadTypes();
-      unsubProfiles();
-      unsubLines();
-      unsubLogo();
     };
-  }, [user, profile, startDate, endDate]);
+  }, [user?.uid, profile?.uid, debouncedStartDate, debouncedEndDate, currentView]);
 
   const handleToggleStep = async (opId: string, stepIndex: number) => {
     const op = operations.find(o => o.id === opId);
@@ -458,6 +482,13 @@ export default function Home() {
             )}
             {currentView === 'INFO' && (
               <InfoView key="info" />
+            )}
+            {currentView === 'TRANSFERS' && (
+              <TransfersView 
+                key="transfers"
+                isAdmin={profile?.is_admin}
+                userCategory={profile?.category}
+              />
             )}
             {currentView === 'NEWS_PORTAL' && (
               <NewsView 

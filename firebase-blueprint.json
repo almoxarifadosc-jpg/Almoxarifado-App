@@ -137,6 +137,27 @@
         "observation": { "type": "string" },
         "photos": { "type": "array", "items": { "type": "string" } }
       }
+    },
+    "Transfer": {
+      "title": "Transfer",
+      "description": "Intercompany stock transfer log",
+      "type": "object",
+      "properties": {
+        "transfer_number": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "origin": { "type": "string" },
+        "destination": { "type": "string" },
+        "carrier": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pendente", "Conferida", "Cancelada"] },
+        "items": { "type": "array" },
+        "pdf_url": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "created_by_name": { "type": "string" },
+        "conferred_by_name": { "type": "string" },
+        "conferred_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["transfer_number", "date", "origin", "destination", "items"]
     }
   },
   "firestore": {
@@ -148,6 +169,7 @@
     "/suppliers/{supplierId}": { "schema": "Supplier", "description": "List of suppliers and drivers" },
     "/load_types/{typeId}": { "schema": "LoadType", "description": "Available load types" },
     "/receipts/{receiptId}": { "schema": "Receipt", "description": "Load receipt records" },
-    "/purchase_orders/{orderId}": { "schema": "PurchaseOrder", "description": "Imported purchase orders" }
+    "/purchase_orders/{orderId}": { "schema": "PurchaseOrder", "description": "Imported purchase orders" },
+    "/transfers/{transferId}": { "schema": "Transfer", "description": "Stock transfer logs" }
   }
 }

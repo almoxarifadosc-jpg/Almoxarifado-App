@@ -18,12 +18,13 @@ import {
   Newspaper,
   RefreshCw,
   Eraser,
-  ListOrdered
+  ListOrdered,
+  ArrowLeftRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
-export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS' | 'ORDERS' | 'SORTING' | 'SEPARATION_SEQUENCE' | 'PERFORMANCE' | 'SEPARATION_DASHBOARD' | 'NEWS_PORTAL' | 'INFO';
+export type View = 'LAUNCH' | 'OPERATIONS' | 'ANALYTICS' | 'DASHBOARD' | 'ADMIN_PANEL' | 'RECEIPTS' | 'RECEIPTS_DASHBOARD' | 'SUPPLIERS' | 'ORDERS' | 'SORTING' | 'SEPARATION_SEQUENCE' | 'PERFORMANCE' | 'SEPARATION_DASHBOARD' | 'NEWS_PORTAL' | 'INFO' | 'TRANSFERS';
 
 interface SidebarProps {
   currentView: View;
@@ -55,6 +56,7 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
       title: 'Intercompany',
       items: [
         { id: 'RECEIPTS' as View, label: 'Carregamentos', icon: Truck },
+        { id: 'TRANSFERS' as View, label: 'Transferências', icon: ArrowLeftRight },
         { id: 'RECEIPTS_DASHBOARD' as View, label: 'Dash Rec.', icon: LayoutDashboard },
         { id: 'SUPPLIERS' as View, label: 'Fornecedores', icon: Users },
       ].filter(() => !isViewer)
