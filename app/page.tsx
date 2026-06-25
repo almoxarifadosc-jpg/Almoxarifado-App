@@ -285,6 +285,46 @@ export default function Home() {
     return () => unsubOps();
   }, [user?.uid, profile?.uid]);
 
+  // Global Transfers Listener for Push/System Notifications
+  useEffect(() => {
+    if (!user || !profile) return;
+
+    const isEnabled = typeof window !== 'undefined' && localStorage.getItem('ventisol_notifications_enabled') !== 'false';
+    if (!isEnabled) return;
+
+    const qTransfers = query(collection(db, 'transfers'), orderBy('created_at', 'desc'), limit(10));
+    let isFirst = true;
+
+    const unsubTransfers = onSnapshot(qTransfers, (snapshot) => {
+      if (!isFirst) {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const data = change.doc.data();
+            const createdBy = data.created_by_name || '';
+            const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || '';
+            
+            // Só notifica se não tiver sido criada pelo próprio usuário conectado nesta máquina
+            if (createdBy !== currentUserName) {
+              const transferNumber = data.transfer_number || 'Sem Número';
+              const origin = data.origin || 'N/A';
+              const dest = data.destination || 'N/A';
+              triggerSystemNotification(
+                'Nova Transferência Recebida', 
+                `Transferência #${transferNumber} de ${origin} para ${dest} foi registrada.`
+              );
+            }
+          }
+        });
+      } else {
+        isFirst = false;
+      }
+    }, (err) => {
+      console.error("Erro na escuta global de transferências para notificações:", err);
+    });
+
+    return () => unsubTransfers();
+  }, [user?.uid, profile?.uid, notificationsEnabled]);
+
   // Dynamic collections (Purchase Orders & Receipts): Conditional on view and debounced date parameters
   useEffect(() => {
     if (!user || !profile) return;

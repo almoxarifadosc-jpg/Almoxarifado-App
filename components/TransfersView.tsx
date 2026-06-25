@@ -321,33 +321,6 @@ export function TransfersView({
       });
       setTransfers(list);
       setLoading(false);
-
-      // Tratar novas transferências em tempo real (para notificações)
-      if (!isFirstLoad.current) {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const data = change.doc.data();
-            const createdBy = data.created_by_name || '';
-            const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || '';
-            
-            // Só notifica se não tiver sido criada pelo próprio usuário conectado nesta máquina
-            if (createdBy !== currentUserName) {
-              const isEnabled = typeof window !== 'undefined' && localStorage.getItem('ventisol_notifications_enabled') !== 'false';
-              if (isEnabled) {
-                const transferNumber = data.transfer_number || 'Sem Número';
-                const origin = data.origin || 'N/A';
-                const dest = data.destination || 'N/A';
-                triggerSystemNotification(
-                  'Nova Transferência Recebida', 
-                  `Transferência #${transferNumber} de ${origin} para ${dest} foi registrada.`
-                );
-              }
-            }
-          }
-        });
-      } else {
-        isFirstLoad.current = false;
-      }
     }, (err) => {
       console.error("Erro ao escutar transferências:", err);
       handleFirestoreError(err, OperationType.GET, 'transfers');
