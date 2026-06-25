@@ -102,3 +102,35 @@ self.addEventListener('notificationclick', function(event) {
     })
   );
 });
+
+// Evento Sync de Segundo Plano (Background Sync)
+self.addEventListener('sync', function(event) {
+  if (event.tag === 'sync-transfers' || event.tag === 'ventisol-bg-sync') {
+    console.log('Sincronização em segundo plano disparada:', event.tag);
+    event.waitUntil(
+      self.registration.showNotification('Sincronização Ativa', {
+        body: 'Verificando novas atualizações do Almoxarifado em segundo plano.',
+        icon: '/app-logo.png',
+        badge: '/favicon.ico',
+        tag: 'ventisol-sync-status',
+        silent: true
+      })
+    );
+  }
+});
+
+// Evento Periodic Sync (Sincronização Periódica de Segundo Plano)
+self.addEventListener('periodicsync', function(event) {
+  if (event.tag === 'get-latest-transfers' || event.tag === 'ventisol-periodic-sync') {
+    console.log('Sincronização periódica em segundo plano disparada:', event.tag);
+    event.waitUntil(
+      self.registration.showNotification('Almoxarifado Ativo', {
+        body: 'Sincronização de dados em segundo plano ativa com sucesso.',
+        icon: '/app-logo.png',
+        badge: '/favicon.ico',
+        tag: 'ventisol-periodic-status',
+        silent: true
+      })
+    );
+  }
+});

@@ -18,7 +18,7 @@ import { SeparationDashboardView } from '@/components/SeparationDashboardView';
 import { SeparationSequenceView } from '@/components/SeparationSequenceView';
 import { InfoView } from '@/components/InfoView';
 import { TransfersView, triggerSystemNotification } from '@/components/TransfersView';
-import { Factory, Settings, CheckCircle2, Loader2, AlertCircle, RefreshCw, Eraser } from 'lucide-react';
+import { Factory, Settings, CheckCircle2, Loader2, AlertCircle, RefreshCw, Eraser, Smartphone, ShieldAlert, Battery, Check, X } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, collection, query, orderBy, onSnapshot, getDocs, where, Timestamp, setDoc, updateDoc, deleteDoc, serverTimestamp, limit } from 'firebase/firestore';
@@ -46,6 +46,7 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [showAndroidBgModal, setShowAndroidBgModal] = useState(false);
 
   // Initialize and Sync Theme & Notifications
   useEffect(() => {
@@ -127,6 +128,37 @@ export default function Home() {
         'Notificações Ativadas! 🔔',
         'Você agora receberá alertas neste dispositivo para novas transferências!'
       );
+
+      // Registrar Sinc de Segundo Plano e Sinc Periódica para fazer o Android registrar as permissões de segundo plano
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(async (registration) => {
+          try {
+            // Registrar Background Sync
+            if ('sync' in registration) {
+              await (registration as any).sync.register('ventisol-bg-sync');
+              console.log('Background Sync registrado via ativação.');
+            }
+
+            // Consultar e registrar Periodic Background Sync
+            if ('periodicSync' in registration) {
+              const status = await (navigator as any).permissions.query({
+                name: 'periodic-background-sync',
+              });
+              if (status.state === 'granted') {
+                await (registration as any).periodicSync.register('ventisol-periodic-sync', {
+                  minInterval: 12 * 60 * 60 * 1000,
+                });
+                console.log('Periodic Background Sync registrado via ativação.');
+              }
+            }
+          } catch (err) {
+            console.warn('Erro ao habilitar sincs de segundo plano:', err);
+          }
+        });
+      }
+
+      // Abre automaticamente o modal de instrução de segundo plano no Android
+      setShowAndroidBgModal(true);
     }
   };
 
@@ -590,6 +622,107 @@ export default function Home() {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Modal de Configuração de Segundo Plano para Android */}
+      <AnimatePresence>
+        {showAndroidBgModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white dark:bg-zinc-900 p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-lg border border-zinc-100 dark:border-zinc-800 relative max-h-[90vh] overflow-y-auto"
+            >
+              <button
+                onClick={() => setShowAndroidBgModal(false)}
+                className="absolute top-4 right-4 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
+                title="Fechar"
+              >
+                <X className="w-5 h-5 text-zinc-500 dark:text-zinc-400" />
+              </button>
+
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Smartphone className="w-8 h-8" />
+                </div>
+                <h2 className="text-2xl font-black text-zinc-900 dark:text-zinc-100 tracking-tight">
+                  Funcionamento em Segundo Plano
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 font-medium">
+                  Ative as permissões no Android para garantir o recebimento de alertas em tempo real.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/30 rounded-2xl flex items-start gap-3">
+                  <ShieldAlert className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                    <p className="font-bold text-zinc-900 dark:text-zinc-100 mb-1">Por que isso é necessário?</p>
+                    O Android suspende aplicativos em segundo plano para poupar bateria. Ao habilitar o 
+                    <strong> Sincronismo de Segundo Plano</strong> e marcar o app como <strong>Sem Restrições</strong>, 
+                    você garante que o coletor ou celular receberá avisos de novas transferências instantaneamente, mesmo fechado.
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 px-1">
+                    Como liberar a permissão no Android:
+                  </p>
+                  
+                  <div className="space-y-2.5">
+                    <div className="flex items-start gap-3 bg-zinc-50 dark:bg-zinc-800/50 p-3.5 rounded-xl border border-zinc-100 dark:border-zinc-800/20">
+                      <div className="w-5 h-5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        1
+                      </div>
+                      <div className="text-xs">
+                        <p className="font-bold text-zinc-900 dark:text-zinc-100">Ative o Sincronismo do PWA</p>
+                        <p className="text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
+                          O app já solicitou a permissão ao navegador Chrome. Toque em <strong>Permitir</strong> caso apareça um pop-up na tela solicitando sincronismo periódico.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 bg-zinc-50 dark:bg-zinc-800/50 p-3.5 rounded-xl border border-zinc-100 dark:border-zinc-800/20">
+                      <div className="w-5 h-5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        2
+                      </div>
+                      <div className="text-xs">
+                        <p className="font-bold text-zinc-900 dark:text-zinc-100">Configurações do Aplicativo no Android</p>
+                        <p className="text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
+                          Vá nas <strong>Configurações</strong> do Android &rarr; <strong>Aplicativos</strong> &rarr; procure por <strong>Almoxarifado</strong> (ou Google Chrome, se estiver rodando via navegador).
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 bg-zinc-50 dark:bg-zinc-800/50 p-3.5 rounded-xl border border-zinc-100 dark:border-zinc-800/20">
+                      <div className="w-5 h-5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        3
+                      </div>
+                      <div className="text-xs">
+                        <p className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                          <Battery className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Uso de Bateria &rarr; Sem Restrições
+                        </p>
+                        <p className="text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
+                          Toque em <strong>Bateria</strong> (ou Otimização de Bateria) e mude para <strong>Sem Restrições</strong> (Unrestricted). Isso habilita a execução contínua em segundo plano.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setShowAndroidBgModal(false)}
+                    className="flex-1 py-3 bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" /> Entendi, Configurado!
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
