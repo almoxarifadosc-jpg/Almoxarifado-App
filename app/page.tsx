@@ -223,16 +223,64 @@ export default function Home() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
-        const profileDoc = await getDoc(doc(db, 'profiles', user.uid));
+        const userEmail = user.email?.toLowerCase() || '';
+        const isBootstrap = userEmail === 'almoxarifado.sc@ventisol.com.br' || userEmail === 'espinmais@gmail.com';
+        
+        const profileRef = doc(db, 'profiles', user.uid);
+        const profileDoc = await getDoc(profileRef);
+        
+        let profileData: any = null;
         if (profileDoc.exists()) {
-          const profileData = profileDoc.data();
-          setProfile(profileData);
+          profileData = profileDoc.data();
           
+          // Se for bootstrap, mas não tiver as flags de admin no Firestore, atualiza local e remotamente
+          if (isBootstrap && (!profileData.is_admin || !profileData.is_super_admin || profileData.status !== 'APPROVED')) {
+            const updated = {
+              ...profileData,
+              is_admin: true,
+              is_super_admin: true,
+              status: 'APPROVED'
+            };
+            profileData = updated;
+            try {
+              await updateDoc(profileRef, { is_admin: true, is_super_admin: true, status: 'APPROVED' });
+            } catch (err) {
+              console.error("Erro ao atualizar profile de bootstrap:", err);
+            }
+          }
+        } else {
+          // Se não existir o documento, mas for bootstrap, cria um profile no Firestore
+          if (isBootstrap) {
+            profileData = {
+              id: user.uid,
+              uid: user.uid,
+              name: user.displayName || 'Administrador SC',
+              email: user.email,
+              status: 'APPROVED',
+              is_admin: true,
+              is_super_admin: true,
+              is_viewer: false,
+              is_conferente: false,
+              is_auto_assign: false,
+              category: 'Ventisol'
+            };
+            try {
+              await setDoc(profileRef, profileData);
+            } catch (err) {
+              console.error("Erro ao criar profile de bootstrap:", err);
+            }
+          }
+        }
+
+        if (profileData) {
+          setProfile(profileData);
           if (profileData.category === 'Recebimento') {
             setCurrentView('RECEIPTS');
           } else if (profileData.category === 'Ventisol' || profileData.category === 'Conferente' || profileData.category === 'Ventisol + Conferente') {
             setCurrentView('SORTING');
           }
+        } else {
+          setProfile(null);
         }
       } else {
         setProfile(null);
@@ -248,25 +296,46 @@ export default function Home() {
     if (!user || !profile) return;
 
     const fetchStaticLookups = async () => {
+      // 1. Fornecedores
       try {
         const suppliersSnap = await getDocs(query(collection(db, 'suppliers'), orderBy('name', 'asc')));
         setSuppliers(suppliersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) {
+        console.error("Erro ao buscar fornecedores:", err);
+      }
 
+      // 2. Tipos de Carga
+      try {
         const loadTypesSnap = await getDocs(query(collection(db, 'load_types'), orderBy('name', 'asc')));
         setLoadTypes(loadTypesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) {
+        console.error("Erro ao buscar tipos de carga:", err);
+      }
 
+      // 3. Perfis de Usuários
+      try {
         const profilesSnap = await getDocs(query(collection(db, 'profiles'), orderBy('name', 'asc')));
         setProfiles(profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) {
+        console.error("Erro ao buscar perfis:", err);
+      }
 
+      // 4. Linhas de Produção
+      try {
         const linesSnap = await getDocs(query(collection(db, 'production_lines'), orderBy('name', 'asc')));
         setProductionLines(linesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) {
+        console.error("Erro ao buscar linhas de produção:", err);
+      }
 
+      // 5. Logo da Empresa
+      try {
         const logoSnap = await getDoc(doc(db, 'settings', 'company_logo'));
         if (logoSnap.exists()) {
           setLogoUrl(logoSnap.data().value);
         }
       } catch (err) {
-        console.error("Erro ao buscar tabelas de consulta estáticas:", err);
+        console.error("Erro ao buscar logo corporativo:", err);
       }
     };
 
