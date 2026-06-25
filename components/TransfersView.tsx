@@ -196,11 +196,15 @@ export const playNotificationSound = () => {
   }
 };
 
-// Dispara uma notificação unificada com vibração e bipe de áudio no Android e Windows
-export const triggerSystemNotification = (title: string, body: string) => {
+// Dispara uma notificação unificada com vibração e bipe de áudio no Android e Windows de forma assíncrona e resiliente
+export const triggerSystemNotification = async (title: string, body: string) => {
   // 1. Vibração do celular (essencial no Android)
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-    navigator.vibrate([150, 100, 150]);
+    try {
+      navigator.vibrate([150, 100, 150]);
+    } catch (e) {
+      console.warn('Falha ao acionar vibração:', e);
+    }
   }
 
   // 2. Tocar o som sintético
@@ -214,18 +218,39 @@ export const triggerSystemNotification = (title: string, body: string) => {
       badge: '/app-logo.png',
       vibrate: [150, 100, 150],
       tag: 'new-transfer',
-      renotify: true
+      renotify: true,
+      requireInteraction: true,
+      data: {
+        url: '/'
+      }
     };
 
+    // No Android/Chrome móvel, showNotification via Service Worker é obrigatório e robusto.
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then((registration) => {
-        registration.showNotification(title, options);
-      }).catch((err) => {
-        console.warn('Falha no service worker para notificação, usando fallback:', err);
-        new Notification(title, options);
-      });
-    } else {
+      try {
+        // Tenta pegar registros de Service Worker já ativos de imediato
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        if (registrations && registrations.length > 0) {
+          await registrations[0].showNotification(title, options);
+          return;
+        }
+        
+        // Se não houver, espera até o service worker estar pronto
+        const registration = await navigator.serviceWorker.ready;
+        if (registration) {
+          await registration.showNotification(title, options);
+          return;
+        }
+      } catch (err) {
+        console.warn('Falha ao usar Service Worker para emitir notificação:', err);
+      }
+    }
+
+    // Fallback apenas em desktop/dispositivos que aceitam o construtor nativo
+    try {
       new Notification(title, options);
+    } catch (err) {
+      console.warn('Falha no construtor padrão de Notification (esperado no Android móvel):', err);
     }
   }
 };
@@ -307,13 +332,16 @@ export function TransfersView({
             
             // Só notifica se não tiver sido criada pelo próprio usuário conectado nesta máquina
             if (createdBy !== currentUserName) {
-              const transferNumber = data.transfer_number || 'Sem Número';
-              const origin = data.origin || 'N/A';
-              const dest = data.destination || 'N/A';
-              triggerSystemNotification(
-                'Nova Transferência Recebida', 
-                `Transferência #${transferNumber} de ${origin} para ${dest} foi registrada.`
-              );
+              const isEnabled = typeof window !== 'undefined' && localStorage.getItem('ventisol_notifications_enabled') !== 'false';
+              if (isEnabled) {
+                const transferNumber = data.transfer_number || 'Sem Número';
+                const origin = data.origin || 'N/A';
+                const dest = data.destination || 'N/A';
+                triggerSystemNotification(
+                  'Nova Transferência Recebida', 
+                  `Transferência #${transferNumber} de ${origin} para ${dest} foi registrada.`
+                );
+              }
             }
           }
         });
@@ -527,10 +555,13 @@ export function TransfersView({
       await sendGoogleChatNotification(chatMessage);
 
       // Dispatch Browser Local Notification
-      triggerSystemNotification(
-        'Nova Transferência',
-        `Transferência #${transferDoc.transfer_number} enviada de ${transferDoc.origin} para ${transferDoc.destination}`
-      );
+      const isEnabled = typeof window !== 'undefined' && localStorage.getItem('ventisol_notifications_enabled') !== 'false';
+      if (isEnabled) {
+        triggerSystemNotification(
+          'Nova Transferência',
+          `Transferência #${transferDoc.transfer_number} enviada de ${transferDoc.origin} para ${transferDoc.destination}`
+        );
+      }
 
       setSuccess('Transferência registrada com sucesso e notificações enviadas!');
       setIsModalOpen(false);

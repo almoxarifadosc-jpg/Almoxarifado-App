@@ -17,7 +17,7 @@ import PerformanceView from '@/components/PerformanceView';
 import { SeparationDashboardView } from '@/components/SeparationDashboardView';
 import { SeparationSequenceView } from '@/components/SeparationSequenceView';
 import { InfoView } from '@/components/InfoView';
-import { TransfersView } from '@/components/TransfersView';
+import { TransfersView, triggerSystemNotification } from '@/components/TransfersView';
 import { Factory, Settings, CheckCircle2, Loader2, AlertCircle, RefreshCw, Eraser } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -45,12 +45,90 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<View>('DASHBOARD');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
-  // Initialize and Sync Theme
+  // Initialize and Sync Theme & Notifications
   useEffect(() => {
     const isDark = document.documentElement.classList.contains('dark');
     setIsDarkMode(isDark);
+
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('ventisol_notifications_enabled');
+      if (saved === null) {
+        // Se nunca configurou, assume true se tiver permissão concedida, senão false
+        const isGranted = 'Notification' in window && Notification.permission === 'granted';
+        setNotificationsEnabled(isGranted);
+        localStorage.setItem('ventisol_notifications_enabled', String(isGranted));
+      } else {
+        setNotificationsEnabled(saved === 'true');
+      }
+    }
   }, []);
+
+  const handleToggleNotifications = async () => {
+    if (typeof window === 'undefined') return;
+
+    if (!('Notification' in window)) {
+      alert('Seu navegador não suporta notificações de sistema.');
+      return;
+    }
+
+    // Se as notificações estiverem bloqueadas pelo navegador
+    if (Notification.permission === 'denied') {
+      alert('As permissões de notificação estão bloqueadas no seu navegador. Por favor, ative-as nas configurações do site (ícone de cadeado/opções na barra de endereços).');
+      return;
+    }
+
+    // Se ainda não foi solicitada permissão
+    if (Notification.permission === 'default') {
+      const res = await Notification.requestPermission();
+      if (res !== 'granted') {
+        setNotificationsEnabled(false);
+        localStorage.setItem('ventisol_notifications_enabled', 'false');
+        return;
+      }
+    }
+
+    const nextValue = !notificationsEnabled;
+    setNotificationsEnabled(nextValue);
+    localStorage.setItem('ventisol_notifications_enabled', String(nextValue));
+
+    // Dar um feedback sonoro, tátil e visual ao usuário
+    if (nextValue) {
+      if ('vibrate' in navigator) {
+        try {
+          navigator.vibrate([100, 50, 100]);
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+      
+      // Tocar som de teste
+      try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContext) {
+          const ctx = new AudioContext();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          gain.gain.setValueAtTime(0.05, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.2);
+        }
+      } catch (e) {
+        console.warn('Erro ao tocar som de teste:', e);
+      }
+
+      // Notificação teste robusta
+      triggerSystemNotification(
+        'Notificações Ativadas! 🔔',
+        'Você agora receberá alertas neste dispositivo para novas transferências!'
+      );
+    }
+  };
 
   const toggleDarkMode = () => {
     setIsDarkMode(prev => {
@@ -335,6 +413,8 @@ export default function Home() {
           isDarkMode={isDarkMode}
           onToggleDarkMode={toggleDarkMode}
           onMenuToggle={() => setIsMobileSidebarOpen(true)}
+          notificationsEnabled={notificationsEnabled}
+          onRequestNotifications={handleToggleNotifications}
         />
         
         <div className="flex-1 overflow-y-auto">
