@@ -158,6 +158,78 @@ export function calculateBusinessTimeElapsed(start: Date, end: Date): string {
   }
 }
 
+// Reproduz um sinal sonoro de notificação sintético usando a Web Audio API nava
+export const playNotificationSound = () => {
+  try {
+    if (typeof window !== 'undefined' && (window.AudioContext || (window as any).webkitAudioContext)) {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioContext();
+      
+      // Bipe 1 (Nota Ré5)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(587.33, ctx.currentTime);
+      gain1.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start();
+      osc1.stop(ctx.currentTime + 0.15);
+
+      // Bipe 2 (Nota Lá5, tocando um pouco mais tarde)
+      setTimeout(() => {
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(880, ctx.currentTime);
+        gain2.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start();
+        osc2.stop(ctx.currentTime + 0.25);
+      }, 120);
+    }
+  } catch (err) {
+    console.warn('Erro ao reproduzir som de notificação:', err);
+  }
+};
+
+// Dispara uma notificação unificada com vibração e bipe de áudio no Android e Windows
+export const triggerSystemNotification = (title: string, body: string) => {
+  // 1. Vibração do celular (essencial no Android)
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    navigator.vibrate([150, 100, 150]);
+  }
+
+  // 2. Tocar o som sintético
+  playNotificationSound();
+
+  // 3. Notificação visual de sistema
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    const options = {
+      body,
+      icon: '/app-logo.png',
+      badge: '/app-logo.png',
+      vibrate: [150, 100, 150],
+      tag: 'new-transfer',
+      renotify: true
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.showNotification(title, options);
+      }).catch((err) => {
+        console.warn('Falha no service worker para notificação, usando fallback:', err);
+        new Notification(title, options);
+      });
+    } else {
+      new Notification(title, options);
+    }
+  }
+};
+
 export function TransfersView({ 
   isAdmin, 
   userCategory 
@@ -166,7 +238,9 @@ export function TransfersView({
   userCategory?: string;
 }) {
   const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const isFirstLoad = useRef(true);
   const [loading, setLoading] = useState(true);
+  const [notificationPermissionStatus, setNotificationPermissionStatus] = useState<string>('default');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState<Transfer | null>(null);
@@ -222,6 +296,30 @@ export function TransfersView({
       });
       setTransfers(list);
       setLoading(false);
+
+      // Tratar novas transferências em tempo real (para notificações)
+      if (!isFirstLoad.current) {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const data = change.doc.data();
+            const createdBy = data.created_by_name || '';
+            const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || '';
+            
+            // Só notifica se não tiver sido criada pelo próprio usuário conectado nesta máquina
+            if (createdBy !== currentUserName) {
+              const transferNumber = data.transfer_number || 'Sem Número';
+              const origin = data.origin || 'N/A';
+              const dest = data.destination || 'N/A';
+              triggerSystemNotification(
+                'Nova Transferência Recebida', 
+                `Transferência #${transferNumber} de ${origin} para ${dest} foi registrada.`
+              );
+            }
+          }
+        });
+      } else {
+        isFirstLoad.current = false;
+      }
     }, (err) => {
       console.error("Erro ao escutar transferências:", err);
       handleFirestoreError(err, OperationType.GET, 'transfers');
@@ -247,8 +345,10 @@ export function TransfersView({
   // Request browser notification permissions
   const requestNotificationPermission = async () => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermissionStatus(Notification.permission);
       if (Notification.permission === 'default') {
-        await Notification.requestPermission();
+        const res = await Notification.requestPermission();
+        setNotificationPermissionStatus(res);
       }
     }
   };
@@ -427,26 +527,10 @@ export function TransfersView({
       await sendGoogleChatNotification(chatMessage);
 
       // Dispatch Browser Local Notification
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        const notificationTitle = 'Nova Transferência';
-        const notificationOptions = {
-          body: `Transferência #${transferDoc.transfer_number} enviada de ${transferDoc.origin} para ${transferDoc.destination}`,
-          icon: '/app-logo.png',
-          badge: '/app-logo.png',
-          vibrate: [200, 100, 200]
-        };
-
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.ready.then((registration) => {
-            registration.showNotification(notificationTitle, notificationOptions);
-          }).catch((err) => {
-            console.warn('Falha ao usar Service Worker para notificação:', err);
-            new Notification(notificationTitle, notificationOptions);
-          });
-        } else {
-          new Notification(notificationTitle, notificationOptions);
-        }
-      }
+      triggerSystemNotification(
+        'Nova Transferência',
+        `Transferência #${transferDoc.transfer_number} enviada de ${transferDoc.origin} para ${transferDoc.destination}`
+      );
 
       setSuccess('Transferência registrada com sucesso e notificações enviadas!');
       setIsModalOpen(false);
@@ -719,6 +803,38 @@ export function TransfersView({
           Nova Transferência
         </button>
       </div>
+
+      {/* Banner de Status de Notificação para Android e Desktop */}
+      {notificationPermissionStatus !== 'granted' && (
+        <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+          <div className="flex gap-3">
+            <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
+            <div>
+              <p className="text-sm font-bold text-on-surface">Notificações Desativadas no Aparelho</p>
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                Para receber alertas sonoros e vibrações instantâneas de novas transferências neste dispositivo, ative as notificações.
+              </p>
+              <p className="text-[11px] text-amber-700 font-medium mt-1">
+                💡 No Android: Toque no ícone de opções/cadeado ao lado da barra de endereços do Chrome e mude "Notificações" para "Permitir". Se for PWA instalado, vá em Ajustes do Android {`>`} Aplicativos {`>`} Almoxarifado Ventisol {`>`} Notificações e ative.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              if (typeof window !== 'undefined' && 'Notification' in window) {
+                const res = await Notification.requestPermission();
+                setNotificationPermissionStatus(res);
+                if (res === 'granted') {
+                  triggerSystemNotification('Notificações Ativadas!', 'Você agora receberá alertas sonoros e vibrações de novas transferências!');
+                }
+              }
+            }}
+            className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 border border-amber-500/30 font-bold text-xs rounded-xl active:scale-95 transition-all cursor-pointer whitespace-nowrap shrink-0"
+          >
+            Ativar Alertas
+          </button>
+        </div>
+      )}
 
       {/* Messages */}
       <AnimatePresence>
