@@ -340,7 +340,7 @@ export default function Home() {
     };
 
     fetchStaticLookups();
-  }, [user?.uid, profile?.uid]);
+  }, [user?.uid, profile?.id]);
 
   // Operations real-time listener: established exactly ONCE on login (does not depend on date filters)
   useEffect(() => {
@@ -357,7 +357,7 @@ export default function Home() {
     });
 
     return () => unsubOps();
-  }, [user?.uid, profile?.uid]);
+  }, [user?.uid, profile?.id]);
 
   // Global Transfers Listener for Push/System Notifications
   useEffect(() => {
@@ -407,7 +407,7 @@ export default function Home() {
     });
 
     return () => unsubTransfers();
-  }, [user?.uid, profile?.uid, notificationsEnabled]);
+  }, [user?.uid, profile?.id, notificationsEnabled]);
 
   // Dynamic collections (Purchase Orders & Receipts): Conditional on view and debounced date parameters
   useEffect(() => {
@@ -462,7 +462,7 @@ export default function Home() {
       unsubPOs();
       unsubReceipts();
     };
-  }, [user?.uid, profile?.uid, debouncedStartDate, debouncedEndDate, currentView]);
+  }, [user?.uid, profile?.id, debouncedStartDate, debouncedEndDate, currentView]);
 
   const handleToggleStep = async (opId: string, stepIndex: number) => {
     const op = operations.find(o => o.id === opId);

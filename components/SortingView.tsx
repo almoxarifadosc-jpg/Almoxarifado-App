@@ -2243,7 +2243,7 @@ export function SortingView({
 
               <div className="p-8 space-y-2 max-h-[400px] overflow-y-auto">
                 {profiles
-                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
                   .map(profile => {
                   const isAssigned = assigningOrder.assigned_users?.includes(profile.id);
                   return (
