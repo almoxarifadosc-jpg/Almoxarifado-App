@@ -155,7 +155,8 @@
         "updated_at": { "type": "string", "format": "date-time" },
         "created_by_name": { "type": "string" },
         "conferred_by_name": { "type": "string" },
-        "conferred_at": { "type": "string", "format": "date-time" }
+        "conferred_at": { "type": "string", "format": "date-time" },
+        "device_id": { "type": "string" }
       },
       "required": ["transfer_number", "date", "origin", "destination", "items"]
     }

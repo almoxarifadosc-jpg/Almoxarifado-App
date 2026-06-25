@@ -495,6 +495,7 @@ export function TransfersView({
 
     try {
       const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema';
+      const myDeviceId = typeof window !== 'undefined' ? localStorage.getItem('ventisol_device_session_id') || '' : '';
       
       const transferDoc = {
         transfer_number: transfer_number.trim(),
@@ -510,7 +511,8 @@ export function TransfersView({
         })),
         created_at: serverTimestamp(),
         updated_at: serverTimestamp(),
-        created_by_name: currentUserName
+        created_by_name: currentUserName,
+        device_id: myDeviceId
       };
 
       const docRef = await addDoc(collection(db, 'transfers'), transferDoc);

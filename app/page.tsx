@@ -54,6 +54,11 @@ export default function Home() {
     setIsDarkMode(isDark);
 
     if (typeof window !== 'undefined') {
+      // Garantir ID único do dispositivo para evitar silenciar notificações quando usar a mesma conta em múltiplos aparelhos
+      if (!localStorage.getItem('ventisol_device_session_id')) {
+        localStorage.setItem('ventisol_device_session_id', 'dev_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now());
+      }
+
       const saved = localStorage.getItem('ventisol_notifications_enabled');
       if (saved === null) {
         // Se nunca configurou, assume true se tiver permissão concedida, senão false
@@ -302,9 +307,19 @@ export default function Home() {
             const data = change.doc.data();
             const createdBy = data.created_by_name || '';
             const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || '';
+            const transferDeviceId = data.device_id || '';
+            const myDeviceId = typeof window !== 'undefined' ? localStorage.getItem('ventisol_device_session_id') || '' : '';
             
-            // Só notifica se não tiver sido criada pelo próprio usuário conectado nesta máquina
-            if (createdBy !== currentUserName) {
+            // Só notifica se não tiver sido criada por este mesmo aparelho (aparelhos diferentes com o mesmo usuário recebem a notificação)
+            let shouldNotify = false;
+            if (transferDeviceId && myDeviceId) {
+              shouldNotify = transferDeviceId !== myDeviceId;
+            } else {
+              // Fallback para transferências antigas ou legadas
+              shouldNotify = createdBy !== currentUserName;
+            }
+
+            if (shouldNotify) {
               const transferNumber = data.transfer_number || 'Sem Número';
               const origin = data.origin || 'N/A';
               const dest = data.destination || 'N/A';
