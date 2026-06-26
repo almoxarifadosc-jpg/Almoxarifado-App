@@ -41,7 +41,13 @@ export async function POST(request: Request) {
         title,
         body,
       },
+      android: {
+        priority: 'high' as const,
+      },
       webpush: {
+        headers: {
+          Urgency: 'high',
+        },
         notification: {
           title,
           body,
