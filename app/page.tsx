@@ -102,7 +102,7 @@ export default function Home() {
 
     // Dar um feedback sonoro, tátil e visual ao usuário
     if (nextValue) {
-      registerAndGetFCMToken().catch((err) => {
+      registerAndGetFCMToken(user?.uid, user?.email).catch((err) => {
         console.error('Erro ao registrar FCM via toggle:', err);
       });
 
@@ -352,7 +352,7 @@ export default function Home() {
     if (!user || !profile) return;
     const isEnabled = typeof window !== 'undefined' && localStorage.getItem('ventisol_notifications_enabled') !== 'false';
     if (isEnabled) {
-      registerAndGetFCMToken().catch((err) => {
+      registerAndGetFCMToken(user?.uid, user?.email).catch((err) => {
         console.error('Erro ao registrar FCM na inicialização:', err);
       });
     }

@@ -8,7 +8,7 @@ import firebaseConfig from '@/firebase-applet-config.json';
 // Caso contrário, usa a variável de ambiente pública NEXT_PUBLIC_FIREBASE_VAPID_KEY
 const DEFAULT_VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || '';
 
-export async function registerAndGetFCMToken(): Promise<string | null> {
+export async function registerAndGetFCMToken(userId?: string, userEmail?: string): Promise<string | null> {
   if (typeof window === 'undefined') return null;
 
   // 1. Verificar suporte a notificações e service worker
@@ -28,8 +28,19 @@ export async function registerAndGetFCMToken(): Promise<string | null> {
     }
 
     console.log('🔄 Registrando o Service Worker dinâmico do FCM...');
-    // Registrar o service worker específico para o FCM
-    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+    // Constrói os query parameters com as credenciais reais do Firebase do applet para o Service Worker
+    const queryParams = new URLSearchParams({
+      apiKey: firebaseConfig.apiKey || '',
+      authDomain: firebaseConfig.authDomain || '',
+      projectId: firebaseConfig.projectId || '',
+      storageBucket: firebaseConfig.storageBucket || '',
+      messagingSenderId: firebaseConfig.messagingSenderId || '',
+      appId: firebaseConfig.appId || '',
+      measurementId: firebaseConfig.measurementId || ''
+    }).toString();
+
+    // Registrar o service worker específico para o FCM passando as credenciais dinamicamente
+    const registration = await navigator.serviceWorker.register(`/firebase-messaging-sw.js?${queryParams}`, {
       scope: '/'
     });
     console.log('✅ Service Worker do FCM registrado com sucesso!');
@@ -57,15 +68,19 @@ export async function registerAndGetFCMToken(): Promise<string | null> {
       console.log('✅ Token FCM gerado com sucesso:', token.substring(0, 15) + '...');
       
       // 4. Salvar o token no Firestore associado ao usuário atual
-      const currentUser = auth.currentUser;
-      if (currentUser) {
+      const finalUid = userId || auth.currentUser?.uid;
+      const finalEmail = userEmail || auth.currentUser?.email || '';
+
+      if (finalUid) {
         await setDoc(doc(db, 'fcm_tokens', token), {
           token,
-          uid: currentUser.uid,
-          email: currentUser.email || '',
+          uid: finalUid,
+          email: finalEmail,
           updated_at: serverTimestamp()
         });
         console.log('💾 Token FCM salvo no banco de dados Firestore.');
+      } else {
+        console.warn('⚠️ Token FCM gerado, mas nenhum usuário ativo encontrado para persistir o token no Firestore.');
       }
       return token;
     } else {

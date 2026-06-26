@@ -41,6 +41,11 @@ export async function POST(request: Request) {
         title,
         body,
       },
+      data: {
+        title,
+        body,
+        url: '/',
+      },
       android: {
         priority: 'high' as const,
       },
