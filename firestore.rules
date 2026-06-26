@@ -147,5 +147,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // 10. FCM Tokens
+    match /fcm_tokens/{tokenId} {
+      allow read, list: if canViewData();
+      allow write: if isSignedIn() && (incoming().uid == request.auth.uid || isAdmin());
+    }
+
   }
 }

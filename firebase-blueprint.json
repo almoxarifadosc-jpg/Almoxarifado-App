@@ -159,6 +159,18 @@
         "device_id": { "type": "string" }
       },
       "required": ["transfer_number", "date", "origin", "destination", "items"]
+    },
+    "FCMToken": {
+      "title": "FCMToken",
+      "description": "Firebase Cloud Messaging Token for Push Notifications",
+      "type": "object",
+      "properties": {
+        "token": { "type": "string" },
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["token", "uid"]
     }
   },
   "firestore": {
@@ -171,6 +183,7 @@
     "/load_types/{typeId}": { "schema": "LoadType", "description": "Available load types" },
     "/receipts/{receiptId}": { "schema": "Receipt", "description": "Load receipt records" },
     "/purchase_orders/{orderId}": { "schema": "PurchaseOrder", "description": "Imported purchase orders" },
-    "/transfers/{transferId}": { "schema": "Transfer", "description": "Stock transfer logs" }
+    "/transfers/{transferId}": { "schema": "Transfer", "description": "Stock transfer logs" },
+    "/fcm_tokens/{tokenId}": { "schema": "FCMToken", "description": "Active device tokens for push notifications" }
   }
 }

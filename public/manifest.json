@@ -1,5 +1,6 @@
 {
   "name": "Almoxarifado Ventisol",
+  "gcm_sender_id": "103953800507",
   "short_name": "Almoxarifado SC",
   "description": "Sistema de controle de fluxo de operações industriais e gestão de produção Ventisol.",
   "start_url": "/?standalone=true",

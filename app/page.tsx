@@ -18,6 +18,7 @@ import { SeparationDashboardView } from '@/components/SeparationDashboardView';
 import { SeparationSequenceView } from '@/components/SeparationSequenceView';
 import { InfoView } from '@/components/InfoView';
 import { TransfersView, triggerSystemNotification } from '@/components/TransfersView';
+import { registerAndGetFCMToken } from '@/lib/fcm';
 import { Factory, Settings, CheckCircle2, Loader2, AlertCircle, RefreshCw, Eraser, Smartphone, ShieldAlert, Battery, Check, X } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -101,6 +102,10 @@ export default function Home() {
 
     // Dar um feedback sonoro, tátil e visual ao usuário
     if (nextValue) {
+      registerAndGetFCMToken().catch((err) => {
+        console.error('Erro ao registrar FCM via toggle:', err);
+      });
+
       if ('vibrate' in navigator) {
         try {
           navigator.vibrate([100, 50, 100]);
@@ -340,6 +345,17 @@ export default function Home() {
     };
 
     fetchStaticLookups();
+  }, [user?.uid, profile?.id]);
+
+  // Registro de FCM em segundo plano no login/inicialização
+  useEffect(() => {
+    if (!user || !profile) return;
+    const isEnabled = typeof window !== 'undefined' && localStorage.getItem('ventisol_notifications_enabled') !== 'false';
+    if (isEnabled) {
+      registerAndGetFCMToken().catch((err) => {
+        console.error('Erro ao registrar FCM na inicialização:', err);
+      });
+    }
   }, [user?.uid, profile?.id]);
 
   // Operations real-time listener: established exactly ONCE on login (does not depend on date filters)

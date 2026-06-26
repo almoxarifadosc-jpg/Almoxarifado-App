@@ -1,6 +1,7 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { getMessaging } from 'firebase-admin/messaging';
 import firebaseConfig from '@/firebase-applet-config.json';
 
 let app;
@@ -66,6 +67,9 @@ function createCheckedProxy<T extends object>(target: T, name: string): T {
 const adminDb = createCheckedProxy(rawAdminDb, 'adminDb');
 const adminAuth = createCheckedProxy(rawAdminAuth, 'adminAuth');
 
+const rawAdminMessaging = getMessaging(app);
+const adminMessaging = createCheckedProxy(rawAdminMessaging, 'adminMessaging');
+
 // Objeto de compatibilidade legado para referências como 'admin.firestore.FieldValue'
 const adminLegacy = {
   firestore: {
@@ -73,4 +77,4 @@ const adminLegacy = {
   }
 };
 
-export { adminLegacy as admin, adminDb, adminAuth };
+export { adminLegacy as admin, adminDb, adminAuth, adminMessaging };

@@ -41,7 +41,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '@/lib/firestore-errors';
-import { sendGoogleChatNotification } from '@/lib/notifications';
+import { sendGoogleChatNotification, sendPushNotification } from '@/lib/notifications';
 
 interface TransferItem {
   code: string;
@@ -528,6 +528,17 @@ export function TransfersView({
         `*Data:* ${new Date().toLocaleString('pt-BR')}`;
       
       await sendGoogleChatNotification(chatMessage);
+
+      // Envia notificação por push ativa via FCM para segundo plano (dispositivos fechados)
+      try {
+        await sendPushNotification(
+          'Nova Transferência Registrada 🔄',
+          `A transferência #${transferDoc.transfer_number} foi enviada de ${transferDoc.origin} para ${transferDoc.destination}`,
+          auth.currentUser?.uid
+        );
+      } catch (pushErr) {
+        console.error('Falha ao enviar notificação Push ativa:', pushErr);
+      }
 
       // Dispatch Browser Local Notification
       const isEnabled = typeof window !== 'undefined' && localStorage.getItem('ventisol_notifications_enabled') !== 'false';

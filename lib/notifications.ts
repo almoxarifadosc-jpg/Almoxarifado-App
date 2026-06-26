@@ -20,3 +20,27 @@ export async function sendGoogleChatNotification(message: string, isSignature: b
     console.error('❌ Erro ao enviar notificação para o Google Chat:', error);
   }
 }
+
+export async function sendPushNotification(title: string, body: string, senderUid?: string) {
+  console.log('📡 Tentando enviar notificação Push FCM...');
+
+  try {
+    const response = await fetch('/api/notify/push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title, body, senderUid }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Erro na resposta do FCM Push:', errorText);
+    } else {
+      const resData = await response.json();
+      console.log('✅ FCM Push enviado com sucesso:', resData);
+    }
+  } catch (error) {
+    console.error('❌ Erro ao disparar FCM Push:', error);
+  }
+}
