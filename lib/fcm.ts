@@ -64,13 +64,30 @@ export async function registerAndGetFCMToken(userId?: string, userEmail?: string
       const finalEmail = userEmail || auth.currentUser?.email || '';
 
       if (finalUid) {
-        await setDoc(doc(db, 'fcm_tokens', token), {
-          token,
-          uid: finalUid,
-          email: finalEmail,
-          updated_at: serverTimestamp()
-        });
-        console.log('💾 Token FCM salvo no banco de dados Firestore.');
+        try {
+          await setDoc(doc(db, 'fcm_tokens', token), {
+            token,
+            uid: finalUid,
+            email: finalEmail,
+            updated_at: serverTimestamp()
+          });
+          console.log('💾 Token FCM salvo no banco de dados Firestore.');
+        } catch (dbErr: any) {
+          const isPermissionErr = dbErr?.message?.includes('permission') || dbErr?.code === 'permission-denied';
+          if (isPermissionErr) {
+            console.warn('⚠️ Erro de permissão inicial ao salvar o token. Tentando novamente em 1.5s...');
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            await setDoc(doc(db, 'fcm_tokens', token), {
+              token,
+              uid: finalUid,
+              email: finalEmail,
+              updated_at: serverTimestamp()
+            });
+            console.log('💾 Token FCM salvo no banco de dados Firestore após segunda tentativa.');
+          } else {
+            throw dbErr;
+          }
+        }
       } else {
         console.warn('⚠️ Token FCM gerado, mas nenhum usuário ativo encontrado para persistir o token no Firestore.');
       }

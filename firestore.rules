@@ -149,8 +149,9 @@ service cloud.firestore {
 
     // 10. FCM Tokens
     match /fcm_tokens/{tokenId} {
-      allow read, list: if canViewData();
-      allow write: if isSignedIn() && (incoming().uid == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create, update: if isSignedIn() && (request.resource.data.uid == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
   }
