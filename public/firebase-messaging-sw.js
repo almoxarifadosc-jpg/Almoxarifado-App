@@ -6,12 +6,12 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-com
 // Extrai credenciais reais do Firebase a partir dos query parameters da URL de registro do Service Worker
 const urlParams = new URLSearchParams(self.location.search);
 const firebaseConfig = {
-  apiKey: urlParams.get('apiKey'),
-  authDomain: urlParams.get('authDomain'),
-  projectId: urlParams.get('projectId'),
-  storageBucket: urlParams.get('storageBucket'),
-  messagingSenderId: urlParams.get('messagingSenderId'),
-  appId: urlParams.get('appId'),
+  apiKey: urlParams.get('apiKey') || "AIzaSyAXdU4i0oXCBpwtUQXF4vpJyp0n_bhFLuw",
+  authDomain: urlParams.get('authDomain') || "gen-lang-client-0412067480.firebaseapp.com",
+  projectId: urlParams.get('projectId') || "gen-lang-client-0412067480",
+  storageBucket: urlParams.get('storageBucket') || "gen-lang-client-0412067480.firebasestorage.app",
+  messagingSenderId: urlParams.get('messagingSenderId') || "587255945999",
+  appId: urlParams.get('appId') || "1:587255945999:web:607fed54beaa44eb187c7a",
   measurementId: urlParams.get('measurementId') || ""
 };
 

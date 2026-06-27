@@ -6,7 +6,7 @@ import firebaseConfig from '@/firebase-applet-config.json';
 
 // Chave VAPID pública padrão para desenvolvimento se nenhuma variável de ambiente estiver configurada.
 // Caso contrário, usa a variável de ambiente pública NEXT_PUBLIC_FIREBASE_VAPID_KEY
-const DEFAULT_VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || '';
+const DEFAULT_VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || 'BAX8VLVefy9iiCfdLOvYqSB2aoACR-rS6Wfdchb9ntyO9nKkTX47O9Le3426_mNycZIjfQ1OwSEFUgoFfjQMXG0';
 
 export async function registerAndGetFCMToken(userId?: string, userEmail?: string): Promise<string | null> {
   if (typeof window === 'undefined') return null;
