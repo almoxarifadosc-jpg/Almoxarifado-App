@@ -33,16 +33,13 @@ export async function POST(request: Request) {
 
       snapshot.docs.forEach(doc => {
         const data = doc.data();
-        // Não envia para o próprio remetente se senderUid for fornecido
-        if (senderUid && data.uid === senderUid) {
-          return;
-        }
+        // Enviamos para todos os tokens cadastrados, incluindo o remetente, para feedback visual e consistência multi-dispositivos
         tokens.push(doc.id);
       });
     }
 
     if (tokens.length === 0) {
-      return NextResponse.json({ success: true, message: 'Nenhum token de outros dispositivos encontrado.' });
+      return NextResponse.json({ success: true, message: 'Nenhum token ativo encontrado para disparo.' });
     }
 
     console.log(`🚀 Enviando notificação FCM para ${tokens.length} dispositivos...`);

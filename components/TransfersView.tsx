@@ -69,6 +69,23 @@ interface Transfer {
   conferred_at?: any;
   attended_by_name?: string;
   attended_at?: any;
+  started_separation_at?: any;
+}
+
+export function formatElapsedTime(start: Date, end: Date): string {
+  if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return "00:00";
+  const diffMs = end.getTime() - start.getTime();
+  const totalSecs = Math.floor(diffMs / 1000);
+  const secs = totalSecs % 60;
+  const totalMins = Math.floor(totalSecs / 60);
+  const mins = totalMins % 60;
+  const hours = Math.floor(totalMins / 60);
+
+  const pad = (num: number) => String(num).padStart(2, '0');
+  if (hours > 0) {
+    return `${pad(hours)}h ${pad(mins)}m ${pad(secs)}s`;
+  }
+  return `${pad(mins)}m ${pad(secs)}s`;
 }
 
 export function calculateBusinessTimeElapsed(start: Date, end: Date): string {
@@ -270,6 +287,16 @@ export function TransfersView({
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState<Transfer | null>(null);
   
+  // Real-time timer tick for transfer cards
+  const [now, setNow] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+  
   // Creation form state
   const [newTransfer, setNewTransfer] = useState<{
     transfer_number: string;
@@ -283,7 +310,7 @@ export function TransfersView({
     date: new Date().toISOString().split('T')[0],
     origin: '',
     destination: '',
-    carrier: '',
+    carrier: 'Jhon Alejandro Arevalo gomez',
     items: []
   });
 
@@ -398,7 +425,9 @@ export function TransfersView({
             date: parsed.date || new Date().toISOString().split('T')[0],
             origin: parsed.origin || '',
             destination: parsed.destination || '',
-            carrier: parsed.carrier || '',
+            carrier: (parsed.carrier && (parsed.carrier.toLowerCase().includes('dayan') || parsed.carrier.toLowerCase().includes('jhon') || parsed.carrier.toLowerCase().includes('alejandro')))
+              ? (parsed.carrier.toLowerCase().includes('dayan') ? 'Dayan' : 'Jhon Alejandro Arevalo gomez')
+              : 'Jhon Alejandro Arevalo gomez',
             items: (parsed.items || []).map((item: any) => ({
               code: item.code || '',
               description: item.description || '',
@@ -577,6 +606,35 @@ export function TransfersView({
     setVerificationItems(JSON.parse(JSON.stringify(transfer.items))); // Deep clone items for editing/conferring
     setIsVerifying(false);
     setIsDetailOpen(true);
+  };
+
+  // Start the physical verification and record start time in Firestore
+  const handleStartSeparation = async () => {
+    if (!selectedTransfer) return;
+    setIsProcessing(true);
+    setError(null);
+    try {
+      if (!selectedTransfer.started_separation_at) {
+        const nowSecs = Math.floor(Date.now() / 1000);
+        await updateDoc(doc(db, 'transfers', selectedTransfer.id), {
+          started_separation_at: serverTimestamp(),
+          updated_at: serverTimestamp()
+        });
+        
+        // Update local object instantly
+        setSelectedTransfer(prev => prev ? {
+          ...prev,
+          started_separation_at: { seconds: nowSecs }
+        } : null);
+      }
+      setIsVerifying(true);
+    } catch (err: any) {
+      console.error("Erro ao registrar início da separação:", err);
+      setError("Erro ao iniciar a conferência/separação.");
+      handleFirestoreError(err, OperationType.UPDATE, `transfers/${selectedTransfer.id}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   // Toggle checklist for item in verification
@@ -967,6 +1025,52 @@ export function TransfersView({
                       </div>
                     </div>
                   </div>
+
+                  {/* Cronômetro e Estatísticas de Tempo */}
+                  {!cancelled && (() => {
+                    const start = t.created_at?.seconds 
+                      ? new Date(t.created_at.seconds * 1000) 
+                      : (t.created_at instanceof Date ? t.created_at : null);
+                    
+                    const separation = (t as any).started_separation_at?.seconds 
+                      ? new Date((t as any).started_separation_at.seconds * 1000) 
+                      : ((t as any).started_separation_at instanceof Date ? (t as any).started_separation_at : null);
+
+                    const end = t.attended_at?.seconds 
+                      ? new Date(t.attended_at.seconds * 1000) 
+                      : (t.attended_at instanceof Date ? t.attended_at : null);
+
+                    if (!start) return null;
+
+                    if (attended && end) {
+                      const uploadTime = start.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                      const separationTime = separation 
+                        ? separation.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                        : 'Não inc.';
+                      const totalDuration = formatElapsedTime(start, end);
+
+                      return (
+                        <div className="mt-2 p-2.5 bg-emerald-500/8 border border-emerald-500/10 rounded-2xl space-y-1 text-[10px] text-on-surface-variant">
+                          <div className="flex justify-between">
+                            <span>📤 Upload: <strong className="text-on-surface">{uploadTime}</strong></span>
+                            <span>⚡ Separação: <strong className="text-on-surface">{separationTime}</strong></span>
+                          </div>
+                          <div className="flex justify-between border-t border-emerald-500/10 pt-1 mt-1 font-semibold text-emerald-700">
+                            <span>⏱️ Tempo Total:</span>
+                            <span className="font-mono font-bold">{totalDuration}</span>
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      const timeStr = formatElapsedTime(start, now);
+                      return (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-xl text-[11px] font-mono font-bold mt-2 animate-pulse">
+                          <Clock size={13} className="animate-spin" style={{ animationDuration: '3s' }} />
+                          <span>Tempo Decorrido: {timeStr}</span>
+                        </div>
+                      );
+                    }
+                  })()}
                 </div>
 
                 <div className="pt-3 border-t border-outline-variant/10 flex items-center justify-between">
@@ -1020,7 +1124,7 @@ export function TransfersView({
               <div className="p-6 overflow-y-auto max-h-[60vh] space-y-6">
                 {/* PDF Drag / Drop area */}
                 <div className="space-y-2">
-                  <span className="block text-xs font-bold text-on-surface uppercase tracking-wider">Passo 1: Carregar PDF de Transferência (Opcional)</span>
+                  <span className="block text-xs font-bold text-on-surface uppercase tracking-wider">Upar Arquivo PDF da Transferência</span>
                   <div className="relative border border-dashed border-primary/20 rounded-2xl bg-primary/5 p-6 text-center hover:bg-primary/8 transition-colors">
                     <input 
                       type="file" 
@@ -1053,7 +1157,7 @@ export function TransfersView({
 
                 {/* Form Inputs */}
                 <form onSubmit={handleSaveTransfer} className="space-y-5">
-                  <span className="block text-xs font-bold text-on-surface uppercase tracking-wider">Passo 2: Dados Principais da Transferência</span>
+                  <span className="block text-xs font-bold text-on-surface uppercase tracking-wider">Dados Principais da Transferência</span>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
@@ -1104,14 +1208,15 @@ export function TransfersView({
                     </div>
 
                     <div className="sm:col-span-2 space-y-1">
-                      <label className="text-xs font-semibold text-on-surface-variant">Transportador / Motorista / Responsável</label>
-                      <input 
-                        type="text" 
-                        placeholder="Ex: João da Silva (Placa ABC-1234)"
+                      <label className="text-xs font-semibold text-on-surface-variant">Responsável pela Transferência</label>
+                      <select 
                         value={newTransfer.carrier}
                         onChange={(e) => setNewTransfer({...newTransfer, carrier: e.target.value})}
-                        className="w-full px-3 py-2.5 bg-surface border border-outline-variant/15 rounded-xl text-sm focus:outline-none focus:border-primary text-on-surface"
-                      />
+                        className="w-full px-3 py-2.5 bg-surface border border-outline-variant/15 rounded-xl text-sm focus:outline-none focus:border-primary text-on-surface cursor-pointer"
+                      >
+                        <option value="Jhon Alejandro Arevalo gomez">Jhon Alejandro Arevalo gomez</option>
+                        <option value="Dayan">Dayan</option>
+                      </select>
                     </div>
                   </div>
                 </form>
@@ -1120,7 +1225,7 @@ export function TransfersView({
 
                 {/* Items addition manually */}
                 <div className="space-y-3">
-                  <span className="block text-xs font-bold text-on-surface uppercase tracking-wider">Passo 3: Adicionar Produtos</span>
+                  <span className="block text-xs font-bold text-on-surface uppercase tracking-wider">Adicionar Produtos</span>
                   
                   <div className="bg-surface-container-low p-4 rounded-2xl border border-outline-variant/10 space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1340,37 +1445,72 @@ export function TransfersView({
                         <span className="font-bold">{selectedTransfer.attended_by_name}</span>
                       </div>
                     )}
-                    {selectedTransfer.attended_at && selectedTransfer.created_at && (
-                      <div className="pt-2 border-t border-outline-variant/10 mt-1 space-y-1.5">
-                        <div className="flex items-center gap-2 text-on-surface-variant">
-                          <Clock size={14} />
-                          <span className="font-semibold">Atendido em:</span>
-                          <span className="font-bold text-on-surface">
-                            {selectedTransfer.attended_at?.seconds 
-                              ? new Date(selectedTransfer.attended_at.seconds * 1000).toLocaleString('pt-BR')
-                              : selectedTransfer.attended_at instanceof Date
-                                ? selectedTransfer.attended_at.toLocaleString('pt-BR')
-                                : new Date(selectedTransfer.attended_at).toLocaleString('pt-BR')
-                            }
-                          </span>
+                    {(() => {
+                      const start = selectedTransfer.created_at?.seconds 
+                        ? new Date(selectedTransfer.created_at.seconds * 1000) 
+                        : (selectedTransfer.created_at instanceof Date ? selectedTransfer.created_at : null);
+
+                      const separation = selectedTransfer.started_separation_at?.seconds 
+                        ? new Date(selectedTransfer.started_separation_at.seconds * 1000) 
+                        : (selectedTransfer.started_separation_at instanceof Date ? selectedTransfer.started_separation_at : null);
+
+                      const end = selectedTransfer.attended_at?.seconds 
+                        ? new Date(selectedTransfer.attended_at.seconds * 1000) 
+                        : (selectedTransfer.attended_at instanceof Date ? selectedTransfer.attended_at : null);
+
+                      if (!start) return null;
+
+                      const uploadFormatted = start.toLocaleString('pt-BR');
+                      const separationFormatted = separation ? separation.toLocaleString('pt-BR') : 'Aguardando início da separação';
+                      const isAttended = selectedTransfer.status === 'Atendida';
+                      const totalTimeStr = isAttended && end 
+                        ? formatElapsedTime(start, end)
+                        : formatElapsedTime(start, now);
+
+                      return (
+                        <div className="pt-3 border-t border-outline-variant/10 mt-2 space-y-2.5">
+                          <span className="block text-[11px] font-bold uppercase tracking-wider text-primary">Cronologia e Monitoramento</span>
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="p-2.5 bg-surface-container-low rounded-xl border border-outline-variant/5">
+                              <span className="text-[10px] text-on-surface-variant block uppercase font-semibold">Horário de Upload</span>
+                              <span className="text-xs font-bold text-on-surface mt-0.5 block">{uploadFormatted}</span>
+                            </div>
+
+                            <div className="p-2.5 bg-surface-container-low rounded-xl border border-outline-variant/5">
+                              <span className="text-[10px] text-on-surface-variant block uppercase font-semibold">Início da Separação</span>
+                              <span className="text-xs font-bold text-on-surface mt-0.5 block">{separationFormatted}</span>
+                            </div>
+                          </div>
+
+                          <div className={cn(
+                            "p-3 rounded-xl border flex items-center justify-between",
+                            isAttended 
+                              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-400" 
+                              : "bg-amber-500/10 border-amber-500/20 text-amber-800 dark:text-amber-400 animate-pulse"
+                          )}>
+                            <div className="flex items-center gap-2">
+                              <Clock size={16} className={isAttended ? "" : "animate-spin"} style={{ animationDuration: isAttended ? undefined : '3s' }} />
+                              <div>
+                                <span className="text-[10px] uppercase block font-semibold">
+                                  {isAttended ? 'Tempo Total de Atendimento' : 'Tempo de Atendimento (Correndo)'}
+                                </span>
+                                <span className="text-sm font-extrabold font-mono mt-0.5 block">{totalTimeStr}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {isAttended && end && (
+                            <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl text-primary flex items-center justify-between text-xs font-semibold">
+                              <span>SLA Útil Comercial:</span>
+                              <span className="font-extrabold font-mono bg-primary/20 px-2.5 py-1 rounded">
+                                {calculateBusinessTimeElapsed(start, end)}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 text-primary font-semibold">
-                          <Clock size={14} className="text-primary" />
-                          <span>Tempo Comercial de SLA:</span>
-                          <span className="font-extrabold bg-primary/10 px-2 py-0.5 rounded text-primary">
-                            {(() => {
-                              const start = selectedTransfer.created_at?.seconds 
-                                ? new Date(selectedTransfer.created_at.seconds * 1000) 
-                                : (selectedTransfer.created_at instanceof Date ? selectedTransfer.created_at : new Date(selectedTransfer.created_at));
-                              const end = selectedTransfer.attended_at?.seconds 
-                                ? new Date(selectedTransfer.attended_at.seconds * 1000) 
-                                : (selectedTransfer.attended_at instanceof Date ? selectedTransfer.attended_at : new Date(selectedTransfer.attended_at));
-                              return calculateBusinessTimeElapsed(start, end);
-                            })()}
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -1380,7 +1520,7 @@ export function TransfersView({
                     <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Lista de Produtos ({selectedTransfer.items.length})</span>
                     {selectedTransfer.status === 'Pendente' && !isVerifying && (
                       <button 
-                        onClick={() => setIsVerifying(true)}
+                        onClick={handleStartSeparation}
                         className="px-3 py-1.5 bg-primary/10 text-primary font-bold rounded-xl text-xs flex items-center gap-1 hover:bg-primary/15"
                       >
                         <Check size={14} />
