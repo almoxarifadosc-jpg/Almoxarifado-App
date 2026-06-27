@@ -27,23 +27,15 @@ export async function registerAndGetFCMToken(userId?: string, userEmail?: string
       }
     }
 
-    console.log('🔄 Registrando o Service Worker dinâmico do FCM...');
-    // Constrói os query parameters com as credenciais reais do Firebase do applet para o Service Worker
-    const queryParams = new URLSearchParams({
-      apiKey: firebaseConfig.apiKey || '',
-      authDomain: firebaseConfig.authDomain || '',
-      projectId: firebaseConfig.projectId || '',
-      storageBucket: firebaseConfig.storageBucket || '',
-      messagingSenderId: firebaseConfig.messagingSenderId || '',
-      appId: firebaseConfig.appId || '',
-      measurementId: firebaseConfig.measurementId || ''
-    }).toString();
-
-    // Registrar o service worker específico para o FCM passando as credenciais dinamicamente
-    const registration = await navigator.serviceWorker.register(`/firebase-messaging-sw.js?${queryParams}`, {
-      scope: '/'
-    });
-    console.log('✅ Service Worker do FCM registrado com sucesso!');
+    console.log('🔄 Obtendo o registro do Service Worker principal (/sw.js)...');
+    let registration = await navigator.serviceWorker.getRegistration('/');
+    
+    if (!registration) {
+      console.log('🔄 Nenhum Service Worker encontrado no escopo /. Registrando /sw.js...');
+      registration = await navigator.serviceWorker.register('/sw.js');
+    } else {
+      console.log('✅ Service Worker principal (/sw.js) já está ativo e registrado!');
+    }
 
     // 3. Inicializar Firebase App e obter o Messaging SDK do cliente
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];

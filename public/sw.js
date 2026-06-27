@@ -1,3 +1,41 @@
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAXdU4i0oXCBpwtUQXF4vpJyp0n_bhFLuw",
+  authDomain: "gen-lang-client-0412067480.firebaseapp.com",
+  projectId: "gen-lang-client-0412067480",
+  storageBucket: "gen-lang-client-0412067480.firebasestorage.app",
+  messagingSenderId: "587255945999",
+  appId: "1:587255945999:web:607fed54beaa44eb187c7a"
+};
+
+// Inicializa o Firebase no Service Worker
+if (firebase.apps.length === 0) {
+  firebase.initializeApp(firebaseConfig);
+}
+const messaging = firebase.messaging();
+
+// Trata notificações recebidas em segundo plano (com o app fechado) via FCM
+messaging.onBackgroundMessage((payload) => {
+  console.log('[sw.js] Notificação FCM recebida em segundo plano: ', payload);
+  
+  const notificationTitle = payload.notification?.title || payload.data?.title || 'Novo Alerta';
+  const notificationOptions = {
+    body: payload.notification?.body || payload.data?.body || '',
+    icon: '/app-logo.png',
+    badge: '/favicon.ico',
+    tag: payload.data?.tag || 'new-transfer',
+    renotify: true,
+    requireInteraction: true,
+    data: {
+      url: payload.data?.url || '/'
+    }
+  };
+
+  return self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
 const CACHE_NAME = 'almoxarifado-cache-v14';
 const ASSETS_TO_CACHE = [
   '/',
@@ -69,6 +107,22 @@ self.addEventListener('fetch', (event) => {
 
 // Push Notifications
 self.addEventListener('push', function(event) {
+  // Se for mensagem do FCM, o SDK do Firebase (onBackgroundMessage) cuida dela.
+  let isFCM = false;
+  try {
+    const rawData = event.data ? event.data.json() : null;
+    if (rawData && (rawData.from || rawData.gcm || rawData.multicast_id || rawData.notification || (rawData.data && rawData.data.gcm))) {
+      isFCM = true;
+    }
+  } catch (e) {
+    // Se falhar no parse, pode não ser um JSON (logo, não é do FCM)
+  }
+
+  if (isFCM) {
+    console.log('[sw.js] Ignorando evento push genérico porque pertence ao FCM SDK.');
+    return;
+  }
+
   let data = {};
   try {
     data = event.data ? event.data.json() : { title: 'Nova Notificação', body: 'Você tem uma nova atualização.' };

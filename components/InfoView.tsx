@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, 
   Printer, 
@@ -13,11 +13,218 @@ import {
   Cpu, 
   Layers, 
   Lock, 
-  ExternalLink 
+  ExternalLink,
+  Bell,
+  BellOff,
+  ShieldCheck,
+  ShieldAlert,
+  RefreshCw,
+  Play,
+  CheckCircle2,
+  AlertCircle,
+  Info
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { registerAndGetFCMToken } from '@/lib/fcm';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export function InfoView() {
+  const [fcmStatus, setFcmStatus] = useState<{
+    permission: string;
+    swRegistered: boolean;
+    token: string | null;
+    firestoreSaved: boolean | null;
+    error: string | null;
+    loading: boolean;
+    logs: string[];
+  }>({
+    permission: 'Carregando...',
+    swRegistered: false,
+    token: null,
+    firestoreSaved: null,
+    error: null,
+    loading: false,
+    logs: []
+  });
+
+  const [testTriggered, setTestTriggered] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const perm = 'Notification' in window ? Notification.permission : 'Não suportado';
+      const hasSW = 'serviceWorker' in navigator;
+      setFcmStatus(prev => ({
+        ...prev,
+        permission: perm,
+        swRegistered: hasSW
+      }));
+    }
+  }, []);
+
+  const addLog = (message: string) => {
+    setFcmStatus(prev => ({ ...prev, logs: [...prev.logs, `${new Date().toLocaleTimeString()} - ${message}`] }));
+  };
+
+  const runFCMDiagnostics = async () => {
+    setFcmStatus(prev => ({
+      ...prev,
+      loading: true,
+      error: null,
+      token: null,
+      firestoreSaved: null,
+      logs: []
+    }));
+
+    const logsList: string[] = [];
+    const log = (msg: string) => {
+      logsList.push(`${new Date().toLocaleTimeString()} - ${msg}`);
+      setFcmStatus(prev => ({ ...prev, logs: [...logsList] }));
+    };
+
+    log('🔍 Iniciando Diagnóstico de Notificações FCM...');
+
+    // 1. Verificar permissão de Notificação
+    const currentPermission = 'Notification' in window ? Notification.permission : 'not-supported';
+    log(`Passo 1: Permissão de notificações no navegador: "${currentPermission}"`);
+    
+    if (currentPermission !== 'granted') {
+      log('⚠️ Permissão não concedida. Solicitando permissão ao usuário...');
+      if ('Notification' in window) {
+        const reqPerm = await Notification.requestPermission();
+        log(`Resultado da solicitação: "${reqPerm}"`);
+        if (reqPerm !== 'granted') {
+          setFcmStatus(prev => ({
+            ...prev,
+            permission: reqPerm,
+            loading: false,
+            error: 'Permissão de notificação foi negada pelo navegador ou pelo usuário.'
+          }));
+          return;
+        }
+      } else {
+        setFcmStatus(prev => ({
+          ...prev,
+          permission: 'Não suportado',
+          loading: false,
+          error: 'Notificações não são suportadas neste navegador.'
+        }));
+        return;
+      }
+    }
+
+    // 2. Verificar Service Worker
+    log('Passo 2: Verificando registro do Service Worker...');
+    if (!('serviceWorker' in navigator)) {
+      log('❌ Service Worker não é suportado neste navegador!');
+      setFcmStatus(prev => ({
+        ...prev,
+        swRegistered: false,
+        loading: false,
+        error: 'Service Workers não são suportados.'
+      }));
+      return;
+    }
+
+    try {
+      const swReg = await navigator.serviceWorker.getRegistration('/');
+      if (swReg) {
+        log(`✅ Service Worker encontrado no escopo: "${swReg.scope}"`);
+        log(`Estado do SW ativo: ${swReg.active ? 'Ativo (Active)' : swReg.installing ? 'Instalando (Installing)' : 'Inativo'}`);
+      } else {
+        log('⚠️ Nenhum Service Worker ativo encontrado no escopo /.');
+      }
+
+      // 3. Obter token do FCM
+      log('Passo 3: Obtendo token FCM através da API...');
+      const token = await registerAndGetFCMToken();
+      if (token) {
+        log(`✅ Token FCM gerado com sucesso: "${token.substring(0, 20)}..."`);
+        
+        // 4. Verificar no Firestore se o documento existe
+        log('Passo 4: Verificando se o token foi salvo na coleção fcm_tokens do Firestore...');
+        try {
+          const docRef = doc(db, 'fcm_tokens', token);
+          const docSnap = await getDoc(docRef);
+          
+          if (docSnap.exists()) {
+            log('💾 SUCESSO! O Token foi encontrado e está salvo corretamente no Firestore na coleção "fcm_tokens".');
+            setFcmStatus(prev => ({
+              ...prev,
+              permission: Notification.permission,
+              swRegistered: true,
+              token: token,
+              firestoreSaved: true,
+              loading: false
+            }));
+          } else {
+            log('⚠️ ATENÇÃO: O Token foi gerado, mas NÃO foi encontrado no Firestore. Isso ocorre se você não estiver logado no sistema ou se houver regras pendentes.');
+            setFcmStatus(prev => ({
+              ...prev,
+              permission: Notification.permission,
+              swRegistered: true,
+              token: token,
+              firestoreSaved: false,
+              loading: false,
+              error: 'O token foi gerado localmente, mas não pôde ser encontrado no Firestore. Certifique-se de estar logado.'
+            }));
+          }
+        } catch (dbErr: any) {
+          log(`❌ Erro ao consultar o Firestore: ${dbErr.message || dbErr}`);
+          setFcmStatus(prev => ({
+            ...prev,
+            permission: Notification.permission,
+            swRegistered: true,
+            token: token,
+            firestoreSaved: false,
+            loading: false,
+            error: `Erro ao verificar Firestore: ${dbErr.message || dbErr}`
+          }));
+        }
+      } else {
+        log('❌ Falha ao obter o Token FCM do Firebase.');
+        setFcmStatus(prev => ({
+          ...prev,
+          permission: Notification.permission,
+          swRegistered: !!swReg,
+          loading: false,
+          error: 'Falha ao obter o token FCM. Veja o console ou verifique se as configurações de conexão estão corretas.'
+        }));
+      }
+    } catch (err: any) {
+      log(`❌ Ocorreu um erro geral no processo: ${err.message || err}`);
+      setFcmStatus(prev => ({
+        ...prev,
+        loading: false,
+        error: err.message || 'Erro desconhecido'
+      }));
+    }
+  };
+
+  const testBackgroundNotification = async () => {
+    setTestTriggered(true);
+    addLog('⏰ Teste agendado: Por favor, FECHE o aplicativo ou bloqueie a tela do celular AGORA para testar em segundo plano!');
+    
+    // Dispara após 4 segundos para dar tempo do usuário fechar o app
+    setTimeout(async () => {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration('/');
+        if (reg) {
+          reg.showNotification('Teste de Segundo Plano', {
+            body: 'Se você recebeu esta notificação com o app fechado, as notificações do PWA estão funcionando 100%! 🚀',
+            icon: '/app-logo.png',
+            badge: '/favicon.ico',
+            vibrate: [200, 100, 200],
+            data: {
+              url: '/'
+            }
+          });
+          setTestTriggered(false);
+        }
+      }
+    }, 4000);
+  };
+
   const handlePrintManual = () => {
     window.print();
   };
@@ -365,6 +572,145 @@ export function InfoView() {
                       Todos os arquivos de layout residem em <code className="font-mono text-primary text-[11px] bg-primary/5 px-1 py-0.5 rounded font-bold">components/</code> e telas globais no App Router. Modificações de regras de segurança do banco devem ser alteradas no compilado de segurança do Firebase (<code className="font-mono text-[11px]">firestore.rules</code>) e aplicadas na console do desenvolvedor.
                     </p>
                   </div>
+                </div>
+              </div>
+
+              {/* Painel de Diagnóstico de Notificações Push FCM */}
+              <div className="bg-surface-container-lowest p-8 rounded-[32px] border border-outline-variant/10 shadow-xs space-y-6">
+                <h4 className="text-lg font-headline font-black text-on-surface flex items-center gap-2 border-b border-outline-variant/5 pb-3">
+                  <Bell className="w-5 h-5 text-primary" />
+                  4. Diagnóstico de Notificações Push (FCM)
+                </h4>
+                
+                <p className="text-xs text-on-surface-variant leading-relaxed">
+                  Utilize esta ferramenta interativa para testar as permissões de notificação, conferir se o Service Worker do PWA está ativo e verificar se os tokens de notificação estão sendo devidamente gerados e salvos no banco de dados Firestore.
+                </p>
+
+                {/* Grid de Status Atuais */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/5 flex items-center gap-3">
+                    {fcmStatus.permission === 'granted' ? (
+                      <CheckCircle2 className="w-8 h-8 text-emerald-500 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-8 h-8 text-amber-500 shrink-0" />
+                    )}
+                    <div>
+                      <p className="text-[10px] font-bold text-on-surface-variant uppercase">Permissão Navegador</p>
+                      <p className="text-xs font-black text-on-surface mt-0.5">
+                        {fcmStatus.permission === 'granted' ? 'Concedida (Permitido)' : fcmStatus.permission === 'denied' ? 'Negada / Bloqueada' : 'Pendente (Default)'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/5 flex items-center gap-3">
+                    {fcmStatus.swRegistered ? (
+                      <CheckCircle2 className="w-8 h-8 text-emerald-500 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-8 h-8 text-amber-500 shrink-0" />
+                    )}
+                    <div>
+                      <p className="text-[10px] font-bold text-on-surface-variant uppercase">Service Worker PWA</p>
+                      <p className="text-xs font-black text-on-surface mt-0.5">
+                        {fcmStatus.swRegistered ? 'Registrado & Ativo (/sw.js)' : 'Inativo ou Não Encontrado'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/5 flex items-center gap-3 sm:col-span-2">
+                    {fcmStatus.token ? (
+                      <CheckCircle2 className="w-8 h-8 text-emerald-500 shrink-0" />
+                    ) : (
+                      <Info className="w-8 h-8 text-blue-500 shrink-0" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold text-on-surface-variant uppercase">Token FCM Atual</p>
+                      <p className="text-xs font-mono font-bold text-on-surface mt-0.5 break-all">
+                        {fcmStatus.token ? `${fcmStatus.token.substring(0, 35)}...` : 'Token não gerado ainda (Clique em Rodar Diagnóstico)'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/5 flex items-center gap-3 sm:col-span-2">
+                    {fcmStatus.firestoreSaved === true ? (
+                      <CheckCircle2 className="w-8 h-8 text-emerald-500 shrink-0" />
+                    ) : fcmStatus.firestoreSaved === false ? (
+                      <AlertCircle className="w-8 h-8 text-amber-500 shrink-0" />
+                    ) : (
+                      <Info className="w-8 h-8 text-blue-500 shrink-0" />
+                    )}
+                    <div>
+                      <p className="text-[10px] font-bold text-on-surface-variant uppercase">Persistência no Firestore</p>
+                      <p className="text-xs font-black text-on-surface mt-0.5">
+                        {fcmStatus.firestoreSaved === true ? (
+                          <span className="text-emerald-500 font-bold">Coleção "fcm_tokens" criada e sincronizada com sucesso!</span>
+                        ) : fcmStatus.firestoreSaved === false ? (
+                          <span className="text-amber-500 font-bold">Token gerado, mas gravação pendente (está autenticado?)</span>
+                        ) : (
+                          'Aguardando execução do diagnóstico'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botões de Ação */}
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <button
+                    onClick={runFCMDiagnostics}
+                    disabled={fcmStatus.loading}
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-primary text-white font-bold rounded-2xl shadow-lg shadow-primary/20 hover:opacity-95 active:scale-95 disabled:opacity-50 transition-all text-xs"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${fcmStatus.loading ? 'animate-spin' : ''}`} />
+                    {fcmStatus.loading ? 'Executando...' : 'Rodar Teste de Diagnóstico'}
+                  </button>
+
+                  <button
+                    onClick={testBackgroundNotification}
+                    disabled={testTriggered || !fcmStatus.swRegistered}
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-bold rounded-2xl border border-outline-variant/15 active:scale-95 disabled:opacity-50 transition-all text-xs"
+                  >
+                    <Play className="w-4 h-4 text-emerald-500" />
+                    {testTriggered ? 'Agendado (Feche o app!)' : 'Testar Disparo em 2º Plano'}
+                  </button>
+                </div>
+
+                {/* Logs Detalhados do Console na Tela */}
+                {fcmStatus.logs.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-bold text-on-surface-variant">Linha do Tempo de Diagnóstico:</p>
+                    <div className="p-4 bg-on-surface text-surface text-xs font-mono rounded-2xl max-h-48 overflow-y-auto space-y-1.5 leading-normal">
+                      {fcmStatus.logs.map((logLine, idx) => (
+                        <div key={idx} className={logLine.includes('❌') ? 'text-red-400' : logLine.includes('✅') || logLine.includes('💾') ? 'text-emerald-400' : 'text-surface/80'}>
+                          {logLine}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Erro Exibido se Houver */}
+                {fcmStatus.error && (
+                  <div className="p-4 bg-red-500/10 text-red-500 rounded-2xl text-xs flex items-start gap-2.5 border border-red-500/15">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Falha no Diagnóstico:</p>
+                      <p className="mt-0.5 leading-relaxed">{fcmStatus.error}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Guia de Configuração do Android */}
+                <div className="p-5 bg-surface-container-low rounded-2xl border border-outline-variant/10 space-y-3">
+                  <p className="text-xs font-black text-on-surface flex items-center gap-1.5">
+                    <Info className="w-4 h-4 text-primary" />
+                    Como garantir notificações com PWA fechado no Android:
+                  </p>
+                  <ul className="list-decimal pl-4 space-y-1.5 text-[11px] text-on-surface-variant leading-relaxed">
+                    <li>Nas configurações do celular, vá em <strong>Aplicativos</strong> e selecione o app do <strong>Almoxarifado</strong>.</li>
+                    <li>Em <strong>Notificações</strong>, certifique-se de que a permissão está ativada e marcada como <strong>Prioridade / Permitir som e vibração</strong>.</li>
+                    <li>Em <strong>Bateria</strong> ou <strong>Uso de Bateria</strong>, mude de "Otimizado" ou "Restrito" para <strong>Sem restrições</strong>. Isso impede que o Android suspenda o Service Worker em segundo plano!</li>
+                    <li>Garanta que o celular possui conexão ativa com a internet e que serviços do Google Play Services estão atualizados.</li>
+                  </ul>
                 </div>
               </div>
             </div>
