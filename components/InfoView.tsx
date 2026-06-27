@@ -49,6 +49,7 @@ export function InfoView() {
   });
 
   const [testTriggered, setTestTriggered] = useState(false);
+  const [networkTestLoading, setNetworkTestLoading] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -203,7 +204,7 @@ export function InfoView() {
 
   const testBackgroundNotification = async () => {
     setTestTriggered(true);
-    addLog('⏰ Teste agendado: Por favor, FECHE o aplicativo ou bloqueie a tela do celular AGORA para testar em segundo plano!');
+    addLog('⏰ Teste de Timer Local agendado (4s): MINIMIZE o app para testar em segundo plano! (Se fechar totalmente do gerenciador de tarefas, o cronômetro local do navegador é destruído).');
     
     // Dispara após 4 segundos para dar tempo do usuário fechar o app
     setTimeout(async () => {
@@ -211,7 +212,7 @@ export function InfoView() {
         const reg = await navigator.serviceWorker.getRegistration('/');
         if (reg) {
           reg.showNotification('Teste de Segundo Plano', {
-            body: 'Se você recebeu esta notificação com o app fechado, as notificações do PWA estão funcionando 100%! 🚀',
+            body: 'Se você recebeu esta notificação com o app em segundo plano, os alertas do PWA estão 100%! 🚀',
             icon: '/app-logo.png',
             badge: '/favicon.ico',
             vibrate: [200, 100, 200],
@@ -223,6 +224,44 @@ export function InfoView() {
         }
       }
     }, 4000);
+  };
+
+  const testNetworkPushNotification = async () => {
+    if (!fcmStatus.token) {
+      addLog('❌ Não é possível testar o push de rede sem obter um Token primeiro! Rode o teste de diagnóstico.');
+      return;
+    }
+
+    setNetworkTestLoading(true);
+    addLog('🚀 Solicitando disparo de Push REAL (FCM) ao servidor com atraso de 6 segundos...');
+    addLog('📱 FECHE TOTALMENTE o aplicativo ou bloqueie a tela do celular AGORA para testar o recebimento em 2º plano real!');
+
+    try {
+      const response = await fetch('/api/notify/push', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: 'Notificação FCM de Rede 🔔',
+          body: 'Uau! Esta notificação veio dos servidores do Google FCM e acordou seu dispositivo com o app totalmente fechado! 🚀',
+          targetToken: fcmStatus.token,
+          delay: 6000
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        addLog('✅ Pedido de push enviado ao servidor com sucesso! O Google FCM enviará a notificação em instantes.');
+      } else {
+        addLog(`❌ Erro no servidor ao disparar push: ${data.error || 'Erro desconhecido'}`);
+      }
+    } catch (err: any) {
+      addLog(`❌ Erro de rede ao conectar à API de push: ${err.message || err}`);
+    } finally {
+      setNetworkTestLoading(false);
+    }
   };
 
   const handlePrintManual = () => {
@@ -654,23 +693,32 @@ export function InfoView() {
                 </div>
 
                 {/* Botões de Ação */}
-                <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex flex-col lg:flex-row gap-4">
                   <button
                     onClick={runFCMDiagnostics}
                     disabled={fcmStatus.loading}
-                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-primary text-white font-bold rounded-2xl shadow-lg shadow-primary/20 hover:opacity-95 active:scale-95 disabled:opacity-50 transition-all text-xs"
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 bg-primary text-white font-bold rounded-2xl shadow-lg shadow-primary/20 hover:opacity-95 active:scale-95 disabled:opacity-50 transition-all text-xs cursor-pointer"
                   >
                     <RefreshCw className={`w-4 h-4 ${fcmStatus.loading ? 'animate-spin' : ''}`} />
-                    {fcmStatus.loading ? 'Executando...' : 'Rodar Teste de Diagnóstico'}
+                    {fcmStatus.loading ? 'Executando...' : '1. Rodar Teste de Diagnóstico'}
                   </button>
 
                   <button
                     onClick={testBackgroundNotification}
                     disabled={testTriggered || !fcmStatus.swRegistered}
-                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-bold rounded-2xl border border-outline-variant/15 active:scale-95 disabled:opacity-50 transition-all text-xs"
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-bold rounded-2xl border border-outline-variant/15 active:scale-95 disabled:opacity-50 transition-all text-xs cursor-pointer"
                   >
                     <Play className="w-4 h-4 text-emerald-500" />
-                    {testTriggered ? 'Agendado (Feche o app!)' : 'Testar Disparo em 2º Plano'}
+                    {testTriggered ? 'Agendado!' : '2. Testar Timer Local (Minimizado)'}
+                  </button>
+
+                  <button
+                    onClick={testNetworkPushNotification}
+                    disabled={networkTestLoading || !fcmStatus.token}
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 bg-surface-container-highest hover:opacity-90 text-on-surface font-bold rounded-2xl border border-primary/20 active:scale-95 disabled:opacity-50 transition-all text-xs cursor-pointer"
+                  >
+                    <Bell className={`w-4 h-4 text-primary ${networkTestLoading ? 'animate-bounce' : ''}`} />
+                    {networkTestLoading ? 'Disparando...' : '3. Testar Push de Rede Real (App Fechado)'}
                   </button>
                 </div>
 
@@ -700,17 +748,34 @@ export function InfoView() {
                 )}
 
                 {/* Guia de Configuração do Android */}
-                <div className="p-5 bg-surface-container-low rounded-2xl border border-outline-variant/10 space-y-3">
-                  <p className="text-xs font-black text-on-surface flex items-center gap-1.5">
-                    <Info className="w-4 h-4 text-primary" />
-                    Como garantir notificações com PWA fechado no Android:
-                  </p>
-                  <ul className="list-decimal pl-4 space-y-1.5 text-[11px] text-on-surface-variant leading-relaxed">
-                    <li>Nas configurações do celular, vá em <strong>Aplicativos</strong> e selecione o app do <strong>Almoxarifado</strong>.</li>
-                    <li>Em <strong>Notificações</strong>, certifique-se de que a permissão está ativada e marcada como <strong>Prioridade / Permitir som e vibração</strong>.</li>
-                    <li>Em <strong>Bateria</strong> ou <strong>Uso de Bateria</strong>, mude de "Otimizado" ou "Restrito" para <strong>Sem restrições</strong>. Isso impede que o Android suspenda o Service Worker em segundo plano!</li>
-                    <li>Garanta que o celular possui conexão ativa com a internet e que serviços do Google Play Services estão atualizados.</li>
-                  </ul>
+                <div className="p-5 bg-surface-container-low rounded-2xl border border-outline-variant/10 space-y-4">
+                  <div>
+                    <p className="text-xs font-black text-on-surface flex items-center gap-1.5">
+                      <Info className="w-4 h-4 text-primary" />
+                      Diferença entre os Testes de Segundo Plano:
+                    </p>
+                    <div className="mt-2 text-[11px] text-on-surface-variant space-y-2 leading-relaxed">
+                      <p>
+                        <strong>Teste 2 (Timer Local):</strong> Agenda um cronômetro no próprio navegador por 4 segundos. Ele serve para mostrar o funcionamento offline básico. Se você fechar totalmente o app (arrastando-o para fora da memória), o cronômetro deixa de existir e a notificação não aparece. Para que funcione, basta <strong>minimizar</strong> (ir para a tela inicial ou abrir outro app) sem fechá-lo de fato.
+                      </p>
+                      <p>
+                        <strong>Teste 3 (Push de Rede Real - FCM):</strong> Esse é o teste de produção real! Ele envia uma chamada ao nosso servidor que aguarda 6 segundos e dispara uma mensagem pelo Google Cloud Messaging (FCM). <strong>Neste teste, você pode fechar totalmente o aplicativo no gerenciador de tarefas do celular!</strong> O sinal de rede vindo do Google acordará o Service Worker do PWA automaticamente e exibirá o push, simulando alertas reais do Almoxarifado Ventisol.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-outline-variant/5 pt-3">
+                    <p className="text-xs font-black text-on-surface flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                      Como garantir o recebimento de notificações no Android:
+                    </p>
+                    <ul className="list-decimal pl-4 mt-2 space-y-1.5 text-[11px] text-on-surface-variant leading-relaxed">
+                      <li>Nas configurações do celular, vá em <strong>Aplicativos</strong> e selecione o app do <strong>Almoxarifado</strong>.</li>
+                      <li>Em <strong>Notificações</strong>, certifique-se de que a permissão está ativada e marcada como <strong>Prioridade / Permitir som e vibração</strong>.</li>
+                      <li>Em <strong>Bateria</strong> ou <strong>Uso de Bateria</strong>, mude de "Otimizado" ou "Restrito" para <strong>Sem restrições</strong>. Isto é de extrema importância! Algumas marcas como Samsung e Xiaomi desativam processos em segundo plano de forma agressiva se o app for otimizado.</li>
+                      <li>Certifique-se de que o dispositivo possui conexão de internet ativa e que os serviços do Google Play Services estão atualizados.</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>

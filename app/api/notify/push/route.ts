@@ -3,32 +3,43 @@ import { adminDb, adminMessaging } from '@/lib/firebase-admin';
 
 export async function POST(request: Request) {
   try {
-    const { title, body, senderUid } = await request.json();
+    const { title, body, senderUid, delay, targetToken } = await request.json();
 
     if (!title || !body) {
       return NextResponse.json({ error: 'Título e corpo são obrigatórios' }, { status: 400 });
     }
 
-    console.log('📡 Buscando tokens FCM no Firestore...');
-    const snapshot = await adminDb.collection('fcm_tokens').get();
-    
-    if (snapshot.empty) {
-      console.log('ℹ️ Nenhum token FCM registrado.');
-      return NextResponse.json({ success: true, message: 'Nenhum token encontrado.' });
+    // Se houver um delay solicitado para teste (ex: simular tempo para fechar o app)
+    if (delay && typeof delay === 'number' && delay > 0) {
+      const safeDelay = Math.min(delay, 15000); // limita em 15 segundos para evitar timeout de gateway
+      console.log(`⏱️ Aguardando delay de teste de ${safeDelay}ms antes de enviar o push...`);
+      await new Promise(resolve => setTimeout(resolve, safeDelay));
     }
 
-    const tokens: string[] = [];
-    const docIds: string[] = [];
+    console.log('📡 Buscando tokens FCM no Firestore...');
+    let tokens: string[] = [];
 
-    snapshot.docs.forEach(doc => {
-      const data = doc.data();
-      // Não envia para o próprio remetente se senderUid for fornecido
-      if (senderUid && data.uid === senderUid) {
-        return;
+    // Se foi fornecido um targetToken específico (ex: simulação de diagnóstico de dispositivo)
+    if (targetToken) {
+      console.log(`🎯 Direcionando notificação para token de teste específico: ${targetToken.substring(0, 15)}...`);
+      tokens = [targetToken];
+    } else {
+      const snapshot = await adminDb.collection('fcm_tokens').get();
+      
+      if (snapshot.empty) {
+        console.log('ℹ️ Nenhum token FCM registrado.');
+        return NextResponse.json({ success: true, message: 'Nenhum token encontrado.' });
       }
-      tokens.push(doc.id);
-      docIds.push(doc.id);
-    });
+
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        // Não envia para o próprio remetente se senderUid for fornecido
+        if (senderUid && data.uid === senderUid) {
+          return;
+        }
+        tokens.push(doc.id);
+      });
+    }
 
     if (tokens.length === 0) {
       return NextResponse.json({ success: true, message: 'Nenhum token de outros dispositivos encontrado.' });
