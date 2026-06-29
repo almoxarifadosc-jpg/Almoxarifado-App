@@ -34,7 +34,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { db, auth } from '@/lib/firebase';
-import SignatureCanvas from 'react-signature-canvas';
 import { 
   collection, 
   query, 
@@ -300,6 +299,141 @@ export const triggerSystemNotification = async (title: string, body: string) => 
   }
 };
 
+interface CustomSignatureCanvasProps {
+  penColor?: string;
+  canvasProps?: React.CanvasHTMLAttributes<HTMLCanvasElement>;
+}
+
+const CustomSignatureCanvas = React.forwardRef<any, CustomSignatureCanvasProps>(({ penColor = 'black', canvasProps }, ref) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasDrawn, setHasDrawn] = useState(false);
+
+  // Ajusta o tamanho real do buffer do canvas para coincidir com o tamanho visível na tela
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const resizeCanvas = () => {
+      const rect = canvas.getBoundingClientRect();
+      // Define a resolução interna do canvas baseado no tamanho de renderização CSS
+      canvas.width = rect.width || 300;
+      canvas.height = rect.height || 150;
+      
+      // Limpar o canvas e redefinir o estilo de desenho após redimensionar
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.strokeStyle = penColor;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+      }
+    };
+
+    // Executa imediatamente e em redimensionamentos
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, [penColor]);
+
+  const getCoordinates = (e: any) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    
+    // Suporta toques (touch) e cliques (mouse)
+    if (e.touches && e.touches.length > 0) {
+      const touch = e.touches[0];
+      return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+      };
+    } else if (e.changedTouches && e.changedTouches.length > 0) {
+      const touch = e.changedTouches[0];
+      return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+      };
+    } else {
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    }
+  };
+
+  const startDrawing = (e: any) => {
+    // Previne comportamento padrão de rolagem de tela no touch mobile!
+    if (e.cancelable) e.preventDefault();
+    const { x, y } = getCoordinates(e);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      setIsDrawing(true);
+    }
+  };
+
+  const draw = (e: any) => {
+    if (!isDrawing) return;
+    if (e.cancelable) e.preventDefault();
+    const { x, y } = getCoordinates(e);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      setHasDrawn(true);
+    }
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  React.useImperativeHandle(ref, () => ({
+    isEmpty: () => !hasDrawn,
+    clear: () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      setHasDrawn(false);
+    },
+    getTrimmedCanvas: () => {
+      return {
+        toDataURL: (type: string) => {
+          const canvas = canvasRef.current;
+          if (!canvas) return '';
+          return canvas.toDataURL(type);
+        }
+      };
+    }
+  }));
+
+  return (
+    <canvas
+      ref={canvasRef}
+      onMouseDown={startDrawing}
+      onMouseMove={draw}
+      onMouseUp={stopDrawing}
+      onMouseLeave={stopDrawing}
+      onTouchStart={startDrawing}
+      onTouchMove={draw}
+      onTouchEnd={stopDrawing}
+      {...canvasProps}
+    />
+  );
+});
+
 export function TransfersView({ 
   isAdmin, 
   userCategory 
@@ -368,7 +502,7 @@ export function TransfersView({
   // Extra signature and camera states / refs
   const [isSigning, setIsSigning] = useState(false);
   const [signedByName, setSignedByName] = useState('');
-  const sigCanvasRef = useRef<SignatureCanvas>(null);
+  const sigCanvasRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch transfers on mount
@@ -1938,7 +2072,7 @@ export function TransfersView({
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold uppercase text-on-surface-variant">Assinatura no Quadro Abaixo</label>
                       <div className="border border-outline-variant/20 rounded-xl overflow-hidden bg-white">
-                        <SignatureCanvas 
+                        <CustomSignatureCanvas 
                           ref={sigCanvasRef}
                           penColor="black"
                           canvasProps={{
