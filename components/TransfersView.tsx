@@ -107,8 +107,8 @@ export function formatElapsedTime(start: Date, end: Date): string {
   return `${pad(mins)}m ${pad(secs)}s`;
 }
 
-export function calculateBusinessTimeElapsed(start: Date, end: Date): string {
-  if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return "0 min";
+export function getBusinessMinutesElapsed(start: Date, end: Date): number {
+  if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0;
 
   let totalMs = 0;
   const startHourLimit = 8;
@@ -175,9 +175,18 @@ export function calculateBusinessTimeElapsed(start: Date, end: Date): string {
     }
   }
 
-  const totalMinutes = Math.floor(totalMs / (60 * 1000));
+  return Math.floor(totalMs / (60 * 1000));
+}
+
+export function calculateBusinessTimeElapsed(start: Date, end: Date): string {
+  const totalMinutes = getBusinessMinutesElapsed(start, end);
+  if (totalMinutes === 0) return "0 min";
   if (totalMinutes < 1) return "Menos de 1 min";
   if (totalMinutes < 60) return `${totalMinutes} min`;
+
+  const startHourLimit = 8;
+  const endHourLimit = 18;
+  const workHoursPerDay = endHourLimit - startHourLimit; // 10 horas
 
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
@@ -838,6 +847,9 @@ export function TransfersView({
         : (selectedTransfer.created_at instanceof Date ? selectedTransfer.created_at : new Date(selectedTransfer.created_at || now));
       
       const timeElapsed = calculateBusinessTimeElapsed(start, now);
+      const businessMinutes = getBusinessMinutesElapsed(start, now);
+      const isWithinSla = businessMinutes <= 10;
+      const slaStatusText = isWithinSla ? "Dentro do SLA" : "Fora do SLA (Não está dentro do SLA)";
 
       // Send update chat notification
       const chatMessage = `📦 *Transferência Atendida e Concluída*\n\n` +
@@ -846,11 +858,12 @@ export function TransfersView({
         `*Destino:* ${selectedTransfer.destination}\n` +
         `*Atendido por:* ${currentUserName}\n` +
         `*Tempo Útil de Atendimento:* ${timeElapsed}\n` +
+        `*SLA:* ${slaStatusText} (Limite: 10 min)\n` +
         `*Data:* ${now.toLocaleString('pt-BR')}`;
       
       await sendGoogleChatNotification(chatMessage);
 
-      setSuccess(`Transferência #${selectedTransfer.transfer_number} marcada como atendida com sucesso! Tempo de atendimento: ${timeElapsed}.`);
+      setSuccess(`Transferência #${selectedTransfer.transfer_number} marcada como atendida com sucesso! Tempo de atendimento: ${timeElapsed} (${slaStatusText}).`);
       setIsDetailOpen(false);
       setSelectedTransfer(null);
     } catch (err: any) {
@@ -1686,14 +1699,32 @@ export function TransfersView({
                             </div>
                           </div>
 
-                          {isAttended && end && (
-                            <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl text-primary flex items-center justify-between text-xs font-semibold">
-                              <span>SLA Útil Comercial:</span>
-                              <span className="font-extrabold font-mono bg-primary/20 px-2.5 py-1 rounded">
-                                {calculateBusinessTimeElapsed(start, end)}
-                              </span>
-                            </div>
-                          )}
+                          {isAttended && end && (() => {
+                            const businessMinutes = getBusinessMinutesElapsed(start, end);
+                            const withinSla = businessMinutes <= 10;
+                            return (
+                              <div className="space-y-2">
+                                <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl text-primary flex items-center justify-between text-xs font-semibold">
+                                  <span>SLA:</span>
+                                  <span className="font-extrabold font-mono bg-primary/20 px-2.5 py-1 rounded">
+                                    {calculateBusinessTimeElapsed(start, end)}
+                                  </span>
+                                </div>
+                                
+                                {withinSla ? (
+                                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-800 dark:text-emerald-400 flex items-center gap-2 text-xs font-bold">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                                    <span>✓ Dentro do SLA (Limite: 10 min)</span>
+                                  </div>
+                                ) : (
+                                  <div className="p-3 bg-error/10 border border-error/20 rounded-xl text-error flex items-center gap-2 text-xs font-bold">
+                                    <span className="w-2 h-2 rounded-full bg-error shrink-0 animate-pulse" />
+                                    <span>⚠️ Não está dentro do SLA (Limite: 10 min)</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })()}
