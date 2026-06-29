@@ -23,11 +23,18 @@ import {
   RefreshCw,
   Clock,
   User,
-  Navigation
+  Navigation,
+  Camera,
+  PenTool,
+  Image as ImageIcon,
+  History,
+  PackageCheck,
+  ClipboardCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { db, auth } from '@/lib/firebase';
+import SignatureCanvas from 'react-signature-canvas';
 import { 
   collection, 
   query, 
@@ -50,6 +57,7 @@ interface TransferItem {
   transferred_quantity?: number;
   location?: string;
   checked?: boolean;
+  attended_quantity?: number;
 }
 
 interface Transfer {
@@ -70,6 +78,17 @@ interface Transfer {
   attended_by_name?: string;
   attended_at?: any;
   started_separation_at?: any;
+  logs?: Array<{ step: string; timestamp: string; user: string }>;
+  delivery_location_image?: string;
+  delivery_location_saved_at?: any;
+  delivery_location_saved_by?: string;
+  signature_image?: string;
+  signature_collected_at?: any;
+  signature_collected_by?: string;
+  signature_signed_by_name?: string;
+  low_stock?: boolean;
+  low_stock_at?: any;
+  low_stock_by?: string;
 }
 
 export function formatElapsedTime(start: Date, end: Date): string {
@@ -336,6 +355,12 @@ export function TransfersView({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationItems, setVerificationItems] = useState<TransferItem[]>([]);
+  
+  // Extra signature and camera states / refs
+  const [isSigning, setIsSigning] = useState(false);
+  const [signedByName, setSignedByName] = useState('');
+  const sigCanvasRef = useRef<SignatureCanvas>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch transfers on mount
   useEffect(() => {
@@ -536,12 +561,20 @@ export function TransfersView({
         items: items.map(it => ({
           ...it,
           transferred_quantity: 0,
+          attended_quantity: it.quantity,
           checked: false
         })),
         created_at: serverTimestamp(),
         updated_at: serverTimestamp(),
         created_by_name: currentUserName,
-        device_id: myDeviceId
+        device_id: myDeviceId,
+        logs: [
+          {
+            step: 'Geração da Transferência',
+            timestamp: new Date().toISOString(),
+            user: currentUserName
+          }
+        ]
       };
 
       const docRef = await addDoc(collection(db, 'transfers'), transferDoc);
@@ -616,15 +649,27 @@ export function TransfersView({
     try {
       if (!selectedTransfer.started_separation_at) {
         const nowSecs = Math.floor(Date.now() / 1000);
+        const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema';
+        const updatedLogs = [
+          ...(selectedTransfer.logs || []),
+          {
+            step: 'Início da Conferência',
+            timestamp: new Date().toISOString(),
+            user: currentUserName
+          }
+        ];
+        
         await updateDoc(doc(db, 'transfers', selectedTransfer.id), {
           started_separation_at: serverTimestamp(),
+          logs: updatedLogs,
           updated_at: serverTimestamp()
         });
         
         // Update local object instantly
         setSelectedTransfer(prev => prev ? {
           ...prev,
-          started_separation_at: { seconds: nowSecs }
+          started_separation_at: { seconds: nowSecs },
+          logs: updatedLogs
         } : null);
       }
       setIsVerifying(true);
@@ -673,13 +718,23 @@ export function TransfersView({
     try {
       const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema';
       
+      const updatedLogs = [
+        ...(selectedTransfer.logs || []),
+        {
+          step: 'Finalização da Conferência',
+          timestamp: new Date().toISOString(),
+          user: currentUserName
+        }
+      ];
+
       const updatedTransfer = {
         ...selectedTransfer,
         status: 'Conferida' as const,
         items: verificationItems,
         updated_at: serverTimestamp(),
         conferred_by_name: currentUserName,
-        conferred_at: serverTimestamp()
+        conferred_at: serverTimestamp(),
+        logs: updatedLogs
       };
 
       await updateDoc(doc(db, 'transfers', selectedTransfer.id), {
@@ -687,7 +742,8 @@ export function TransfersView({
         items: verificationItems,
         updated_at: serverTimestamp(),
         conferred_by_name: currentUserName,
-        conferred_at: serverTimestamp()
+        conferred_at: serverTimestamp(),
+        logs: updatedLogs
       });
 
       // Send update chat notification
@@ -757,11 +813,21 @@ export function TransfersView({
       const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema';
       const now = new Date();
       
+      const updatedLogs = [
+        ...(selectedTransfer.logs || []),
+        {
+          step: 'Marcado como Atendida',
+          timestamp: new Date().toISOString(),
+          user: currentUserName
+        }
+      ];
+      
       const updateData = {
         status: 'Atendida' as const,
         updated_at: serverTimestamp(),
         attended_by_name: currentUserName,
-        attended_at: serverTimestamp()
+        attended_at: serverTimestamp(),
+        logs: updatedLogs
       };
 
       await updateDoc(doc(db, 'transfers', selectedTransfer.id), updateData);
@@ -791,6 +857,192 @@ export function TransfersView({
       console.error(err);
       setError('Erro ao marcar a transferência como atendida.');
       handleFirestoreError(err, OperationType.UPDATE, `transfers/${selectedTransfer.id}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Update the quantity of items served (attended_quantity)
+  const handleUpdateAttendedQuantity = async (index: number, val: number) => {
+    if (!selectedTransfer) return;
+    const updatedItems = [...selectedTransfer.items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      attended_quantity: Math.max(0, val)
+    };
+    
+    const updatedTransfer = {
+      ...selectedTransfer,
+      items: updatedItems
+    };
+    
+    setSelectedTransfer(updatedTransfer);
+    
+    try {
+      await updateDoc(doc(db, 'transfers', selectedTransfer.id), {
+        items: updatedItems,
+        updated_at: serverTimestamp()
+      });
+    } catch (err) {
+      console.error("Erro ao salvar quantidade atendida:", err);
+    }
+  };
+
+  // Register image / photo of delivery location
+  const handleRegisterDeliveryLocation = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedTransfer) return;
+    
+    setIsProcessing(true);
+    setError(null);
+    setSuccess(null);
+    
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        try {
+          const base64Data = reader.result as string;
+          const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema';
+          
+          const updatedLogs = [
+            ...(selectedTransfer.logs || []),
+            {
+              step: 'Registro de Local de Entrega',
+              timestamp: new Date().toISOString(),
+              user: currentUserName
+            }
+          ];
+          
+          await updateDoc(doc(db, 'transfers', selectedTransfer.id), {
+            delivery_location_image: base64Data,
+            delivery_location_saved_at: serverTimestamp(),
+            delivery_location_saved_by: currentUserName,
+            logs: updatedLogs,
+            updated_at: serverTimestamp()
+          });
+          
+          setSelectedTransfer(prev => prev ? {
+            ...prev,
+            delivery_location_image: base64Data,
+            delivery_location_saved_at: new Date(),
+            delivery_location_saved_by: currentUserName,
+            logs: updatedLogs
+          } : null);
+          
+          setSuccess('Local de entrega registrado com sucesso!');
+        } catch (innerErr) {
+          console.error("Erro interno ao ler imagem:", innerErr);
+          setError("Falha ao salvar a imagem.");
+        }
+      };
+    } catch (err) {
+      console.error("Erro ao registrar local de entrega:", err);
+      setError("Erro ao salvar imagem do local de entrega.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Save handwritten signature
+  const handleSaveSignature = async () => {
+    if (!sigCanvasRef.current || !selectedTransfer) return;
+    
+    if (!signedByName.trim()) {
+      setError("Por favor, digite o nome de quem está assinando.");
+      return;
+    }
+    
+    if (sigCanvasRef.current.isEmpty()) {
+      setError("Por favor, desenhe sua assinatura no quadro.");
+      return;
+    }
+    
+    setIsProcessing(true);
+    setError(null);
+    setSuccess(null);
+    
+    try {
+      const base64Data = sigCanvasRef.current.getTrimmedCanvas().toDataURL('image/png');
+      const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema';
+      
+      const updatedLogs = [
+        ...(selectedTransfer.logs || []),
+        {
+          step: `Assinatura Coletada (${signedByName})`,
+          timestamp: new Date().toISOString(),
+          user: currentUserName
+        }
+      ];
+      
+      await updateDoc(doc(db, 'transfers', selectedTransfer.id), {
+        signature_image: base64Data,
+        signature_collected_at: serverTimestamp(),
+        signature_collected_by: currentUserName,
+        signature_signed_by_name: signedByName,
+        logs: updatedLogs,
+        updated_at: serverTimestamp()
+      });
+      
+      setSelectedTransfer(prev => prev ? {
+        ...prev,
+        signature_image: base64Data,
+        signature_collected_at: new Date(),
+        signature_collected_by: currentUserName,
+        signature_signed_by_name: signedByName,
+        logs: updatedLogs
+      } : null);
+      
+      setIsSigning(false);
+      setSignedByName('');
+      setSuccess('Assinatura salva com sucesso!');
+    } catch (err) {
+      console.error("Erro ao salvar assinatura:", err);
+      setError("Erro ao salvar assinatura no banco de dados.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Perform stock write-off (low stock) and freeze actions
+  const handlePerformLowStock = async () => {
+    if (!selectedTransfer) return;
+    setIsProcessing(true);
+    setError(null);
+    setSuccess(null);
+    
+    try {
+      const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema';
+      
+      const updatedLogs = [
+        ...(selectedTransfer.logs || []),
+        {
+          step: 'Realizada Baixa de Estoque (Finalizado)',
+          timestamp: new Date().toISOString(),
+          user: currentUserName
+        }
+      ];
+      
+      await updateDoc(doc(db, 'transfers', selectedTransfer.id), {
+        low_stock: true,
+        low_stock_at: serverTimestamp(),
+        low_stock_by: currentUserName,
+        logs: updatedLogs,
+        updated_at: serverTimestamp()
+      });
+      
+      setSelectedTransfer(prev => prev ? {
+        ...prev,
+        low_stock: true,
+        low_stock_at: new Date(),
+        low_stock_by: currentUserName,
+        logs: updatedLogs
+      } : null);
+      
+      setSuccess('Baixa de estoque realizada com sucesso! A transferência foi concluída e arquivada.');
+    } catch (err) {
+      console.error("Erro ao dar baixa de estoque:", err);
+      setError("Erro ao registrar a baixa de estoque.");
     } finally {
       setIsProcessing(false);
     }
@@ -1156,165 +1408,99 @@ export function TransfersView({
                 <div className="h-px bg-outline-variant/10" />
 
                 {/* Form Inputs */}
-                <form onSubmit={handleSaveTransfer} className="space-y-5">
-                  <span className="block text-xs font-bold text-on-surface uppercase tracking-wider">Dados Principais da Transferência</span>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-on-surface-variant">Número do Documento</label>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="Ex: TR-2026-987"
-                        value={newTransfer.transfer_number}
-                        onChange={(e) => setNewTransfer({...newTransfer, transfer_number: e.target.value})}
-                        className="w-full px-3 py-2.5 bg-surface border border-outline-variant/15 rounded-xl text-sm focus:outline-none focus:border-primary text-on-surface"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-on-surface-variant">Data da Transferência</label>
-                      <input 
-                        type="date" 
-                        required
-                        value={newTransfer.date}
-                        onChange={(e) => setNewTransfer({...newTransfer, date: e.target.value})}
-                        className="w-full px-3 py-2.5 bg-surface border border-outline-variant/15 rounded-xl text-sm focus:outline-none focus:border-primary text-on-surface"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-on-surface-variant">Depósito de Origem</label>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="Ex: Almoxarifado Matriz"
-                        value={newTransfer.origin}
-                        onChange={(e) => setNewTransfer({...newTransfer, origin: e.target.value})}
-                        className="w-full px-3 py-2.5 bg-surface border border-outline-variant/15 rounded-xl text-sm focus:outline-none focus:border-primary text-on-surface"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-on-surface-variant">Depósito de Destino</label>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="Ex: Bemplas"
-                        value={newTransfer.destination}
-                        onChange={(e) => setNewTransfer({...newTransfer, destination: e.target.value})}
-                        className="w-full px-3 py-2.5 bg-surface border border-outline-variant/15 rounded-xl text-sm focus:outline-none focus:border-primary text-on-surface"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-2 space-y-1">
-                      <label className="text-xs font-semibold text-on-surface-variant">Responsável pela Transferência</label>
-                      <select 
-                        value={newTransfer.carrier}
-                        onChange={(e) => setNewTransfer({...newTransfer, carrier: e.target.value})}
-                        className="w-full px-3 py-2.5 bg-surface border border-outline-variant/15 rounded-xl text-sm focus:outline-none focus:border-primary text-on-surface cursor-pointer"
-                      >
-                        <option value="Jhon Alejandro Arevalo gomez">Jhon Alejandro Arevalo gomez</option>
-                        <option value="Dayan">Dayan</option>
-                      </select>
-                    </div>
-                  </div>
-                </form>
-
-                <div className="h-px bg-outline-variant/10" />
-
-                {/* Items addition manually */}
-                <div className="space-y-3">
-                  <span className="block text-xs font-bold text-on-surface uppercase tracking-wider">Adicionar Produtos</span>
-                  
-                  <div className="bg-surface-container-low p-4 rounded-2xl border border-outline-variant/10 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-on-surface-variant">Cód. Produto</label>
-                        <input 
-                          type="text" 
-                          placeholder="Ex: P1020"
-                          value={manualItem.code}
-                          onChange={(e) => setManualItem({...manualItem, code: e.target.value})}
-                          className="w-full px-2.5 py-2 bg-surface border border-outline-variant/15 rounded-lg text-xs uppercase text-on-surface"
-                        />
-                      </div>
-                      <div className="sm:col-span-2 space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-on-surface-variant">Descrição / Produto</label>
-                        <input 
-                          type="text" 
-                          placeholder="Ex: Ventilador de Coluna 40cm"
-                          value={manualItem.description}
-                          onChange={(e) => setManualItem({...manualItem, description: e.target.value})}
-                          className="w-full px-2.5 py-2 bg-surface border border-outline-variant/15 rounded-lg text-xs text-on-surface"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase text-on-surface-variant">Qtd. Solicitada</label>
-                        <input 
-                          type="number" 
-                          min={1}
-                          value={manualItem.quantity}
-                          onChange={(e) => setManualItem({...manualItem, quantity: Number(e.target.value)})}
-                          className="w-full px-2.5 py-2 bg-surface border border-outline-variant/15 rounded-lg text-xs text-on-surface"
-                        />
-                      </div>
-                      <div className="space-y-1 sm:col-span-2">
-                        <label className="text-[10px] font-bold uppercase text-on-surface-variant">Endereço / Localização (Opcional)</label>
-                        <input 
-                          type="text" 
-                          placeholder="Ex: Rua 4, Prateleira B"
-                          value={manualItem.location}
-                          onChange={(e) => setManualItem({...manualItem, location: e.target.value})}
-                          className="w-full px-2.5 py-2 bg-surface border border-outline-variant/15 rounded-lg text-xs text-on-surface"
-                        />
-                      </div>
+                {selectedFile && (
+                  <div className="space-y-5">
+                    <div className="flex items-center gap-2 text-primary">
+                      <ClipboardCheck size={16} />
+                      <span className="block text-xs font-bold text-on-surface uppercase tracking-wider">Dados Principais da Transferência (Prévia do PDF)</span>
                     </div>
                     
-                    <button
-                      type="button"
-                      onClick={handleAddManualItem}
-                      className="w-full py-2 bg-primary/10 text-primary font-bold hover:bg-primary/15 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5"
-                    >
-                      <Plus size={16} />
-                      Adicionar Produto à Lista
-                    </button>
-                  </div>
-                </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 opacity-80 pointer-events-none">
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-on-surface-variant">Número do Documento</label>
+                        <input 
+                          type="text" 
+                          disabled
+                          value={newTransfer.transfer_number}
+                          className="w-full px-3 py-2.5 bg-surface-container-high border border-outline-variant/15 rounded-xl text-sm text-on-surface"
+                        />
+                      </div>
 
-                {/* Items Preview List */}
-                <div className="space-y-2">
-                  <span className="block text-xs font-bold text-on-surface-variant">Produtos na Transferência ({newTransfer.items.length})</span>
-                  {newTransfer.items.length === 0 ? (
-                    <div className="p-6 bg-surface-container-low text-center rounded-2xl border border-dashed border-outline-variant/20 text-xs text-on-surface-variant">
-                      Nenhum produto adicionado à transferência ainda.
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-on-surface-variant">Data da Transferência</label>
+                        <input 
+                          type="date" 
+                          disabled
+                          value={newTransfer.date}
+                          className="w-full px-3 py-2.5 bg-surface-container-high border border-outline-variant/15 rounded-xl text-sm text-on-surface"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-on-surface-variant">Depósito de Origem</label>
+                        <input 
+                          type="text" 
+                          disabled
+                          value={newTransfer.origin}
+                          className="w-full px-3 py-2.5 bg-surface-container-high border border-outline-variant/15 rounded-xl text-sm text-on-surface"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-on-surface-variant">Depósito de Destino</label>
+                        <input 
+                          type="text" 
+                          disabled
+                          value={newTransfer.destination}
+                          className="w-full px-3 py-2.5 bg-surface-container-high border border-outline-variant/15 rounded-xl text-sm text-on-surface"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="text-xs font-semibold text-on-surface-variant">Responsável pela Transferência</label>
+                        <input 
+                          type="text" 
+                          disabled
+                          value={newTransfer.carrier}
+                          className="w-full px-3 py-2.5 bg-surface-container-high border border-outline-variant/15 rounded-xl text-sm text-on-surface"
+                        />
+                      </div>
                     </div>
-                  ) : (
-                    <div className="border border-outline-variant/10 rounded-2xl overflow-hidden divide-y divide-outline-variant/10 bg-surface">
-                      {newTransfer.items.map((it, idx) => (
-                        <div key={idx} className="p-3 flex items-center justify-between gap-3 hover:bg-surface-container-lowest transition-colors text-xs">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              {it.code && <span className="font-mono bg-surface-container-high px-1.5 py-0.5 rounded text-[10px] font-bold text-on-surface-variant">{it.code}</span>}
-                              <span className="font-bold text-on-surface truncate block">{it.description}</span>
-                            </div>
-                            {it.location && <span className="text-[10px] text-on-surface-variant">Loc: {it.location}</span>}
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <span className="font-mono font-bold text-on-surface text-sm">{it.quantity} un</span>
-                            <button 
-                              type="button"
-                              onClick={() => handleRemoveItem(idx)}
-                              className="text-error/70 hover:text-error hover:bg-error/10 p-1 rounded-lg"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
+                  </div>
+                )}
+
+                {selectedFile && (
+                  <>
+                    <div className="h-px bg-outline-variant/10" />
+
+                    {/* Items Preview List */}
+                    <div className="space-y-2">
+                      <span className="block text-xs font-bold text-on-surface-variant">Produtos na Transferência ({newTransfer.items.length})</span>
+                      {newTransfer.items.length === 0 ? (
+                        <div className="p-6 bg-surface-container-low text-center rounded-2xl border border-dashed border-outline-variant/20 text-xs text-on-surface-variant">
+                          Nenhum produto extraído do PDF da transferência.
                         </div>
-                      ))}
+                      ) : (
+                        <div className="border border-outline-variant/10 rounded-2xl overflow-hidden divide-y divide-outline-variant/10 bg-surface">
+                          {newTransfer.items.map((it, idx) => (
+                            <div key={idx} className="p-3 flex items-center justify-between gap-3 hover:bg-surface-container-lowest transition-colors text-xs">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  {it.code && <span className="font-mono bg-surface-container-high px-1.5 py-0.5 rounded text-[10px] font-bold text-on-surface-variant">{it.code}</span>}
+                                  <span className="font-bold text-on-surface truncate block">{it.description}</span>
+                                </div>
+                                {it.location && <span className="text-[10px] text-on-surface-variant">Loc: {it.location}</span>}
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <span className="font-mono font-bold text-on-surface text-sm">{it.quantity} un</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
 
               {/* Footer Actions */}
@@ -1537,26 +1723,54 @@ export function TransfersView({
                         const verifiedDivergent = selectedTransfer.status === 'Conferida' && it.transferred_quantity !== it.quantity;
 
                         return (
-                          <div key={idx} className="p-3.5 flex items-center justify-between gap-3 text-xs">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {it.code && <span className="font-mono bg-surface-container-high px-1 rounded text-[9px] font-bold text-on-surface-variant">{it.code}</span>}
-                                <span className="font-bold text-on-surface truncate">{it.description}</span>
+                          <div key={idx} className="p-3.5 flex flex-col gap-2.5 text-xs">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {it.code && <span className="font-mono bg-surface-container-high px-1 rounded text-[9px] font-bold text-on-surface-variant">{it.code}</span>}
+                                  <span className="font-bold text-on-surface truncate">{it.description}</span>
+                                </div>
+                                {it.location && <span className="text-[10px] text-on-surface-variant mt-0.5 block">Loc: {it.location}</span>}
                               </div>
-                              {it.location && <span className="text-[10px] text-on-surface-variant mt-0.5 block">Loc: {it.location}</span>}
-                            </div>
-                            <div className="text-right shrink-0">
-                              <div className="font-bold text-on-surface font-mono">
-                                {selectedTransfer.status === 'Conferida' ? (
-                                  <span className={cn(verifiedDivergent ? "text-error" : "text-success")}>
-                                    {it.transferred_quantity} / {it.quantity} un
-                                  </span>
-                                ) : (
-                                  <span>{it.quantity} un</span>
+                              <div className="text-right shrink-0">
+                                <div className="font-bold text-on-surface font-mono">
+                                  {selectedTransfer.status === 'Conferida' ? (
+                                    <span className={cn(verifiedDivergent ? "text-error" : "text-success")}>
+                                      Conf: {it.transferred_quantity} / {it.quantity} un
+                                    </span>
+                                  ) : (
+                                    <span>Plan: {it.quantity} un</span>
+                                  )}
+                                </div>
+                                {verifiedDivergent && (
+                                  <span className="text-[9px] text-error font-semibold uppercase">Divergência</span>
                                 )}
                               </div>
-                              {verifiedDivergent && (
-                                <span className="text-[9px] text-error font-semibold uppercase">Divergência</span>
+                            </div>
+                            
+                            {/* Nova coluna / campo de quantidade atendida */}
+                            <div className="flex items-center justify-between pt-1.5 border-t border-outline-variant/5 bg-surface-container-lowest/40 p-1.5 rounded-lg mt-0.5">
+                              <span className="text-[11px] font-medium text-on-surface-variant flex items-center gap-1">
+                                <PackageCheck size={12} className="text-primary" />
+                                Qtd. Atendida:
+                              </span>
+                              
+                              {selectedTransfer.low_stock ? (
+                                <span className="font-mono font-bold text-success text-xs bg-success/10 px-2 py-0.5 rounded">
+                                  {it.attended_quantity !== undefined ? it.attended_quantity : it.quantity} un
+                                </span>
+                              ) : (
+                                <div className="flex items-center gap-1.5">
+                                  <input 
+                                    type="number" 
+                                    min={0}
+                                    disabled={isProcessing}
+                                    value={it.attended_quantity !== undefined ? it.attended_quantity : it.quantity}
+                                    onChange={(e) => handleUpdateAttendedQuantity(idx, Number(e.target.value))}
+                                    className="w-16 px-2 py-0.5 bg-surface border border-outline-variant/20 rounded-md text-center font-mono font-bold text-on-surface text-xs focus:outline-none focus:border-primary disabled:opacity-50"
+                                  />
+                                  <span className="text-[10px] text-on-surface-variant font-mono">un</span>
+                                </div>
                               )}
                             </div>
                           </div>
@@ -1615,7 +1829,148 @@ export function TransfersView({
                     </div>
                   )}
                 </div>
-              </div>
+
+                {/* Mídias de Entrega (Foto Local e Assinatura) */}
+                {(selectedTransfer.delivery_location_image || selectedTransfer.signature_image) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-outline-variant/10 pt-4 mt-4">
+                    {selectedTransfer.delivery_location_image && (
+                      <div className="bg-surface-container-low p-3 rounded-2xl border border-outline-variant/5 space-y-2 text-center">
+                        <span className="block text-[10px] font-bold uppercase text-on-surface-variant flex items-center justify-center gap-1">
+                          <Camera size={12} className="text-primary" />
+                          Local de Entrega Registrado
+                        </span>
+                        <div className="relative aspect-video rounded-xl overflow-hidden border border-outline-variant/10 bg-black/10">
+                          <img 
+                            src={selectedTransfer.delivery_location_image} 
+                            alt="Local de Entrega" 
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        {selectedTransfer.delivery_location_saved_by && (
+                          <span className="block text-[9px] text-on-surface-variant font-mono">
+                            Por {selectedTransfer.delivery_location_saved_by}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {selectedTransfer.signature_image && (
+                      <div className="bg-surface-container-low p-3 rounded-2xl border border-outline-variant/5 space-y-2 text-center">
+                        <span className="block text-[10px] font-bold uppercase text-on-surface-variant flex items-center justify-center gap-1">
+                          <PenTool size={12} className="text-primary" />
+                          Assinatura Coletada
+                        </span>
+                        <div className="relative aspect-video rounded-xl overflow-hidden border border-outline-variant/10 bg-white flex items-center justify-center p-2">
+                          <img 
+                            src={selectedTransfer.signature_image} 
+                            alt="Assinatura" 
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                        {selectedTransfer.signature_signed_by_name && (
+                          <span className="block text-[9px] text-on-surface-variant font-mono">
+                            Signatário: {selectedTransfer.signature_signed_by_name}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Interface Coletor de Assinatura Eletrônica Manuscrita */}
+                {isSigning && (
+                  <div className="bg-surface-container-low p-4 rounded-2xl border border-outline-variant/15 space-y-3.5 border-t border-outline-variant/10 pt-4 mt-4">
+                    <div className="flex items-center justify-between text-xs font-bold text-on-surface">
+                      <span className="flex items-center gap-1.5">
+                        <PenTool size={14} className="text-primary" />
+                        Assinatura Eletrônica Manuscrita
+                      </span>
+                      <button 
+                        onClick={() => setIsSigning(false)}
+                        className="text-error font-semibold hover:underline"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-on-surface-variant">Nome Completo do Signatário / Recebedor</label>
+                      <input 
+                        type="text"
+                        placeholder="Digite o nome de quem está recebendo"
+                        value={signedByName}
+                        onChange={(e) => setSignedByName(e.target.value)}
+                        className="w-full px-3 py-2 bg-surface border border-outline-variant/15 rounded-xl text-xs text-on-surface focus:outline-none focus:border-primary"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-on-surface-variant">Assinatura no Quadro Abaixo</label>
+                      <div className="border border-outline-variant/20 rounded-xl overflow-hidden bg-white">
+                        <SignatureCanvas 
+                          ref={sigCanvasRef}
+                          penColor="black"
+                          canvasProps={{
+                            className: "w-full h-36 cursor-crosshair bg-white"
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => sigCanvasRef.current?.clear()}
+                        className="flex-1 py-2 bg-surface-container-high hover:bg-outline-variant/15 text-on-surface-variant font-bold rounded-xl text-xs transition-all"
+                      >
+                        Limpar Quadro
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveSignature}
+                        className="flex-1 py-2 bg-primary text-primary-container font-bold rounded-xl text-xs hover:opacity-90 transition-all flex items-center justify-center gap-1"
+                      >
+                        <Check size={14} />
+                        Confirmar e Salvar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Rastreabilidade e Logs de Auditoria */}
+                <div className="space-y-2 border-t border-outline-variant/10 pt-4 mt-4">
+                  <div className="flex items-center gap-1.5 text-on-surface-variant font-bold text-xs uppercase tracking-wider">
+                    <History size={14} className="text-primary" />
+                    <span>Rastreabilidade e Logs (Tempo Real)</span>
+                  </div>
+                  
+                  <div className="bg-surface-container-low p-3.5 rounded-2xl border border-outline-variant/5 space-y-3 max-h-48 overflow-y-auto">
+                    {selectedTransfer.logs && selectedTransfer.logs.length > 0 ? (
+                      <div className="relative border-l-2 border-primary/20 ml-2 pl-4 space-y-4 py-1">
+                        {selectedTransfer.logs.map((log, index) => (
+                          <div key={index} className="relative text-xs">
+                            {/* Bullet indicator */}
+                            <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-surface" />
+                            
+                            <div className="flex flex-col">
+                              <span className="font-bold text-on-surface">{log.step}</span>
+                              <div className="flex items-center gap-2 text-[10px] text-on-surface-variant mt-0.5">
+                                <span className="bg-surface-container-high px-1.5 py-0.5 rounded font-mono font-bold">{log.user}</span>
+                                <span>•</span>
+                                <span>{new Date(log.timestamp).toLocaleString('pt-BR')}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-on-surface-variant text-center py-2">
+                        Nenhum log gravado para esta transferência.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                </div>
 
               {/* Printable sheet container wrapper inside dynamic view (hidden from view, shown on print via @media) */}
               <div id="print-area" className="hidden p-8" style={{ fontFamily: 'monospace' }}>
@@ -1699,21 +2054,97 @@ export function TransfersView({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {/* Botão de Marcar como Atendida de alta visibilidade */}
-                    {(selectedTransfer.status === 'Pendente' || selectedTransfer.status === 'Conferida') && (
-                      <button 
-                        type="button"
-                        onClick={handleMarkAsAttended}
-                        disabled={isProcessing}
-                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/10 hover:shadow-emerald-600/20 transition-all cursor-pointer font-sans"
-                      >
-                        {isProcessing ? (
-                          <Loader2 className="animate-spin" size={15} />
-                        ) : (
-                          <CheckCircle2 size={15} />
+                    {/* Input invisível de captura de imagem pela Câmera */}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment" 
+                      ref={fileInputRef} 
+                      onChange={handleRegisterDeliveryLocation} 
+                      className="hidden" 
+                    />
+
+                    {selectedTransfer.low_stock ? (
+                      /* Se a transferência já tiver baixa dada */
+                      <div className="p-3 bg-success/10 text-success border border-success/20 rounded-xl text-xs text-center font-bold flex flex-col gap-1">
+                        <span>✓ Transferência Concluída e Baixada</span>
+                        <span className="text-[10px] font-normal text-on-surface-variant">Todas as etapas e baixas do estoque foram executadas.</span>
+                      </div>
+                    ) : (
+                      /* Fluxo de botões interativos baseado em status e pendências */
+                      <div className="space-y-3">
+                        {/* 1. Registrar Local de Entrega (Exibido acima de Marcar como Atendida após conferido) */}
+                        {selectedTransfer.status === 'Conferida' && (
+                          <button 
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isProcessing}
+                            className="w-full py-2.5 bg-primary/10 hover:bg-primary/15 border border-primary/20 text-primary font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                          >
+                            <Camera size={15} />
+                            {selectedTransfer.delivery_location_image ? "Atualizar Foto Local de Entrega" : "Registrar Local de Entrega"}
+                          </button>
                         )}
-                        Marcar como Atendida
-                      </button>
+
+                        {/* 2. Marcar como Atendida (Só disponível se o Local de Entrega for salvo) */}
+                        {(selectedTransfer.status === 'Pendente' || selectedTransfer.status === 'Conferida') && (
+                          <div className="space-y-1">
+                            <button 
+                              type="button"
+                              onClick={handleMarkAsAttended}
+                              disabled={isProcessing || (selectedTransfer.status === 'Conferida' && !selectedTransfer.delivery_location_image)}
+                              className={cn(
+                                "w-full py-3 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer font-sans shadow-lg",
+                                (selectedTransfer.status === 'Conferida' && !selectedTransfer.delivery_location_image)
+                                  ? "bg-surface-container-high text-on-surface-variant border border-outline-variant/10 cursor-not-allowed opacity-50 shadow-none"
+                                  : "bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-emerald-600/10 hover:shadow-emerald-600/20"
+                              )}
+                            >
+                              {isProcessing ? (
+                                <Loader2 className="animate-spin" size={15} />
+                              ) : (
+                                <CheckCircle2 size={15} />
+                              )}
+                              Marcar como Atendida
+                            </button>
+                            {selectedTransfer.status === 'Conferida' && !selectedTransfer.delivery_location_image && (
+                              <p className="text-[10px] text-center text-error font-medium">
+                                * Salve o Local de Entrega antes de marcar como atendida
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 3. Coletar Assinatura (Surge após Marcar como Atendida) */}
+                        {selectedTransfer.status === 'Atendida' && !selectedTransfer.signature_image && !isSigning && (
+                          <button 
+                            type="button"
+                            onClick={() => setIsSigning(true)}
+                            disabled={isProcessing}
+                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all cursor-pointer font-sans"
+                          >
+                            <PenTool size={15} />
+                            Coletar Assinatura Recebedor
+                          </button>
+                        )}
+
+                        {/* 4. Realizar Baixa (Surge após assinada) */}
+                        {selectedTransfer.status === 'Atendida' && selectedTransfer.signature_image && (
+                          <button 
+                            type="button"
+                            onClick={handlePerformLowStock}
+                            disabled={isProcessing}
+                            className="w-full py-3 bg-success hover:bg-success-hover active:scale-95 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-success/15 transition-all cursor-pointer font-sans"
+                          >
+                            {isProcessing ? (
+                              <Loader2 className="animate-spin" size={15} />
+                            ) : (
+                              <PackageCheck size={15} />
+                            )}
+                            Realizar Baixa no Estoque
+                          </button>
+                        )}
+                      </div>
                     )}
 
                     <div className="flex items-center gap-3">
@@ -1725,7 +2156,7 @@ export function TransfersView({
                         Imprimir Ficha
                       </button>
                       
-                      {selectedTransfer.status === 'Pendente' && (
+                      {selectedTransfer.status === 'Pendente' && !selectedTransfer.low_stock && (
                         <button 
                           onClick={handleCancelTransfer}
                           disabled={isProcessing}
@@ -1751,7 +2182,10 @@ export function TransfersView({
 
                     <button 
                       type="button"
-                      onClick={() => setIsDetailOpen(false)}
+                      onClick={() => {
+                        setIsDetailOpen(false);
+                        setIsSigning(false);
+                      }}
                       className="w-full py-2 text-center text-xs text-on-surface-variant font-bold hover:underline"
                     >
                       Fechar Painel
