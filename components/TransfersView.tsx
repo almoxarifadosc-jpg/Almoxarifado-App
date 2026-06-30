@@ -434,6 +434,53 @@ const CustomSignatureCanvas = React.forwardRef<any, CustomSignatureCanvasProps>(
   );
 });
 
+const compressImage = (file: File, maxWidth: number = 800, maxHeight: number = 800, quality: number = 0.7): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Não foi possível obter o contexto 2D do canvas'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      };
+      img.onerror = (err) => {
+        reject(err);
+      };
+    };
+    reader.onerror = (err) => {
+      reject(err);
+    };
+  });
+};
+
 export function TransfersView({ 
   isAdmin, 
   userCategory 
@@ -524,6 +571,18 @@ export function TransfersView({
 
     return () => unsubscribe();
   }, []);
+
+  // Sincronizar selectedTransfer com a lista transfers atualizada em tempo real via onSnapshot
+  useEffect(() => {
+    if (selectedTransfer) {
+      const updated = transfers.find(t => t.id === selectedTransfer.id);
+      if (updated) {
+        if (JSON.stringify(updated) !== JSON.stringify(selectedTransfer)) {
+          setSelectedTransfer(updated);
+        }
+      }
+    }
+  }, [transfers, selectedTransfer]);
 
   // Filtered transfers
   const filteredTransfers = useMemo(() => {
@@ -1041,53 +1100,46 @@ export function TransfersView({
     if (!file || !selectedTransfer) return;
     
     setIsProcessing(true);
+    setProcessingStatus('Compactando e salvando imagem do local de entrega...');
     setError(null);
     setSuccess(null);
     
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        try {
-          const base64Data = reader.result as string;
-          const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema';
-          
-          const updatedLogs = [
-            ...(selectedTransfer.logs || []),
-            {
-              step: 'Registro de Local de Entrega',
-              timestamp: new Date().toISOString(),
-              user: currentUserName
-            }
-          ];
-          
-          await updateDoc(doc(db, 'transfers', selectedTransfer.id), {
-            delivery_location_image: base64Data,
-            delivery_location_saved_at: serverTimestamp(),
-            delivery_location_saved_by: currentUserName,
-            logs: updatedLogs,
-            updated_at: serverTimestamp()
-          });
-          
-          setSelectedTransfer(prev => prev ? {
-            ...prev,
-            delivery_location_image: base64Data,
-            delivery_location_saved_at: new Date(),
-            delivery_location_saved_by: currentUserName,
-            logs: updatedLogs
-          } : null);
-          
-          setSuccess('Local de entrega registrado com sucesso!');
-        } catch (innerErr) {
-          console.error("Erro interno ao ler imagem:", innerErr);
-          setError("Falha ao salvar a imagem.");
+      const base64Data = await compressImage(file, 800, 800, 0.7);
+      const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema';
+      
+      const updatedLogs = [
+        ...(selectedTransfer.logs || []),
+        {
+          step: 'Registro de Local de Entrega',
+          timestamp: new Date().toISOString(),
+          user: currentUserName
         }
-      };
-    } catch (err) {
+      ];
+      
+      await updateDoc(doc(db, 'transfers', selectedTransfer.id), {
+        delivery_location_image: base64Data,
+        delivery_location_saved_at: serverTimestamp(),
+        delivery_location_saved_by: currentUserName,
+        logs: updatedLogs,
+        updated_at: serverTimestamp()
+      });
+      
+      setSelectedTransfer(prev => prev ? {
+        ...prev,
+        delivery_location_image: base64Data,
+        delivery_location_saved_at: new Date(),
+        delivery_location_saved_by: currentUserName,
+        logs: updatedLogs
+      } : null);
+      
+      setSuccess('Local de entrega registrado com sucesso!');
+    } catch (err: any) {
       console.error("Erro ao registrar local de entrega:", err);
-      setError("Erro ao salvar imagem do local de entrega.");
+      setError("Erro ao salvar imagem do local de entrega: " + (err.message || String(err)));
     } finally {
       setIsProcessing(false);
+      setProcessingStatus(null);
     }
   };
 

@@ -30,13 +30,14 @@ interface SidebarProps {
   currentView: View;
   onViewChange: (view: View) => void;
   isAdmin?: boolean;
+  isSuperAdmin?: boolean;
   isViewer?: boolean;
   category?: string;
   isMobileOpen?: boolean;
   onClose?: () => void;
 }
 
-export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category, isMobileOpen, onClose }: SidebarProps) {
+export function Sidebar({ currentView, onViewChange, isAdmin, isSuperAdmin, isViewer, category, isMobileOpen, onClose }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const sections = [
@@ -50,16 +51,16 @@ export function Sidebar({ currentView, onViewChange, isAdmin, isViewer, category
         ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'PERFORMANCE' as View, label: 'Desempenho', icon: BarChart3 } : null,
         ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'INFO' as View, label: 'Informaçōes', icon: Rocket } : null,
         ((isAdmin && category !== 'Recebimento') || category === 'Ventisol' || category === 'Conferente' || category === 'Ventisol + Conferente' || isViewer) ? { id: 'NEWS_PORTAL' as View, label: 'Notícias', icon: Newspaper } : null,
+        !isViewer ? { id: 'TRANSFERS' as View, label: 'Transferências', icon: ArrowLeftRight } : null,
       ].filter(Boolean) as any
     },
     {
       title: 'Intercompany',
-      items: [
+      items: isSuperAdmin ? [
         { id: 'RECEIPTS' as View, label: 'Carregamentos', icon: Truck },
-        { id: 'TRANSFERS' as View, label: 'Transferências', icon: ArrowLeftRight },
         { id: 'RECEIPTS_DASHBOARD' as View, label: 'Dash Rec.', icon: LayoutDashboard },
         { id: 'SUPPLIERS' as View, label: 'Fornecedores', icon: Users },
-      ].filter(() => !isViewer)
+      ].filter(() => !isViewer) : []
     },
     {
       title: 'Admin',

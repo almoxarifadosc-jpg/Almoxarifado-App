@@ -568,6 +568,7 @@ export default function Home() {
         currentView={currentView} 
         onViewChange={setCurrentView}
         isAdmin={profile?.is_admin}
+        isSuperAdmin={profile?.is_super_admin}
         isViewer={profile?.is_viewer}
         category={profile?.category}
         isMobileOpen={isMobileSidebarOpen}
