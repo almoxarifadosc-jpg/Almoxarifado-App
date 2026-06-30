@@ -538,6 +538,17 @@ export function TransfersView({
 
   // UI feedback states
   const [filterText, setFilterText] = useState('');
+  
+  const getLocalDateString = (date: Date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [startDate, setStartDate] = useState<string>(getLocalDateString());
+  const [endDate, setEndDate] = useState<string>(getLocalDateString());
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -586,16 +597,34 @@ export function TransfersView({
 
   // Filtered transfers
   const filteredTransfers = useMemo(() => {
-    const text = filterText.toLowerCase().trim();
-    if (!text) return transfers;
-    return transfers.filter(t => 
-      t.transfer_number.toLowerCase().includes(text) ||
-      t.origin.toLowerCase().includes(text) ||
-      t.destination.toLowerCase().includes(text) ||
-      (t.carrier && t.carrier.toLowerCase().includes(text)) ||
-      t.items.some(item => item.description.toLowerCase().includes(text) || item.code.toLowerCase().includes(text))
-    );
-  }, [transfers, filterText]);
+    return transfers.filter(t => {
+      // 1. Filtro por texto
+      const text = filterText.toLowerCase().trim();
+      if (text) {
+        const matchesText = t.transfer_number.toLowerCase().includes(text) ||
+          t.origin.toLowerCase().includes(text) ||
+          t.destination.toLowerCase().includes(text) ||
+          (t.carrier && t.carrier.toLowerCase().includes(text)) ||
+          t.items.some(item => item.description.toLowerCase().includes(text) || item.code.toLowerCase().includes(text));
+        
+        if (!matchesText) return false;
+      }
+
+      // 2. Filtro por data
+      // Transferências não atendidas (status !== 'Atendida' e status !== 'Cancelada') devem aparecer
+      // independentemente do filtro de data (assim sempre são exibidas as pendentes).
+      const isPendingAtendimento = t.status !== 'Atendida' && t.status !== 'Cancelada';
+      if (isPendingAtendimento) {
+        return true;
+      }
+
+      // Se já foi finalizada (Atendida ou Cancelada), aplica o filtro de datas
+      if (startDate && t.date < startDate) return false;
+      if (endDate && t.date > endDate) return false;
+
+      return true;
+    });
+  }, [transfers, filterText, startDate, endDate]);
 
   // Request browser notification permissions
   const requestNotificationPermission = async () => {
@@ -1395,7 +1424,7 @@ export function TransfersView({
       </AnimatePresence>
 
       {/* Filter and Search Bar */}
-      <div className="bg-surface-container-low p-4 rounded-3xl border border-outline-variant/10 shadow-sm flex flex-col md:flex-row gap-4">
+      <div className="bg-surface-container-low p-4 rounded-3xl border border-outline-variant/10 shadow-sm flex flex-col xl:flex-row gap-4 items-stretch xl:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/60" size={20} />
           <input 
@@ -1405,6 +1434,28 @@ export function TransfersView({
             onChange={(e) => setFilterText(e.target.value)}
             className="w-full pl-12 pr-4 py-3 bg-surface border border-outline-variant/15 rounded-2xl text-sm focus:outline-none focus:border-primary transition-colors text-on-surface"
           />
+        </div>
+
+        {/* Filtros de Data */}
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          <div className="flex items-center gap-2 bg-surface px-3 py-2 border border-outline-variant/15 rounded-2xl">
+            <span className="text-xs font-semibold text-on-surface-variant whitespace-nowrap font-sans">Início:</span>
+            <input 
+              type="date" 
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-transparent text-xs text-on-surface focus:outline-none font-medium font-sans"
+            />
+          </div>
+          <div className="flex items-center gap-2 bg-surface px-3 py-2 border border-outline-variant/15 rounded-2xl">
+            <span className="text-xs font-semibold text-on-surface-variant whitespace-nowrap font-sans">Fim:</span>
+            <input 
+              type="date" 
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-transparent text-xs text-on-surface focus:outline-none font-medium font-sans"
+            />
+          </div>
         </div>
       </div>
 
@@ -1444,7 +1495,14 @@ export function TransfersView({
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className="font-mono font-bold text-sm text-primary">#{t.transfer_number}</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-mono font-bold text-sm text-primary">#{t.transfer_number}</span>
+                      {t.low_stock && (
+                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider uppercase bg-emerald-600 text-white shadow-sm font-sans">
+                          ✓ Baixada
+                        </span>
+                      )}
+                    </div>
                     <span className={cn(
                       "px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide",
                       attended ? "bg-emerald-500/12 text-emerald-600" :
